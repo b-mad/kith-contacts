@@ -36,6 +36,9 @@ requirements, and do not silently deviate from an ADR.
 - No runtime calls to third-party services and no CDN assets (N-04). Vendor
   JavaScript into `app/static/vendor/`.
 - Seed/reset/destructive commands must refuse to run when `APP_ENV=production` (I-05).
+- Keep routes thin: validation in `app/schemas.py`, rules in `app/contacts.py` (or a
+  sibling module per area). Every form POST includes `{{ m.csrf() }}`; templates must
+  not use inline `style=` or inline `<script>` (blocked by the CSP).
 - Type everything; `mypy --strict` must pass. Prefer small pure functions that
   are easy to unit test.
 
@@ -77,12 +80,19 @@ delete a failing test to get a green run unless the requirement was withdrawn.
 | `app/config.py` | Instance settings loaded from the env file (I-01) |
 | `app/db.py` | Engine and session factory |
 | `app/models.py` | SQLAlchemy models (data model §6) |
+| `app/schemas.py` | Pydantic input/output models and validation rules |
+| `app/contacts.py` | Contact business logic — routes stay thin and call this |
+| `app/links.py` | Pure helpers for mailto/tel/Slack/Teams links and phone format |
+| `app/api.py` | JSON API (`/api/...`); writes require `application/json` |
+| `app/web.py` | Server-rendered pages and forms; POSTs need the CSRF token |
+| `app/static/js/app.js` | Small vanilla JS enhancements (manager picker, form rows) |
 | `app/migrate.py` | Runs Alembic on start-up; fails fast (I-04) |
 | `app/main.py` | FastAPI app factory, routes, templates |
 | `app/templates/` | Jinja templates (HTMX/Alpine for interactivity) |
 | `migrations/` | Alembic migrations |
 | `scripts/bootstrap_instance.py` | Creates an instance's database, role and env file (I-02) |
 | `scripts/req_trace.py` | Requirement → test traceability report |
+| `scripts/seed.py` | Sample data for dev instances; refuses production (I-05) |
 | `tests/` | pytest suite; `conftest.py` creates a throwaway database |
 | `docs/requirements.md` | Requirements (source of truth) |
 | `docs/adr/` | Architecture decision records |
@@ -96,5 +106,7 @@ make instance NAME=dev PORT=5180 ENV=development
 ./run.sh dev                 # run an instance
 make check                   # everything CI runs
 make test                    # tests only
+make seed I=dev              # sample contacts (dev only)
+make trace PHASE=1           # requirement coverage up to a phase
 make migration m="add tags"  # new Alembic migration
 ```

@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% set editing = contact_id is not none %}
+{% block title %}{{ "Edit " ~ values.display_name if editing else "Add contact" }}{% endblock %}
+{% block content %}
+<h1>{{ "Edit contact" if editing else "Add contact" }}</h1>
+
+{% if errors %}
+  <div class="error-summary" role="alert" data-testid="error-summary">
+    <p>Please fix {{ "this" if errors | length == 1 else "these" }}:</p>
+    <ul>{% for field, msg in errors.items() %}<li>{{ msg }}</li>{% endfor %}</ul>
+  </div>
+{% endif %}
+
+<form method="post" action="{{ '/contacts/%d/edit' % contact_id if editing else '/contacts' }}" class="contact-form" novalidate data-testid="contact-form">
+  {{ m.csrf() }}
+
+  <fieldset>
+    <legend>Who</legend>
+    <div class="row">
+      {{ m.text_input("Display name", "display_name", values, errors, required=True, hint="How you refer to them — a nickname or partial name is fine.") }}
+      <div class="field{% if errors.get('contact_type_id') %} has-error{% endif %}">
+        <label for="contact_type_id">Type <span aria-hidden="true">*</span></label>
+        <select id="contact_type_id" name="contact_type_id" required>
+          {% for t in types %}
+            <option value="{{ t.id }}"{% if values.get('contact_type_id') == t.id | string %} selected{% endif %}>{{ t.name }}</option>
+          {% endfor %}
+        </select>
+        {{ m.field_error(errors, "contact_type_id") }}
+      </div>
+    </div>
+    <div class="row three">
+      {{ m.text_input("First name", "first_name", values, errors) }}
+      {{ m.text_input("Last name", "last_name", values, errors) }}
+      {{ m.text_input("Nickname", "nickname", values, errors) }}
+    </div>
+    <div class="row">
+      {{ m.text_input("Pronunciation", "pronunciation", values, errors, hint="e.g. PREE-yah RAH-mun") }}
+      <div class="field check-field">
+        <label class="check"><input type="checkbox" name="is_favorite"{% if values.get('is_favorite') %} checked{% endif %}> Favorite</label>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Organization</legend>
+    <div class="row">
+      {{ m.text_input("Company", "company", values, errors) }}
+      {{ m.text_input("Title", "title", values, errors) }}
+    </div>
+    <div class="row three">
+      {{ m.text_input("Team", "team", values, errors) }}
+      {{ m.text_input("Department", "department", values, errors) }}
+      {{ m.text_input("Location", "location", values, errors) }}
+    </div>
+    <div class="field manager-picker{% if errors.get('manager_id') %} has-error{% endif %}" data-manager-picker data-exclude="{{ contact_id or '' }}">
+      <label for="manager_label">Manager</label>
+      <div class="picker">
+        <input id="manager_label" name="manager_label" type="text" value="{{ values.get('manager_label', '') }}"
+               placeholder="Start typing a name, team or company…" autocomplete="off"
+               role="combobox" aria-expanded="false" aria-controls="manager-options" aria-autocomplete="list"
+               data-testid="manager-input">
+        <input type="hidden" name="manager_id" value="{{ values.get('manager_id', '') }}" data-testid="manager-id">
+        <button type="button" class="link" data-clear-manager>Clear</button>
+      </div>
+      <ul id="manager-options" class="options" role="listbox" hidden data-testid="manager-options"></ul>
+      {{ m.field_error(errors, "manager_id") }}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Email</legend>
+    <div class="rows" data-rows="email">
+      {% for e in emails %}
+        <div class="row-item">
+          <input type="email" name="email_address" value="{{ e.address }}" aria-label="Email {{ loop.index }}" placeholder="name@example.com">
+          <input type="text" name="email_label" value="{{ e.label }}" aria-label="Email {{ loop.index }} label" placeholder="work, personal…" class="label-input">
+          <label class="check"><input type="radio" name="primary_email" value="{{ loop.index0 }}"{% if e.is_primary %} checked{% endif %}> Primary</label>
+          <button type="button" class="link" data-remove-row aria-label="Remove email {{ loop.index }}">Remove</button>
+        </div>
+      {% endfor %}
+    </div>
+    <template id="email-row">
+      <div class="row-item">
+        <input type="email" name="email_address" aria-label="Email" placeholder="name@example.com">
+        <input type="text" name="email_label" aria-label="Email label" placeholder="work, personal…" class="label-input">
+        <label class="check"><input type="radio" name="primary_email" value=""> Primary</label>
+        <button type="button" class="link" data-remove-row aria-label="Remove email">Remove</button>
+      </div>
+    </template>
+    <button type="button" class="link" data-add-row="email">+ Add email</button>
+    {{ m.field_error(errors, "emails") }}
+  </fieldset>
+
+  <fieldset>
+    <legend>Phone</legend>
+    <div class="rows" data-rows="phone">
+      {% for p in phones %}
+        <div class="row-item">
+          <input type="tel" name="phone_number" value="{{ p.number }}" aria-label="Phone {{ loop.index }}" placeholder="(404) 555-0100">
+          <input type="text" name="phone_label" value="{{ p.label }}" aria-label="Phone {{ loop.index }} label" placeholder="mobile, work…" class="label-input">
+          <button type="button" class="link" data-remove-row aria-label="Remove phone {{ loop.index }}">Remove</button>
+        </div>
+      {% endfor %}
+    </div>
+    <template id="phone-row">
+      <div class="row-item">
+        <input type="tel" name="phone_number" aria-label="Phone" placeholder="(404) 555-0100">
+        <input type="text" name="phone_label" aria-label="Phone label" placeholder="mobile, work…" class="label-input">
+        <button type="button" class="link" data-remove-row aria-label="Remove phone">Remove</button>
+      </div>
+    </template>
+    <button type="button" class="link" data-add-row="phone">+ Add phone</button>
+    {{ m.field_error(errors, "phones") }}
+  </fieldset>
+
+  <fieldset>
+    <legend>Chat</legend>
+    <div class="row three">
+      {{ m.text_input("Slack handle", "slack_handle", values, errors, hint="e.g. @maria") }}
+      {{ m.text_input("Slack DM link", "slack_url", values, errors, type="url", hint="Copy link to profile in Slack") }}
+      {{ m.text_input("Teams chat link", "teams_url", values, errors, type="url", hint="Leave blank to use their primary email") }}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Context</legend>
+    <div class="field">
+      <label for="works_on">Works on</label>
+      <textarea id="works_on" name="works_on" rows="3" placeholder="Projects, systems, products they own…">{{ values.get('works_on', '') }}</textarea>
+    </div>
+    <div class="field">
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes" rows="4" placeholder="How you met, memory cues…">{{ values.get('notes', '') }}</textarea>
+    </div>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="primary" data-testid="save">{{ "Save changes" if editing else "Add contact" }}</button>
+    <a href="{{ '/contacts/%d' % contact_id if editing else '/' }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

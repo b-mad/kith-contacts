@@ -140,6 +140,7 @@ def render_env_file(spec: InstanceSpec, database_url: str) -> str:
         f"DATABASE_URL={database_url}\n"
         f"BACKUP_DIR={backup}\n"
         f"CONTACT_TYPES={spec.contact_types}\n"
+        "PHONE_REGION=US\n"
     )
 
 

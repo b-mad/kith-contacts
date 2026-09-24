@@ -1,0 +1,18 @@
+{% macro csrf() -%}
+<input type="hidden" name="{{ csrf_field }}" value="{{ request.state.csrf_token }}">
+{%- endmacro %}
+
+{% macro field_error(errors, name) -%}
+{% if errors.get(name) %}<p class="field-error" id="{{ name }}-error" role="alert">{{ errors[name] }}</p>{% endif %}
+{%- endmacro %}
+
+{% macro text_input(label, name, values, errors, type="text", required=False, hint=None, autocomplete="off") -%}
+<div class="field{% if errors.get(name) %} has-error{% endif %}">
+  <label for="{{ name }}">{{ label }}{% if required %} <span aria-hidden="true">*</span>{% endif %}</label>
+  <input id="{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ values.get(name, '') }}"
+         autocomplete="{{ autocomplete }}"{% if required %} required{% endif %}
+         {% if errors.get(name) %}aria-invalid="true" aria-describedby="{{ name }}-error"{% endif %}>
+  {% if hint %}<p class="hint">{{ hint }}</p>{% endif %}
+  {{ field_error(errors, name) }}
+</div>
+{%- endmacro %}

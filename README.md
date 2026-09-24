@@ -7,7 +7,7 @@ context — team, manager, project, tags — even when you forget their name.
 - Decisions: [docs/adr/](docs/adr/README.md)
 - Agent / contributor rules: [CLAUDE.md](CLAUDE.md)
 
-**Status:** Phase 0 (foundation) complete.
+**Status:** Phase 1 (contact core) complete — add, edit, archive and browse contacts.
 
 ## Prerequisites
 
@@ -23,6 +23,7 @@ make db-up          # PostgreSQL 17 on localhost:5432 (Docker)
 # create the dev instance: database, role and instances/dev.env
 make instance NAME=dev PORT=5180 ENV=development
 
+make seed I=dev     # optional: ~50 sample contacts (refused in production)
 ./run.sh dev        # http://localhost:5180
 ```
 

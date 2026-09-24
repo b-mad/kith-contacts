@@ -8,7 +8,7 @@ ifeq ($(shell command -v uv 2>/dev/null),)
 $(error uv is not installed. Install it with `brew install uv` (or `curl -LsSf https://astral.sh/uv/install.sh | sh`), then open a new terminal)
 endif
 
-.PHONY: help install fmt lint typecheck test e2e check trace db-up db-down instance migration
+.PHONY: help install fmt lint typecheck test e2e check trace db-up db-down instance migration seed
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -50,6 +50,10 @@ instance: ## Create an instance: make instance NAME=dev PORT=5180 ENV=developmen
 	@test -n "$(NAME)" -a -n "$(PORT)" -a -n "$(ENV)" || (echo "usage: make instance NAME=.. PORT=.. ENV=development|production" && exit 2)
 	$(UV) python -m scripts.bootstrap_instance --name "$(NAME)" --port "$(PORT)" --env "$(ENV)" \
 		$(if $(COLOR),--color "$(COLOR)") $(if $(TYPES),--types "$(TYPES)")
+
+seed: ## Load ~50 sample contacts into a dev instance: make seed I=dev [RESET=1] (refused in production)
+	@test -n "$(I)" || (echo "usage: make seed I=<instance> [RESET=1]" && exit 2)
+	INSTANCE_ENV_FILE=instances/$(I).env $(UV) python -m scripts.seed $(if $(RESET),--reset)
 
 migration: ## New Alembic migration from model changes: make migration m="add tags" (uses the dev instance)
 	@test -n "$(m)" || (echo 'usage: make migration m="message"' && exit 2)

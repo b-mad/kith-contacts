@@ -6,14 +6,18 @@
   <title>{% block title %}Contacts{% endblock %} · {{ instance.instance_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
   <link rel="stylesheet" href="{{ url_for('instance_css') }}">
+  <script src="{{ url_for('static', path='js/app.js') }}" defer></script>
 </head>
 <body class="env-{{ instance.app_env }}">
   <header class="instance-bar" data-testid="instance-bar">
     <a class="brand" href="/">Contacts</a>
     <span class="instance-name" data-testid="instance-name">{{ instance.instance_name }}</span>
-    {% if not instance.is_production %}
-      <span class="env-badge" data-testid="env-badge">{{ instance.app_env | upper }}</span>
-    {% endif %}
+    <nav class="bar-actions">
+      <a class="bar-link" href="/contacts/new" data-testid="nav-add">+ Add contact</a>
+      {% if not instance.is_production %}
+        <span class="env-badge" data-testid="env-badge">{{ instance.app_env | upper }}</span>
+      {% endif %}
+    </nav>
   </header>
   <main>
     {% block content %}{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}All contacts{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Contacts</h1>
+  <a class="button primary" href="/contacts/new">Add contact</a>
+</div>
+
+<form class="filters" method="get" action="/" data-autosubmit>
+  <label for="type">Type</label>
+  <select id="type" name="type" data-testid="type-filter">
+    <option value="">All types</option>
+    {% for t in types %}
+      <option value="{{ t.id }}"{% if t.id == type_id %} selected{% endif %}>{{ t.name }}</option>
+    {% endfor %}
+  </select>
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <label class="check">
+    <input type="checkbox" name="archived" value="1"{% if include_archived %} checked{% endif %}> Show archived
+  </label>
+  <noscript><button type="submit">Apply</button></noscript>
+</form>
+
+{% if contacts %}
+  {% macro sort_link(key, label) -%}
+    <a href="?sort={{ key }}{% if type_id %}&amp;type={{ type_id }}{% endif %}{% if include_archived %}&amp;archived=1{% endif %}"
+       {% if sort == key %}aria-current="true" class="sorted"{% endif %}>{{ label }}</a>
+  {%- endmacro %}
+  <div class="table-wrap">
+  <table class="contacts" data-testid="contact-table">
+    <thead>
+      <tr>
+        <th scope="col">{{ sort_link("name", "Name") }}</th>
+        <th scope="col">{{ sort_link("type", "Type") }}</th>
+        <th scope="col">{{ sort_link("company", "Company") }}</th>
+        <th scope="col">{{ sort_link("team", "Team") }}</th>
+        <th scope="col">Title</th>
+        <th scope="col">Manager</th>
+        <th scope="col">Email</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in contacts %}
+        <tr{% if c.archived %} class="archived"{% endif %}>
+          <td><a href="/contacts/{{ c.id }}">{{ c.display_name }}</a>{% if c.archived %} <span class="pill muted">Archived</span>{% endif %}</td>
+          <td><span class="pill">{{ c.contact_type.name }}</span></td>
+          <td>{{ c.company or "" }}</td>
+          <td>{{ c.team or "" }}</td>
+          <td>{{ c.title or "" }}</td>
+          <td>{% if c.manager %}<a href="/contacts/{{ c.manager.id }}">{{ c.manager.display_name }}</a>{% endif %}</td>
+          <td>{% if c.emails %}<a href="{{ c.links.mailto }}">{{ c.emails[0].email }}</a>{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted count">{{ contacts | length }} contact{{ "" if contacts | length == 1 else "s" }}</p>
+{% else %}
+  <p class="empty" data-testid="empty-state">No contacts yet.</p>
+{% endif %}
+{% endblock %}

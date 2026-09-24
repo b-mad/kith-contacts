@@ -41,7 +41,7 @@ def test_missing_musts_ignores_later_phases_and_withdrawn(tmp_path: Path) -> Non
     assert missing_musts(reqs, {}, phase=0) == ["I-01"]
 
 
-def test_all_phase_0_musts_are_tested(capsys: pytest.CaptureFixture[str]) -> None:
+def test_all_due_musts_are_tested(capsys: pytest.CaptureFixture[str]) -> None:
     """Guards the definition of done: every Must due by the current phase has a test."""
-    assert main(["--phase", "0", "--strict"]) == 0
+    assert main(["--phase", "1", "--strict"]) == 0
     assert "untested: 0" in capsys.readouterr().out

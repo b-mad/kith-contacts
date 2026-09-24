@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     instance_color: str = Field(default="#1f6feb", pattern=r"^#[0-9a-fA-F]{6}$")
     backup_dir: Path | None = None
     contact_types: Annotated[tuple[str, ...], NoDecode] = DEFAULT_CONTACT_TYPES
+    phone_region: str = Field(default="US", pattern=r"^[A-Z]{2}$")
 
     @field_validator("contact_types", mode="before")
     @classmethod
