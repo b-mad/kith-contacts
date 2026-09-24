@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.1.1 |
+| Version | 1.2.1 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-09-24 |
@@ -100,6 +100,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | C-11 | Custom fields (key/value) per contact. | Could | 4 |
 | C-12 | Detect and merge likely duplicates (same email or similar name + company). | Should | 4 |
 | C-13 | Activity log: dated interaction notes (meeting, call, email). | Could | 4 |
+| C-14 | Company is chosen from a dropdown of existing companies, with "+ Add new company…"; a new name matching an existing one (ignoring case) reuses its spelling. A new Employee defaults to the home company (`HOME_COMPANY`, else the most common Employee company) (ADR-0009). | Must | 2 |
 
 ### Search and discovery
 
@@ -139,8 +140,8 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | ID | Requirement | Priority | Phase |
 | --- | --- | --- | --- |
 | M-01 | Multi-select contacts in any view (search, list, tag, org). | Must | 2 |
-| M-02 | **Copy emails**: copies primary emails of selected contacts to the clipboard, semicolon-separated for Outlook (comma option), skipping contacts without email and saying how many were skipped. | Must | 2 |
-| M-03 | **Open in mail**: builds a `mailto:` link with the selected recipients (To / Cc choice). | Should | 2 |
+| M-02 | **Copy emails**: copies primary emails of selected contacts to the clipboard, skipping contacts without email and saying how many were skipped. With more than one contact the user chooses **Outlook** (semicolon-separated) or **Gmail** (comma-separated); the last choice is remembered (ADR-0009). | Must | 2 |
+| M-03 | **Compose**: opens a new message to the selected recipients in **Gmail**, **Outlook on the web** or the **default mail app** (`mailto:`), with a To / Cc choice (ADR-0009). | Should | 2 |
 | M-04 | One-click Slack DM, Teams chat, `tel:` and `mailto:` on each card. | Must | 1 |
 | M-05 | Teams group chat link for selected contacts (`users=a@x.com,b@y.com`). | Could | 3 |
 
@@ -205,7 +206,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | `contact_tag` | contact_id, tag_id | Phase 2. Composite key. |
 | `contact_list` | id, name, description, status, created_at | Phase 2. The "project list". |
 | `list_member` | list_id, contact_id, role_note, added_at | Phase 2. Composite key. |
-| `contact.search_vector` | Weighted tsvector: name (A); team, manager, company (B); title, tags, works_on (C); notes (D) | Phase 2. Trigger-maintained, GIN index; plus `pg_trgm` GIN index on names. |
+| `contact.search_vector` | Weighted tsvector: name (A); team, manager, company (B); title, tags, works_on (C); notes (D) | Maintained by the application (`app/search.py`, ADR-0010); GIN index; plus `pg_trgm` GIN index on names. |
 
 Each instance has its own database, so no table carries an instance column.
 Later phases add `activity` and `custom_field`.
@@ -225,7 +226,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | --- | --- | --- | --- |
 | 0 — Foundation ✅ | Repo, PostgreSQL, instance config; dev instance on localhost | N-01, N-02, N-10, I-01, I-02, I-04 | 3–4 days |
 | 1 — Contact core ✅ | Store and edit rich contacts | C-01–C-08, M-04, I-03, I-05 | 1 week |
-| 2 — Find and act (MVP) | Context search, tags, lists, copy emails | S-01–S-05, T-01–T-02, L-01–L-04, M-01–M-03, C-10 | 2 weeks |
+| 2 — Find and act (MVP) ✅ | Context search, tags, lists, copy emails | S-01–S-05, T-01–T-02, L-01–L-04, M-01–M-03, C-10, C-14 | 2 weeks |
 | 3 — Daily-driver | Production instances; org view, import/export, backups | S-06, T-03–T-04, L-05, C-09, M-05, D-01–D-04, N-06, I-06–I-08 | 1–2 weeks |
 | 4 — Depth | Power-user features | C-11–C-13, S-07, T-05, I-09 | 1–2 weeks |
 | 5 — Smart | Semantic search and directory sync | S-08, D-05 | 2+ weeks |
@@ -252,10 +253,11 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 ### Phase 2 — Find and act (MVP)
 
-- Weighted `search_vector` + GIN index (trigger-maintained); `pg_trgm` index on names; `GET /api/search?q=&type=&tag=&list=&company=&team=&manager=`.
+- Weighted `search_vector` + GIN index (maintained by the app, ADR-0010); `pg_trgm` index on names; `GET /api/search?q=&type=&tag=&list=&company=&team=&manager=`.
 - Ranking with `ts_rank`; `pg_trgm` similarity fallback; each hit returns the matched fields.
 - Global search bar with instant results and filter chips; tags with autocomplete; lists with role notes.
-- Multi-select with a sticky action bar: Copy emails, Open in mail, Add to list, Add tag.
+- Multi-select with a sticky action bar: Copy emails (Outlook or Gmail), Compose (Gmail, Outlook on the web, mail app), Add to list, Add tag.
+- Company dropdown with “+ Add new company…”; new employees default to the home company (C-14).
 
 **Done when:** with seed data, "data platform maria" puts the right engineer in the top 3; selecting 5 list members (1 without email) copies 4 addresses and reports "1 skipped".
 
@@ -279,7 +281,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 - [x] Build language → Python (ADR-0004).
 - [x] Slack or Teams → both are used; both actions on every card (ADR-0007).
 - [x] Backup location → local folder for now, `~/ContactsBackups/<instance>` (ADR-0007).
-- [ ] Default mail client — Outlook or Gmail? Sets the Copy emails separator default (`;` vs `,`).
+- [x] Default mail client → both are used; the user chooses Outlook or Gmail when copying or composing (ADR-0009).
 - [ ] Is any contact data subject to company data-handling policy? Affects where the business instance may run.
 - [ ] Is a directory export (Outlook / Entra ID CSV) available to seed the business instance in Phase 3?
 
@@ -298,6 +300,8 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.2.1 | 2026-09-24 | Phase 2 delivered. Clarified: search document maintained by the application rather than triggers. | 0010 |
+| 1.2 | 2026-09-24 | M-02 and M-03 changed: choose Outlook or Gmail when copying or composing to several contacts. C-14 added: company dropdown with add-new and a default for new employees. | 0009 |
 | 1.1.1 | 2026-09-24 | Phase 1 delivered. Clarified: phone numbers normalized to E.164 using the instance's `PHONE_REGION`; Slack/Teams links must be https. No requirement added or removed. | 0008 |
 | 1.1 | 2026-09-24 | PostgreSQL replaces SQLite; instances (I-01–I-09) added; Python stack chosen; Slack + Teams both required on cards (C-04); backups to local folder (I-06, N-06); contact types configurable per instance (C-05). | 0003, 0004, 0005, 0007 |
 | 1.0 | 2026-09-24 | Initial requirements baseline. | 0002 |

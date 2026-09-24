@@ -38,3 +38,5 @@ not change meaning — those are logged in the requirements change log only.
 | [0006](0006-testing-and-definition-of-done.md) | Testing strategy and definition of done | Accepted | N-10 |
 | [0007](0007-slack-teams-and-local-backups.md) | Slack and Teams on every card; local-folder backups | Accepted | C-04, M-04, I-06, N-06 |
 | [0008](0008-server-rendered-forms-csrf-and-phone-numbers.md) | Server-rendered forms, CSRF protection and phone number format | Accepted | C-01–C-08, M-04, N-04, N-05 |
+| [0009](0009-mail-client-choice-and-company-picker.md) | Choose Gmail or Outlook when emailing a group; company picker with a default | Accepted | M-02, M-03, C-14 |
+| [0010](0010-search-document-maintained-in-application.md) | Search document maintained by the application, not database triggers | Accepted | S-01–S-05 |
