@@ -37,3 +37,4 @@ not change meaning — those are logged in the requirements change log only.
 | [0005](0005-isolated-instances-per-database.md) | Isolated instances: one database and env file per instance | Accepted | I-01–I-09, N-05 |
 | [0006](0006-testing-and-definition-of-done.md) | Testing strategy and definition of done | Accepted | N-10 |
 | [0007](0007-slack-teams-and-local-backups.md) | Slack and Teams on every card; local-folder backups | Accepted | C-04, M-04, I-06, N-06 |
+| [0008](0008-server-rendered-forms-csrf-and-phone-numbers.md) | Server-rendered forms, CSRF protection and phone number format | Accepted | C-01–C-08, M-04, N-04, N-05 |

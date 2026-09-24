@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.1 |
+| Version | 1.1.1 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-09-24 |
@@ -200,7 +200,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | `contact_type` | id, name (unique), sort_order | Per-instance list seeded from `CONTACT_TYPES` (C-05, I-08). |
 | `contact` | id, display_name\*, first_name, last_name, nickname, contact_type_id → contact_type, company, title, team, department, location, manager_id → contact, works_on, notes, slack_handle, slack_url, teams_url, photo_path, pronunciation, is_favorite, archived_at, created_at, updated_at | \* required. `manager_id` nullable; no self-reference; cycles rejected in app logic. |
 | `contact_email` | id, contact_id, email, label, is_primary | Unique (contact_id, lower(email)); at most one primary per contact. |
-| `contact_phone` | id, contact_id, number, label | Store E.164 when parseable. |
+| `contact_phone` | id, contact_id, number, label | Stored as E.164 when parseable, using the instance's `PHONE_REGION` (ADR-0008). |
 | `tag` | id, name (unique, case-insensitive), color | Phase 2. |
 | `contact_tag` | contact_id, tag_id | Phase 2. Composite key. |
 | `contact_list` | id, name, description, status, created_at | Phase 2. The "project list". |
@@ -223,8 +223,8 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Phase | Goal | Requirements | Estimate |
 | --- | --- | --- | --- |
-| 0 — Foundation | Repo, PostgreSQL, instance config; dev instance on localhost | N-01, N-02, N-10, I-01, I-02, I-04 | 3–4 days |
-| 1 — Contact core | Store and edit rich contacts | C-01–C-08, M-04, I-03, I-05 | 1 week |
+| 0 — Foundation ✅ | Repo, PostgreSQL, instance config; dev instance on localhost | N-01, N-02, N-10, I-01, I-02, I-04 | 3–4 days |
+| 1 — Contact core ✅ | Store and edit rich contacts | C-01–C-08, M-04, I-03, I-05 | 1 week |
 | 2 — Find and act (MVP) | Context search, tags, lists, copy emails | S-01–S-05, T-01–T-02, L-01–L-04, M-01–M-03, C-10 | 2 weeks |
 | 3 — Daily-driver | Production instances; org view, import/export, backups | S-06, T-03–T-04, L-05, C-09, M-05, D-01–D-04, N-06, I-06–I-08 | 1–2 weeks |
 | 4 — Depth | Power-user features | C-11–C-13, S-07, T-05, I-09 | 1–2 weeks |
@@ -298,5 +298,6 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.1.1 | 2026-09-24 | Phase 1 delivered. Clarified: phone numbers normalized to E.164 using the instance's `PHONE_REGION`; Slack/Teams links must be https. No requirement added or removed. | 0008 |
 | 1.1 | 2026-09-24 | PostgreSQL replaces SQLite; instances (I-01–I-09) added; Python stack chosen; Slack + Teams both required on cards (C-04); backups to local folder (I-06, N-06); contact types configurable per instance (C-05). | 0003, 0004, 0005, 0007 |
 | 1.0 | 2026-09-24 | Initial requirements baseline. | 0002 |
