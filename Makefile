@@ -3,6 +3,11 @@ SHELL := /bin/bash
 UV := uv run
 PHASE ?= 0
 
+# Prerequisite checks with install hints (README: Prerequisites).
+ifeq ($(shell command -v uv 2>/dev/null),)
+$(error uv is not installed. Install it with `brew install uv` (or `curl -LsSf https://astral.sh/uv/install.sh | sh`), then open a new terminal)
+endif
+
 .PHONY: help install fmt lint typecheck test e2e check trace db-up db-down instance migration
 
 help: ## Show available commands
@@ -35,6 +40,7 @@ trace: ## Requirement -> test traceability (PHASE=n)
 	$(UV) python -m scripts.req_trace --phase $(PHASE)
 
 db-up: ## Start local PostgreSQL (Docker)
+	@command -v docker >/dev/null || (echo 'Docker is not installed or not running: install Docker Desktop (https://www.docker.com/products/docker-desktop/) and start it' && exit 1)
 	docker compose -f docker-compose.db.yml up -d --wait
 
 db-down: ## Stop local PostgreSQL (data is kept)
