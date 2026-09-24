@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Contact types{% endblock %}
+{% block content %}
+<h1>Contact types</h1>
+<p class="muted">Types are per instance — e.g. Employee, Customer, Vendor at work; Family, Friend, Service provider at home.</p>
+{% if error %}<p class="error-summary" role="alert" data-testid="types-error">{{ error }}</p>{% endif %}
+
+<table class="contacts types-table" data-testid="types-table">
+  <thead><tr><th scope="col">Type</th><th scope="col">Contacts</th><th scope="col">Order</th><th scope="col">Delete</th></tr></thead>
+  <tbody>
+    {% for t, count in rows %}
+      <tr data-testid="type-row">
+        <td>
+          <form method="post" action="/settings/types/{{ t.id }}/rename" class="inline-form">{{ m.csrf() }}
+            <input name="name" value="{{ t.name }}" aria-label="Name of type {{ t.name }}" maxlength="50" required>
+            <button type="submit" class="link small">Rename</button>
+          </form>
+        </td>
+        <td><a href="/?type={{ t.id }}">{{ count }}</a></td>
+        <td class="nowrap">
+          {% if not loop.first %}<form method="post" action="/settings/types/{{ t.id }}/move" class="inline">{{ m.csrf() }}<input type="hidden" name="direction" value="up"><button type="submit" class="link" aria-label="Move {{ t.name }} up">↑</button></form>{% endif %}
+          {% if not loop.last %}<form method="post" action="/settings/types/{{ t.id }}/move" class="inline">{{ m.csrf() }}<input type="hidden" name="direction" value="down"><button type="submit" class="link" aria-label="Move {{ t.name }} down">↓</button></form>{% endif %}
+        </td>
+        <td>
+          {% if rows | length > 1 %}
+          <details>
+            <summary>Delete…</summary>
+            <form method="post" action="/settings/types/{{ t.id }}/delete" class="inline-form">{{ m.csrf() }}
+              {% if count %}
+                <label class="small" for="move-{{ t.id }}">Move its {{ count }} contact(s) to</label>
+                <select id="move-{{ t.id }}" name="move_to" required>
+                  {% for other, _ in rows if other.id != t.id %}<option value="{{ other.id }}">{{ other.name }}</option>{% endfor %}
+                </select>
+              {% endif %}
+              <button type="submit" class="danger small">Delete {{ t.name }}</button>
+            </form>
+          </details>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<form method="post" action="/settings/types" class="inline-form" data-testid="add-type">{{ m.csrf() }}
+  <label for="new-type" class="visually-hidden">New type</label>
+  <input id="new-type" name="name" placeholder="New type, e.g. Family" maxlength="50" required>
+  <button type="submit" class="primary">Add type</button>
+</form>
+<p><a href="/settings">← Settings</a></p>
+{% endblock %}

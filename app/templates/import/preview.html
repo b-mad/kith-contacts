@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Import preview{% endblock %}
+{% block content %}
+<h1>Import preview</h1>
+<p data-testid="import-summary">
+  <strong>{{ counts.ready }}</strong> ready to import ·
+  <strong>{{ counts.duplicates }}</strong> possible duplicate{{ "" if counts.duplicates == 1 else "s" }} ·
+  <strong>{{ counts.errors }}</strong> with errors · {{ counts.total }} rows in the file.
+</p>
+
+<form method="post" action="/import/run" class="contact-form" data-testid="import-run-form">{{ m.csrf() }}
+  <input type="hidden" name="kind" value="{{ kind }}">
+  <textarea name="raw" hidden>{{ raw }}</textarea>
+
+  {% if kind == "csv" %}
+  <fieldset>
+    <legend>Column mapping</legend>
+    <p class="muted small">Recognised columns are matched automatically. Change any mapping and press “Update preview”.</p>
+    <div class="mapping">
+      {% for header in headers %}
+        {% set idx = loop.index0 %}
+        <label class="mapping-row">
+          <span class="mapping-header">{{ header or "(blank)" }}</span>
+          <select name="map_{{ idx }}" data-testid="map-{{ idx }}">
+            <option value="">Ignore</option>
+            {% for key, label in field_labels.items() %}<option value="{{ key }}"{% if mapping.get(idx) == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  {% endif %}
+
+  <div class="row">
+    <div class="field">
+      <label for="default_type_id">Type for rows without one</label>
+      <select id="default_type_id" name="default_type_id">
+        {% for t in types %}<option value="{{ t.id }}"{% if t.id == default_type_id %} selected{% endif %}>{{ t.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="list_name">Also add everyone to a list (optional)</label>
+      <input id="list_name" name="list_name" value="{{ list_name }}">
+    </div>
+  </div>
+
+  <div class="table-wrap">
+  <table class="contacts" data-testid="import-preview-table">
+    <thead><tr><th scope="col">Row</th><th scope="col">Name</th><th scope="col">Company</th><th scope="col">Title</th><th scope="col">Email</th><th scope="col">Manager</th><th scope="col">Tags</th><th scope="col">Status</th></tr></thead>
+    <tbody>
+      {% for r in preview %}
+        <tr data-testid="import-row" class="{{ 'row-error' if not r.ok else ('row-dup' if r.duplicate_of else '') }}">
+          <td>{{ r.number }}</td>
+          <td>{{ r.data.display_name }}</td>
+          <td>{{ r.data.company or "" }}</td>
+          <td>{{ r.data.title or "" }}</td>
+          <td>{{ r.data.emails | map(attribute="email") | join(", ") }}</td>
+          <td>{{ r.manager_name or "" }}</td>
+          <td>{{ r.tags | join(", ") }}</td>
+          <td>
+            {% if not r.ok %}<span class="pill bad">Error</span> <span class="small">{{ r.errors | join("; ") }}</span>
+            {% elif r.duplicate_of %}<span class="pill warn">Duplicate?</span> <span class="small">{{ r.duplicate_of }}</span>
+            {% else %}<span class="pill ok">Ready</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if planned | length > preview | length %}<p class="muted small">Showing the first {{ preview | length }} of {{ planned | length }} rows.</p>{% endif %}
+
+  {% if counts.duplicates %}
+    <label class="check"><input type="checkbox" name="include_duplicates" data-testid="include-duplicates"> Import possible duplicates too</label>
+  {% endif %}
+  <div class="form-actions">
+    <button type="submit" class="primary" data-testid="import-run">Import {{ counts.ready }} contact{{ "" if counts.ready == 1 else "s" }}</button>
+    <button type="submit" formaction="/import/preview" data-testid="import-update">Update preview</button>
+    <a href="/import">Start over</a>
+  </div>
+</form>
+{% endblock %}

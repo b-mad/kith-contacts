@@ -225,6 +225,10 @@ function initSelection() {
       }
       const field = ($('input[name="compose_field"]:checked', bar) || { value: "to" }).value;
       const url = composeUrl(button.dataset.composeIn, emails, field);
+      if (button.dataset.composeIn === "teams" && emails.length > 250) {
+        say("Teams group chats hold at most 250 people.");
+        return;
+      }
       const limit = button.dataset.composeIn === "mailto" ? 2000 : 8000;
       if (url.length > limit) {
         say(`Too many recipients for a link (${emails.length}). Use Copy emails instead.`);
@@ -233,7 +237,8 @@ function initSelection() {
       store.set("contacts.composeClient", button.dataset.composeIn);
       if (button.dataset.composeIn === "mailto") window.location.href = url;
       else window.open(url, "_blank", "noopener,noreferrer");
-      say(`Opening a new email to ${emails.length} ${emails.length === 1 ? "person" : "people"}${skippedNote(skipped)}`);
+      const what = button.dataset.composeIn === "teams" ? "a Teams chat with" : "a new email to";
+      say(`Opening ${what} ${emails.length} ${emails.length === 1 ? "person" : "people"}${skippedNote(skipped)}`);
     }),
   );
 
@@ -242,6 +247,10 @@ function initSelection() {
 
 function composeUrl(client, emails, field) {
   const enc = (list, sep) => list.map(encodeURIComponent).join(sep);
+  if (client === "teams") {
+    // M-05: Teams group chat with everyone selected (To/Cc does not apply).
+    return `https://teams.microsoft.com/l/chat/0/0?users=${enc(emails, ",")}`;
+  }
   if (client === "gmail") {
     return `https://mail.google.com/mail/?view=cm&fs=1&${field}=${enc(emails, ",")}`;
   }

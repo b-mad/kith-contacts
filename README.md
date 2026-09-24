@@ -7,7 +7,7 @@ context — team, manager, project, tags — even when you forget their name.
 - Decisions: [docs/adr/](docs/adr/README.md)
 - Agent / contributor rules: [CLAUDE.md](CLAUDE.md)
 
-**Status:** Phase 2 (find and act — the MVP) complete: context search, tags, project lists, multi-select with Copy emails / Compose for Outlook or Gmail.
+**Status:** Phase 3 (daily driver) complete: backups and restore, CSV/vCard/JSON import and export, org chart, related people, photos, tag and contact-type admin. Operations guide: [docs/operations.md](docs/operations.md).
 
 ## Prerequisites
 
@@ -43,6 +43,7 @@ make check    # format check, lint, type check, tests with coverage (what CI run
 make test     # tests only (needs PostgreSQL running)
 make trace    # requirement → test traceability
 make fmt      # auto-format
+make backup I=dev   # back up an instance (see docs/operations.md)
 ```
 
 Tests create and drop their own database. Point them at another server with

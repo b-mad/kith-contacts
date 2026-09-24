@@ -1,13 +1,44 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m with context %}
 {% block title %}Tags{% endblock %}
 {% block content %}
 <h1>Tags</h1>
 {% if tags %}
   <ul class="tag-cloud" data-testid="tag-cloud">
     {% for t in tags %}
-      <li><a class="tag" href="/?tag={{ t.name | urlencode }}">{{ t.name }} <span class="count">{{ t.count }}</span></a></li>
+      <li><a class="tag tag-c-{{ t.color or 'none' }}" href="/?tag={{ t.name | urlencode }}">{{ t.name }} <span class="count">{{ t.count }}</span></a></li>
     {% endfor %}
   </ul>
+
+  <h2>Manage tags</h2>
+  <p class="muted small">Renaming a tag to an existing tag's name merges them.</p>
+  <table class="contacts" data-testid="tag-admin">
+    <thead><tr><th scope="col">Tag</th><th scope="col">Contacts</th><th scope="col">Color</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+    <tbody>
+      {% for t in tags %}
+        <tr data-testid="tag-row">
+          <td colspan="3">
+            <form method="post" action="/tags/{{ t.id }}/edit" class="inline-form tag-edit">{{ m.csrf() }}
+              <input name="name" value="{{ t.name }}" aria-label="Name of tag {{ t.name }}" maxlength="50" required>
+              <span class="count-cell">{{ t.count }}</span>
+              <select name="color" aria-label="Color of tag {{ t.name }}">
+                <option value="">No color</option>
+                {% for c in colors %}<option value="{{ c }}"{% if t.color == c %} selected{% endif %}>{{ c | capitalize }}</option>{% endfor %}
+              </select>
+              <button type="submit" class="link small">Save</button>
+            </form>
+          </td>
+          <td>
+            <details><summary class="small">Delete…</summary>
+              <form method="post" action="/tags/{{ t.id }}/delete">{{ m.csrf() }}
+                <button type="submit" class="danger small">Remove “{{ t.name }}” from {{ t.count }} contact(s)</button>
+              </form>
+            </details>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 {% else %}
   <p class="empty">No tags yet. Add tags on a contact card, or select several contacts and choose “Add tag”.</p>
 {% endif %}

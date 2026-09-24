@@ -16,6 +16,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     MetaData,
     String,
     Table,
@@ -143,7 +144,6 @@ class Contact(Base):
     slack_handle: Mapped[str | None] = mapped_column(String(100))
     slack_url: Mapped[str | None] = mapped_column(String(500))
     teams_url: Mapped[str | None] = mapped_column(String(500))
-    photo_path: Mapped[str | None] = mapped_column(String(500))
     pronunciation: Mapped[str | None] = mapped_column(String(200))
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -162,6 +162,7 @@ class Contact(Base):
     memberships: Mapped[list[ListMember]] = relationship(
         back_populates="contact", cascade="all, delete-orphan"
     )
+    photo: Mapped[ContactPhoto | None] = relationship(cascade="all, delete-orphan")
     manager: Mapped[Contact | None] = relationship(
         remote_side="Contact.id", back_populates="reports"
     )
@@ -171,6 +172,21 @@ class Contact(Base):
     )
     phones: Mapped[list[ContactPhone]] = relationship(
         back_populates="contact", cascade="all, delete-orphan"
+    )
+
+
+class ContactPhoto(Base):
+    """C-09: one photo per contact, stored in the database so backups include it (ADR-0011)."""
+
+    __tablename__ = "contact_photo"
+
+    contact_id: Mapped[int] = mapped_column(
+        ForeignKey("contact.id", ondelete="CASCADE"), primary_key=True
+    )
+    content_type: Mapped[str] = mapped_column(String(30))
+    data: Mapped[bytes] = deferred(mapped_column(LargeBinary, nullable=False))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
 

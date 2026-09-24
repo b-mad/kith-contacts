@@ -70,21 +70,74 @@ class TagCount:
     id: int
     name: str
     count: int
+    color: str | None = None
 
 
 def tag_counts(session: Session, q: str = "", limit: int = 500) -> Sequence[TagCount]:
     """Tags with the number of active contacts using them; ``q`` filters by prefix."""
     stmt = (
-        select(Tag.id, Tag.name, func.count(Contact.id))
+        select(Tag.id, Tag.name, func.count(Contact.id), Tag.color)
         .select_from(Tag)
         .outerjoin(contact_tag, contact_tag.c.tag_id == Tag.id)
         .outerjoin(
             Contact, (Contact.id == contact_tag.c.contact_id) & Contact.archived_at.is_(None)
         )
-        .group_by(Tag.id, Tag.name)
+        .group_by(Tag.id, Tag.name, Tag.color)
         .order_by(func.lower(Tag.name))
         .limit(limit)
     )
     if q.strip():
         stmt = stmt.where(func.lower(Tag.name).startswith(q.strip().lower(), autoescape=True))
-    return [TagCount(i, n, c) for i, n, c in session.execute(stmt).all()]
+    return [TagCount(i, n, c, col) for i, n, c, col in session.execute(stmt).all()]
+
+
+# ---------------------------------------------------------------- admin (T-04)
+
+TAG_COLORS = ("gray", "red", "orange", "yellow", "green", "teal", "blue", "purple")
+
+
+def _tagged_ids(session: Session, tag_id: int) -> list[int]:
+    return list(
+        session.scalars(select(contact_tag.c.contact_id).where(contact_tag.c.tag_id == tag_id))
+    )
+
+
+def rename_tag(session: Session, tag: Tag, raw: str) -> Tag:
+    """Rename; if another tag already has the new name (ignoring case), merge into it."""
+    name = normalize_tag(raw)
+    target = session.scalars(
+        select(Tag).where(func.lower(Tag.name) == name.lower(), Tag.id != tag.id)
+    ).first()
+    affected = _tagged_ids(session, tag.id)
+    if target is None:
+        tag.name = name
+        session.flush()
+        refresh_search(session, affected)
+        return tag
+    if affected:
+        session.execute(
+            insert(contact_tag)
+            .values([{"contact_id": i, "tag_id": target.id} for i in affected])
+            .on_conflict_do_nothing()
+        )
+    session.delete(tag)
+    session.flush()
+    session.expire_all()
+    refresh_search(session, affected)
+    return target
+
+
+def delete_tag(session: Session, tag: Tag) -> int:
+    affected = _tagged_ids(session, tag.id)
+    session.delete(tag)
+    session.flush()
+    session.expire_all()
+    refresh_search(session, affected)
+    return len(affected)
+
+
+def set_tag_color(session: Session, tag: Tag, color: str | None) -> None:
+    if color and color not in TAG_COLORS:
+        raise ContactError("Unknown color", "color")
+    tag.color = color or None
+    session.flush()

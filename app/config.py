@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     contact_types: Annotated[tuple[str, ...], NoDecode] = DEFAULT_CONTACT_TYPES
     phone_region: str = Field(default="US", pattern=r"^[A-Z]{2}$")
     home_company: str | None = Field(default=None, max_length=200)  # C-14
+    # Backups (I-06, N-06, ADR-0011)
+    backup_tool: Literal["auto", "local", "docker"] = "auto"
+    backup_retention_days: int = Field(default=14, ge=1, le=3650)
+    auto_backup: bool | None = None  # default: on in production, off elsewhere
 
     @field_validator("contact_types", mode="before")
     @classmethod
@@ -58,6 +62,10 @@ class Settings(BaseSettings):
     @property
     def is_development(self) -> bool:
         return self.app_env == "development"
+
+    @property
+    def auto_backup_enabled(self) -> bool:
+        return self.is_production if self.auto_backup is None else self.auto_backup
 
     @property
     def instance_slug(self) -> str:

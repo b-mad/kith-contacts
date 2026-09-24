@@ -25,6 +25,12 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+      - name: PostgreSQL 17 client tools (pg_dump/pg_restore for backup tests)
+        run: |
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
       - run: uv sync --locked
       - name: Lint
         run: make lint
@@ -33,7 +39,7 @@ jobs:
       - name: Tests (unit + integration, coverage >= 80%)
         run: make test
       - name: Requirement traceability
-        run: uv run python -m scripts.req_trace --phase 2 --strict
+        run: uv run python -m scripts.req_trace --phase 3 --strict
       - name: End-to-end smoke test
         run: |
           uv run playwright install --with-deps chromium

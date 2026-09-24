@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+{% if error %}<p class="error-summary" role="alert" data-testid="settings-error">{{ error }}</p>{% endif %}
+
+<section class="panel" aria-labelledby="inst-h">
+  <h2 id="inst-h">This instance</h2>
+  <dl>
+    <dt>Name</dt><dd>{{ instance.instance_name }}</dd>
+    <dt>Environment</dt><dd>{{ instance.app_env }}</dd>
+    <dt>Contacts</dt><dd>{{ contact_count }}</dd>
+    <dt>Contact types</dt><dd><a href="/settings/types">Manage contact types</a></dd>
+  </dl>
+</section>
+
+<section class="panel" aria-labelledby="backup-h" data-testid="backups">
+  <h2 id="backup-h">Backups</h2>
+  <p class="muted small">
+    Saved to <code>{{ backup_dir }}</code> · kept for {{ retention }} days (the newest is always kept).
+    {% if backup_status.enabled %}Automatic daily backup is <strong>on</strong> while this instance is running{% if backup_status.last_check %} — last checked {{ backup_status.last_check.strftime("%H:%M") }} UTC{% endif %}.
+    {% else %}Automatic daily backup is off for this instance (on by default in production; set <code>AUTO_BACKUP=true</code> to enable).{% endif %}
+  </p>
+  {% if backup_status.last_error %}<p class="field-error" role="alert">Last automatic backup failed: {{ backup_status.last_error }}</p>{% endif %}
+  <form method="post" action="/settings/backups">{{ m.csrf() }}
+    <button type="submit" class="primary" data-testid="backup-now">Back up now</button>
+  </form>
+  {% if backups %}
+    <table class="contacts backups-table" data-testid="backup-table">
+      <thead><tr><th scope="col">Backup</th><th scope="col">Taken (UTC)</th><th scope="col">Size</th><th scope="col">Restore</th></tr></thead>
+      <tbody>
+        {% for b in backups %}
+          <tr data-testid="backup-row">
+            <td><a href="/settings/backups/{{ b.name }}" download>{{ b.name }}</a></td>
+            <td>{{ b.created.strftime("%Y-%m-%d %H:%M") }}</td>
+            <td>{{ (b.size / 1024) | round(0) | int }} KB</td>
+            <td>
+              <details class="restore">
+                <summary>Restore…</summary>
+                <form method="post" action="/settings/backups/{{ b.name }}/restore" class="inline-form">{{ m.csrf() }}
+                  <label for="confirm-{{ loop.index }}" class="small">Replaces all current data (a safety backup is taken first). Type <strong>{{ instance.instance_name }}</strong> to confirm:</label>
+                  <input id="confirm-{{ loop.index }}" name="confirm" autocomplete="off" required data-testid="restore-confirm">
+                  <button type="submit" class="danger" data-testid="restore-submit">Restore</button>
+                </form>
+              </details>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No backups yet.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="export-h">
+  <h2 id="export-h">Export</h2>
+  <ul class="plain">
+    <li><a href="/export/contacts.csv" data-testid="export-csv">Spreadsheet (CSV)</a> <span class="muted small">— opens in Excel, Numbers or Google Sheets</span></li>
+    <li><a href="/export/contacts.vcf" data-testid="export-vcf">vCard (.vcf)</a> <span class="muted small">— import into Outlook, Google or Apple Contacts</span></li>
+    <li><a href="/export/contacts.json" data-testid="export-json">Complete data (JSON)</a> <span class="muted small">— everything, including lists, roles and tags</span></li>
+  </ul>
+</section>
+
+<section class="panel" aria-labelledby="import-h">
+  <h2 id="import-h">Import</h2>
+  <p><a class="button" href="/import" data-testid="import-link">Import contacts from CSV or vCard…</a></p>
+</section>
+{% endblock %}

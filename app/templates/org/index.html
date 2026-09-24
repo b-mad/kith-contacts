@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Org chart{% endblock %}
+{% block content %}
+<h1>Org chart</h1>
+{% if org.focus_id %}
+  <nav class="org-chain" aria-label="Management chain" data-testid="org-chain">
+    <a href="/org">All</a>
+    {% for m in org.chain %} › <a href="/org?root={{ m.id }}">{{ m.name }}</a>{% endfor %}
+  </nav>
+{% endif %}
+{% if org.roots %}
+  <ul class="org-tree org-root" data-testid="org-tree">
+    {% for node in org.roots %}{% with depth=0 %}{% include "org/_node.html" %}{% endwith %}{% endfor %}
+  </ul>
+  {% if org.unplaced %}<p class="muted small">{{ org.unplaced }} contact(s) have no manager and no reports, so they are not shown.</p>{% endif %}
+{% else %}
+  <p class="empty">Nobody has a manager yet. Set managers on contact cards to build the chart.</p>
+{% endif %}
+{% endblock %}

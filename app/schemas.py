@@ -167,6 +167,7 @@ class PhoneOut(_Output):
 class TagOut(_Output):
     id: int
     name: str
+    color: str | None = None
 
 
 class ListRef(_Output):
@@ -210,5 +211,6 @@ class ContactOut(_Output):
     lists: list[ListRef]
     links: ContactLinks
     archived: bool
+    has_photo: bool = False
     created_at: datetime
     updated_at: datetime

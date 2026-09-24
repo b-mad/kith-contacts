@@ -195,11 +195,3 @@ async def role_form(
         raise _fail(session, exc) from None
     session.commit()
     return RedirectResponse(with_notice(f"/lists/{list_id}", "saved"), status.HTTP_303_SEE_OTHER)
-
-
-# ---------------------------------------------------------------- tags (T-02)
-
-
-@router.get("/tags", response_class=HTMLResponse)
-def tags_index(request: Request, session: SessionDep) -> HTMLResponse:
-    return _render(request, "tags/index.html", {"tags": tag_counts(session)})

@@ -34,6 +34,7 @@ from app.contacts import (
 from app.db import get_session
 from app.lists import add_members, all_lists, find_or_create_list, remove_member
 from app.models import Contact, Tag
+from app.related import related_contacts
 from app.schemas import ContactCreate, ContactUpdate
 from app.search import SORT_KEYS, SearchFilters, SortKey, active_lists, distinct_values, search
 from app.tags import add_tag, remove_tag, tag_counts
@@ -105,6 +106,14 @@ NOTICES = {
     "unfavorite": "Removed from favorites.",
     "removed": "Removed from the list.",
     "created": "List created.",
+    "backup": "Backup saved: {name}",
+    "restored": "Restored from {name}. The previous data was saved first.",
+    "imported": "Imported {n} contact(s).",
+    "type_saved": "Contact types updated.",
+    "tag_saved": "Tag updated.",
+    "tag_deleted": "Tag deleted.",
+    "photo_saved": "Photo saved.",
+    "photo_removed": "Photo removed.",
 }
 
 
@@ -464,6 +473,7 @@ def contact_card(request: Request, contact_id: int, session: SessionDep) -> HTML
             "all_tags": [t.name for t in tag_counts(session)],
             "all_lists": active_lists(session),
             "roles": {m.contact_list.id: m.role_note for m in contact.memberships},
+            "related": related_contacts(session, contact),
         },
     )
 

@@ -5,7 +5,12 @@
 
 <article class="card" data-testid="contact-card">
   <header class="card-head">
-    <div>
+    <div class="card-identity">
+      <div class="photo-wrap">
+        {% if c.has_photo %}<img class="photo" src="/contacts/{{ c.id }}/photo" alt="Photo of {{ c.display_name }}" width="96" height="96" data-testid="photo">
+        {% else %}<span class="photo initials" aria-hidden="true">{{ c.display_name | initials }}</span>{% endif %}
+      </div>
+      <div>
       <h1>{{ c.display_name }}{% if c.is_favorite %} <span class="star" title="Favorite" aria-label="Favorite">★</span>{% endif %}</h1>
       {% if c.pronunciation %}<p class="muted">Pronounced “{{ c.pronunciation }}”</p>{% endif %}
       <p class="subtitle">
@@ -13,12 +18,14 @@
         {% if c.archived %}<span class="pill muted" data-testid="archived-badge">Archived</span>{% endif %}
         {{ c.title or "" }}{% if c.title and (c.company or c.team) %} · {% endif %}{{ c.team or "" }}{% if c.team and c.company %} · {% endif %}{{ c.company or "" }}
       </p>
+      </div>
     </div>
     <div class="card-tools">
       <form method="post" action="/contacts/{{ c.id }}/favorite">{{ m.csrf() }}
         <button type="submit" data-testid="favorite" aria-pressed="{{ 'true' if c.is_favorite else 'false' }}">{{ "★ Favorite" if c.is_favorite else "☆ Favorite" }}</button>
       </form>
       <a class="button" href="/contacts/{{ c.id }}/edit" data-testid="edit">Edit</a>
+      <a class="button" href="/contacts/{{ c.id }}/vcard" data-testid="vcard">vCard</a>
       {% if c.archived %}
         <form method="post" action="/contacts/{{ c.id }}/restore">{{ m.csrf() }}<button type="submit" data-testid="restore">Restore</button></form>
       {% else %}
@@ -76,7 +83,7 @@
               {% endfor %}
             </ul>
           {% else %}<span class="muted">None</span>{% endif %}
-          {% if c.reports %}<a class="small" href="/?manager={{ c.id }}" data-testid="see-team">See team</a> · {% endif %}<a class="small" href="/contacts/new?manager={{ c.id }}">+ Add a report</a>
+          {% if c.reports %}<a class="small" href="/?manager={{ c.id }}" data-testid="see-team">See team</a> · {% endif %}{% if c.reports or c.manager %}<a class="small" href="/org?root={{ c.id }}" data-testid="org-link">Org chart</a> · {% endif %}<a class="small" href="/contacts/new?manager={{ c.id }}">+ Add a report</a>
         </dd>
       </dl>
     </section>
@@ -87,7 +94,7 @@
       <h2 id="tags-h">Tags</h2>
       <ul class="tag-list" data-testid="tags">
         {% for t in c.tags %}
-          <li class="tag">
+          <li class="tag tag-c-{{ t.color or 'none' }}">
             <a href="/?tag={{ t.name | urlencode }}">{{ t.name }}</a>
             <form method="post" action="/contacts/{{ c.id }}/tags/{{ t.id }}/remove">{{ m.csrf() }}
               <button type="submit" class="tag-remove" aria-label="Remove tag {{ t.name }}">×</button>
@@ -124,6 +131,30 @@
         <input name="role_note" placeholder="Role (optional)" aria-label="Role note" class="role-input">
         <button type="submit" data-testid="list-add">Add</button>
       </form>
+    </section>
+  </div>
+
+  <div class="card-grid">
+    <section aria-labelledby="related-h">
+      <h2 id="related-h">Related people</h2>
+      {% if related %}
+        <ul class="plain related" data-testid="related">
+          {% for r in related %}
+            <li><a href="/contacts/{{ r.contact.id }}">{{ r.contact.display_name }}</a> <span class="muted small">· {{ r.reasons | join(" · ") }}</span></li>
+          {% endfor %}
+        </ul>
+      {% else %}<p class="muted small">Add tags, lists or a team to see related people.</p>{% endif %}
+    </section>
+    <section aria-labelledby="photo-h">
+      <h2 id="photo-h">Photo</h2>
+      <form method="post" action="/contacts/{{ c.id }}/photo" enctype="multipart/form-data" class="inline-form">{{ m.csrf() }}
+        <label for="photo-file" class="visually-hidden">Photo</label>
+        <input id="photo-file" type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif,image/heic" required data-testid="photo-input">
+        <button type="submit" data-testid="photo-upload">{{ "Replace" if c.has_photo else "Upload" }}</button>
+      </form>
+      {% if c.has_photo %}
+        <form method="post" action="/contacts/{{ c.id }}/photo/remove">{{ m.csrf() }}<button type="submit" class="link small" data-testid="photo-remove">Remove photo</button></form>
+      {% endif %}
     </section>
   </div>
 

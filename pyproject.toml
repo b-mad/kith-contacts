@@ -10,6 +10,7 @@ dependencies = [
     "fastapi>=0.115",
     "jinja2>=3.1",
     "phonenumbers>=8.13",
+    "pillow>=11",
     "psycopg[binary]>=3.2",
     "pydantic-settings>=2.7",
     "python-multipart>=0.0.20",
@@ -49,7 +50,7 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106"]
+"tests/**" = ["S101", "S105", "S106", "E501"]  # long sample-data literals are fine in tests
 "migrations/**" = ["E501"]
 
 # ---------------------------------------------------------------- mypy

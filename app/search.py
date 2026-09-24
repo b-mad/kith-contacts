@@ -164,6 +164,7 @@ def _with_details(stmt: Select[tuple[Contact]]) -> Select[tuple[Contact]]:
         selectinload(Contact.manager),
         selectinload(Contact.reports),
         selectinload(Contact.tags),
+        selectinload(Contact.photo),
         selectinload(Contact.memberships).selectinload(ListMember.contact_list),
     )
 

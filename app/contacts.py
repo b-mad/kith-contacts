@@ -51,6 +51,7 @@ def _with_details(stmt: Select[tuple[Contact]]) -> Select[tuple[Contact]]:
         selectinload(Contact.manager),
         selectinload(Contact.reports),
         selectinload(Contact.tags),
+        selectinload(Contact.photo),
         selectinload(Contact.memberships).selectinload(ListMember.contact_list),
     )
 
@@ -134,7 +135,7 @@ def _check_contact_type(session: Session, contact_type_id: int) -> None:
         raise ContactError("Unknown contact type", "contact_type_id")
 
 
-def _check_manager(session: Session, contact_id: int | None, manager_id: int | None) -> None:
+def check_manager(session: Session, contact_id: int | None, manager_id: int | None) -> None:
     """C-07: manager must exist and must not create a reporting cycle."""
     if manager_id is None:
         return
@@ -265,9 +266,13 @@ def employee_type_id(session: Session) -> int | None:
 # ---------------------------------------------------------------- writes (continued)
 
 
-def create_contact(session: Session, data: ContactCreate, *, phone_region: str = "US") -> Contact:
+def create_contact(
+    session: Session, data: ContactCreate, *, phone_region: str = "US", bulk: bool = False
+) -> Contact:
+    """Create a contact. ``bulk=True`` (imports) skips the reload and the search refresh;
+    the caller must call ``refresh_search`` for the new ids afterwards."""
     _check_contact_type(session, data.contact_type_id)
-    _check_manager(session, None, data.manager_id)
+    check_manager(session, None, data.manager_id)
     contact = Contact(**{f: getattr(data, f) for f in _SCALAR_FIELDS})
     contact.company = resolve_company(session, data.company)
     session.add(contact)
@@ -275,6 +280,8 @@ def create_contact(session: Session, data: ContactCreate, *, phone_region: str =
     _apply_emails(session, contact, data.emails)
     _apply_phones(contact, data.phones, phone_region)
     session.flush()
+    if bulk:
+        return contact
     refresh_search(session, [contact.id])
     return get_contact(session, contact.id)
 
@@ -286,7 +293,7 @@ def update_contact(
     if "contact_type_id" in sent and data.contact_type_id is not None:
         _check_contact_type(session, data.contact_type_id)
     if "manager_id" in sent:
-        _check_manager(session, contact.id, data.manager_id)
+        check_manager(session, contact.id, data.manager_id)
     renamed = "display_name" in sent and data.display_name != contact.display_name
     for field in _SCALAR_FIELDS:
         if field in sent:
@@ -366,6 +373,7 @@ def to_out(contact: Contact) -> ContactOut:
             ],
             "links": contact_links(contact),
             "archived": contact.archived_at is not None,
+            "has_photo": contact.photo is not None,
             "created_at": contact.created_at,
             "updated_at": contact.updated_at,
         }

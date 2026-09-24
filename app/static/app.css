@@ -262,3 +262,54 @@ td a[href^="tel:"] { white-space: nowrap; }
   .bar-actions { margin-left: auto; }
   .env-badge { font-size: 0.7rem; padding: 0 0.3rem; }
 }
+
+/* ---------------------------------------------------------------- Phase 3 */
+.panel { border: 1px solid var(--border); border-radius: 10px; padding: 0.25rem 1.25rem 1rem; margin-bottom: 1rem; }
+code { font-size: 0.85em; background: var(--surface); padding: 0 0.3rem; border-radius: 4px; }
+.nowrap { white-space: nowrap; }
+details.restore summary, td details summary { cursor: pointer; color: var(--accent); }
+
+.card-identity { display: flex; gap: 1rem; align-items: center; }
+.photo { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; flex: none; }
+.initials {
+  display: inline-flex; align-items: center; justify-content: center; font-weight: 700;
+  background: var(--surface); color: var(--muted); border: 1px solid var(--border);
+}
+.photo.initials { font-size: 2rem; }
+.avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 0.4rem; font-size: 0.7rem; }
+.related li { margin-bottom: 0.2rem; }
+
+/* Tag colors (T-04): classes, not inline styles, so the CSP stays strict. */
+.tag-c-red { background: #ffebe9; border-color: #ff8182; }
+.tag-c-orange { background: #fff1e5; border-color: #fb8f44; }
+.tag-c-yellow { background: #fff8c5; border-color: #d4a72c; }
+.tag-c-green { background: #dafbe1; border-color: #4ac26b; }
+.tag-c-teal { background: #d8f8f5; border-color: #3bb9a8; }
+.tag-c-blue { background: #ddf4ff; border-color: #54aeff; }
+.tag-c-purple { background: #fbefff; border-color: #c297ff; }
+.tag-c-gray { background: #eaeef2; border-color: #afb8c1; }
+@media (prefers-color-scheme: dark) {
+  .tag-c-red, .tag-c-orange, .tag-c-yellow, .tag-c-green, .tag-c-teal, .tag-c-blue, .tag-c-purple, .tag-c-gray {
+    background: var(--surface);
+  }
+}
+.tag-edit input[name="name"] { flex: 1 1 10rem; }
+.count-cell { min-width: 2.5rem; text-align: right; color: var(--muted); }
+
+.org-tree { list-style: none; margin: 0; padding-left: 1.25rem; border-left: 2px solid var(--border); }
+.org-root { border-left: 0; padding-left: 0; }
+.org-tree li { margin: 0.3rem 0; }
+.org-person { display: inline-flex; gap: 0.3rem; align-items: baseline; flex-wrap: wrap; }
+.org-person.focus a:first-child { font-weight: 700; }
+.org-focus { text-decoration: none; }
+.org-tree details > summary { cursor: pointer; margin-left: 0.25rem; }
+.org-chain { margin-bottom: 0.75rem; }
+
+.mapping { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.4rem 1rem; }
+.mapping-row { display: flex; gap: 0.5rem; align-items: center; font-weight: normal; }
+.mapping-header { flex: 1; font-family: ui-monospace, monospace; font-size: 0.85rem; overflow-wrap: anywhere; }
+.mapping-row select { width: 11rem; flex: none; }
+.pill.ok { background: var(--ok-bg); }
+.pill.warn { background: #fff8c5; color: #4d2d00; }
+.pill.bad { background: var(--error-bg); }
+tr.row-error td { color: var(--muted); }

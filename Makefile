@@ -8,7 +8,7 @@ ifeq ($(shell command -v uv 2>/dev/null),)
 $(error uv is not installed. Install it with `brew install uv` (or `curl -LsSf https://astral.sh/uv/install.sh | sh`), then open a new terminal)
 endif
 
-.PHONY: help install fmt lint typecheck test e2e check trace db-up db-down instance migration seed
+.PHONY: help install fmt lint typecheck test e2e check trace db-up db-down instance migration seed backup backups restore copy-to-dev
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -54,6 +54,22 @@ instance: ## Create an instance: make instance NAME=dev PORT=5180 ENV=developmen
 seed: ## Load ~50 sample contacts into a dev instance: make seed I=dev [RESET=1] (refused in production)
 	@test -n "$(I)" || (echo "usage: make seed I=<instance> [RESET=1]" && exit 2)
 	INSTANCE_ENV_FILE=instances/$(I).env $(UV) python -m scripts.seed $(if $(RESET),--reset)
+
+backup: ## Back up an instance now and prune old backups: make backup I=business-prod
+	@test -n "$(I)" || (echo "usage: make backup I=<instance>" && exit 2)
+	INSTANCE_ENV_FILE=instances/$(I).env $(UV) python -m scripts.backup backup
+
+backups: ## List an instance's backups: make backups I=business-prod
+	@test -n "$(I)" || (echo "usage: make backups I=<instance>" && exit 2)
+	INSTANCE_ENV_FILE=instances/$(I).env $(UV) python -m scripts.backup list
+
+restore: ## Restore a backup (stop the app first): make restore I=dev FILE=<name> [YES=1 for production]
+	@test -n "$(I)" -a -n "$(FILE)" || (echo "usage: make restore I=<instance> FILE=<backup> [YES=1]" && exit 2)
+	INSTANCE_ENV_FILE=instances/$(I).env $(UV) python -m scripts.backup restore "$(FILE)" $(if $(YES),--yes)
+
+copy-to-dev: ## Copy an instance into a dev one: make copy-to-dev FROM=business-prod TO=dev [ANONYMIZE=1]
+	@test -n "$(FROM)" -a -n "$(TO)" || (echo "usage: make copy-to-dev FROM=<instance> TO=<dev instance> [ANONYMIZE=1]" && exit 2)
+	INSTANCE_ENV_FILE=instances/$(TO).env $(UV) python -m scripts.backup copy-to-dev --from-env instances/$(FROM).env $(if $(ANONYMIZE),--anonymize)
 
 migration: ## New Alembic migration from model changes: make migration m="add tags" (uses the dev instance)
 	@test -n "$(m)" || (echo 'usage: make migration m="message"' && exit 2)

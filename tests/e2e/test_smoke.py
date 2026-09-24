@@ -278,3 +278,74 @@ def test_company_defaults_for_employees_and_can_be_added(base_url: str) -> None:
         page.get_by_test_id("save").click()
         expect(page.get_by_test_id("contact-card")).to_contain_text("Brand New Co")
         browser.close()
+
+
+@pytest.mark.req("M-05", "S-06", "C-09")
+def test_teams_group_chat_org_chart_and_photo(base_url: str, tmp_path: object) -> None:
+    import io
+    from pathlib import Path
+
+    from PIL import Image
+    from playwright.sync_api import expect, sync_playwright
+
+    photo = Path(str(tmp_path)) / "face.png"
+    buffer = io.BytesIO()
+    Image.new("RGB", (640, 480), (30, 140, 90)).save(buffer, "PNG")
+    photo.write_bytes(buffer.getvalue())
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page()
+        errors: list[str] = []
+        page.on("pageerror", lambda exc: errors.append(str(exc)))
+        page.add_init_script("window.open = (url) => { window.__opened = url; return null; };")
+        types = {
+            t["name"]: t["id"] for t in page.request.get(f"{base_url}/api/contact-types").json()
+        }
+        boss = _make(
+            page,
+            base_url,
+            {
+                "display_name": "Teamsy Boss",
+                "contact_type_id": types["Employee"],
+                "emails": [{"email": "boss@teams.example"}],
+            },
+        )
+        _make(
+            page,
+            base_url,
+            {
+                "display_name": "Teamsy Report",
+                "contact_type_id": types["Employee"],
+                "manager_id": boss["id"],
+                "emails": [{"email": "report@teams.example"}],
+            },
+        )
+
+        # M-05: Teams group chat with the selection.
+        page.goto(f"{base_url}/?q=teamsy")
+        expect(page.get_by_test_id("result-row")).to_have_count(2)
+        page.get_by_test_id("select-all").check()
+        page.get_by_test_id("compose").click()
+        page.get_by_test_id("compose-teams").click()
+        assert page.evaluate("window.__opened") == (
+            "https://teams.microsoft.com/l/chat/0/0?users=boss%40teams.example,report%40teams.example"
+        )
+
+        # S-06: org chart from the card.
+        page.goto(f"{base_url}/contacts/{boss['id']}")
+        page.get_by_test_id("org-link").click()
+        expect(page.get_by_test_id("org-tree")).to_contain_text("Teamsy Report")
+
+        # C-09: upload a photo on the card.
+        page.goto(f"{base_url}/contacts/{boss['id']}")
+        page.get_by_test_id("photo-input").set_input_files(str(photo))
+        page.get_by_test_id("photo-upload").click()
+        expect(page.get_by_test_id("flash")).to_have_text("Photo saved.")
+        expect(page.get_by_test_id("photo")).to_be_visible()
+        assert page.evaluate("document.querySelector('[data-testid=photo]').naturalWidth") == 512
+
+        assert errors == []
+        browser.close()
