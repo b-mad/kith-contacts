@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ cl.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1 data-testid="list-title">{{ cl.name }}{% if cl.status == "archived" %} <span class="pill muted">Archived</span>{% endif %}</h1>
+    {% if cl.description %}<p class="muted" data-testid="list-description">{{ cl.description }}</p>{% endif %}
+  </div>
+  <div class="card-tools">
+    <a class="button" href="/?list={{ cl.id }}">Search in list</a>
+    {% if cl.status == "archived" %}
+      <form method="post" action="/lists/{{ cl.id }}/restore">{{ m.csrf() }}<button type="submit">Restore</button></form>
+    {% else %}
+      <form method="post" action="/lists/{{ cl.id }}/archive">{{ m.csrf() }}<button type="submit" class="danger">Archive list</button></form>
+    {% endif %}
+  </div>
+</div>
+
+<details class="edit-list">
+  <summary>Rename or describe</summary>
+  <form class="inline-form" method="post" action="/lists/{{ cl.id }}/edit">{{ m.csrf() }}
+    <input name="name" value="{{ cl.name }}" required maxlength="100" aria-label="List name">
+    <input name="description" value="{{ cl.description or '' }}" placeholder="Description" aria-label="Description">
+    <button type="submit">Save</button>
+  </form>
+</details>
+
+<form class="inline-form add-member" method="post" action="/lists/{{ cl.id }}/members" data-contact-picker data-testid="add-member">{{ m.csrf() }}
+  <div class="picker-field">
+    <label for="member-picker" class="visually-hidden">Add a person</label>
+    <input id="member-picker" type="text" placeholder="Add a person — type a name, team or company…" autocomplete="off"
+           role="combobox" aria-expanded="false" aria-controls="member-options" aria-autocomplete="list" data-picker-input data-testid="member-input">
+    <input type="hidden" name="contact_id" data-picker-value>
+    <ul id="member-options" class="options" role="listbox" hidden data-picker-options data-testid="member-options"></ul>
+  </div>
+  <input name="role_note" placeholder="Role (optional)" aria-label="Role note" class="role-input">
+  <button type="submit">Add</button>
+</form>
+
+{% if rows %}
+  <div class="table-wrap">
+  <table class="contacts" data-testid="members-table">
+    <thead>
+      <tr>
+        <th scope="col" class="select-col"><input type="checkbox" aria-label="Select all" data-select-all data-testid="select-all"></th>
+        <th scope="col">Name</th><th scope="col">Type</th><th scope="col">Company</th>
+        <th scope="col">Role in this list</th><th scope="col">Email</th><th scope="col">Phone</th><th scope="col"><span class="visually-hidden">Actions</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+        {% set c = r.contact %}
+        <tr data-contact-id="{{ c.id }}" data-email="{{ r.email or '' }}" data-name="{{ c.display_name }}" data-testid="member-row"{% if r.archived %} class="archived"{% endif %}>
+          <td class="select-col"><input type="checkbox" class="select-contact" value="{{ c.id }}" aria-label="Select {{ c.display_name }}"></td>
+          <td><a href="/contacts/{{ c.id }}">{{ c.display_name }}</a>{% if r.archived %} <span class="pill muted">Archived</span>{% endif %}</td>
+          <td><span class="pill">{{ c.contact_type.name }}</span></td>
+          <td>{{ c.company or "" }}</td>
+          <td>
+            <form class="role-form" method="post" action="/lists/{{ cl.id }}/members/{{ c.id }}/role">{{ m.csrf() }}
+              <input name="role_note" value="{{ r.role_note }}" placeholder="Add role…" aria-label="Role for {{ c.display_name }}" maxlength="200">
+              <button type="submit" class="link small">Save</button>
+            </form>
+          </td>
+          <td>{% if r.email %}<a href="mailto:{{ r.email }}">{{ r.email }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>{% if r.phone %}<a href="tel:{{ r.phone }}">{{ r.phone | phone }}</a>{% endif %}</td>
+          <td>
+            <form method="post" action="/lists/{{ cl.id }}/members/{{ c.id }}/remove">{{ m.csrf() }}
+              <button type="submit" class="link small" aria-label="Remove {{ c.display_name }} from list">Remove</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted count">{{ rows | length }} {{ "person" if rows | length == 1 else "people" }} · Tip: tick “Select all”, then Copy emails or Compose.</p>
+{% else %}
+  <p class="empty" data-testid="empty-list">Nobody here yet. Add people above, or select them on the Contacts page.</p>
+{% endif %}
+
+{% include "_action_bar.html" %}
+<p><a href="/lists">← All lists</a></p>
+{% endblock %}

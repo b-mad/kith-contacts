@@ -39,6 +39,12 @@ requirements, and do not silently deviate from an ADR.
 - Keep routes thin: validation in `app/schemas.py`, rules in `app/contacts.py` (or a
   sibling module per area). Every form POST includes `{{ m.csrf() }}`; templates must
   not use inline `style=` or inline `<script>` (blocked by the CSP).
+- Any write that changes a contact's name, team, company, title, department, works-on,
+  notes, location, manager, emails, tags or list memberships must call
+  `app.search.refresh_search` for every affected contact (ADR-0010). Changing what goes
+  into the search document needs a new migration that rebuilds it.
+- Browser-only behavior (clipboard, compose links, live search) is tested with
+  Playwright in `tests/e2e/`; run `make e2e`.
 - Type everything; `mypy --strict` must pass. Prefer small pure functions that
   are easy to unit test.
 
@@ -83,9 +89,12 @@ delete a failing test to get a green run unless the requirement was withdrawn.
 | `app/schemas.py` | Pydantic input/output models and validation rules |
 | `app/contacts.py` | Contact business logic — routes stay thin and call this |
 | `app/links.py` | Pure helpers for mailto/tel/Slack/Teams links and phone format |
+| `app/search.py` | Context search, filters, match context, and `refresh_search` (ADR-0010) |
+| `app/tags.py`, `app/lists.py` | Tag and project-list business logic |
+| `app/web_lists.py` | Pages for lists and tags |
 | `app/api.py` | JSON API (`/api/...`); writes require `application/json` |
 | `app/web.py` | Server-rendered pages and forms; POSTs need the CSRF token |
-| `app/static/js/app.js` | Small vanilla JS enhancements (manager picker, form rows) |
+| `app/static/js/app.js` | Vanilla JS: live search, selection + action bar (copy/compose for Outlook or Gmail), pickers, form rows |
 | `app/migrate.py` | Runs Alembic on start-up; fails fast (I-04) |
 | `app/main.py` | FastAPI app factory, routes, templates |
 | `app/templates/` | Jinja templates (HTMX/Alpine for interactivity) |
@@ -107,6 +116,6 @@ make instance NAME=dev PORT=5180 ENV=development
 make check                   # everything CI runs
 make test                    # tests only
 make seed I=dev              # sample contacts (dev only)
-make trace PHASE=1           # requirement coverage up to a phase
+make trace PHASE=2           # requirement coverage up to a phase
 make migration m="add tags"  # new Alembic migration
 ```

@@ -1,0 +1,315 @@
+"""Context search (S-01 to S-05, ADR-0003).
+
+Each contact has a weighted ``search_vector``:
+
+    A  display, first, last and nick names
+    B  team, company, manager's name, tags
+    C  title, department, works on, list names, emails
+    D  notes, location
+
+``refresh_search`` rebuilds it for given contacts; every write that changes
+any of those inputs must call it (the service layer does). Queries use prefix
+matching ("lab res" finds "lab results"), fall back to matching any word when
+all words don't match, and to trigram similarity on names for typos ("Mria").
+"""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, field
+from typing import Any, Literal
+
+from sqlalchemy import Select, bindparam, case, func, literal, literal_column, select, text
+from sqlalchemy.orm import Session, selectinload
+
+from app.models import Contact, ContactList, ListMember, Tag, contact_tag
+
+FUZZY_THRESHOLD = 0.3
+NAME_WEIGHT = "'{a}'::\"char\"[]"  # ts_filter weight array: names only
+SortKey = Literal["relevance", "name", "company", "team", "type", "updated"]
+SORT_KEYS: tuple[SortKey, ...] = ("relevance", "name", "company", "team", "type", "updated")
+
+# Kept in sync with migrations/versions/*_0002_*.py (which embeds a frozen copy).
+_DOCUMENT_SQL = """
+    setweight(to_tsvector('simple', concat_ws(' ', c.display_name, c.first_name, c.last_name,
+        c.nickname)), 'A')
+    || setweight(to_tsvector('simple', concat_ws(' ', c.team, c.company,
+        (SELECT m.display_name FROM contact m WHERE m.id = c.manager_id),
+        (SELECT string_agg(t.name, ' ') FROM contact_tag ct JOIN tag t ON t.id = ct.tag_id
+          WHERE ct.contact_id = c.id))), 'B')
+    || setweight(to_tsvector('simple', concat_ws(' ', c.title, c.department, c.works_on,
+        (SELECT string_agg(cl.name, ' ') FROM list_member lm
+           JOIN contact_list cl ON cl.id = lm.list_id WHERE lm.contact_id = c.id),
+        (SELECT string_agg(ce.email || ' ' || translate(ce.email, '.@_-+', '     '), ' ')
+           FROM contact_email ce WHERE ce.contact_id = c.id))), 'C')
+    || setweight(to_tsvector('simple', concat_ws(' ', c.notes, c.location)), 'D')
+"""
+
+# The f-string only inserts the constant _DOCUMENT_SQL; ids are a bound parameter.
+# A single-table UPDATE (no self-join) keeps the plan linear even with stale stats.
+REFRESH_SQL = text(
+    f"""
+    UPDATE contact AS c SET search_vector = {_DOCUMENT_SQL}
+    WHERE c.id = ANY(:ids)
+    """  # noqa: S608
+).bindparams(bindparam("ids"))
+REFRESH_ALL_SQL = text(f"UPDATE contact AS c SET search_vector = {_DOCUMENT_SQL}")  # noqa: S608
+
+
+def refresh_search(session: Session, contact_ids: Iterable[int]) -> None:
+    """Rebuild the search document for these contacts (S-01)."""
+    ids = sorted({int(i) for i in contact_ids if i is not None})
+    if ids:
+        session.flush()
+        session.execute(REFRESH_SQL, {"ids": ids})
+
+
+def refresh_all(session: Session) -> None:
+    session.flush()
+    session.execute(REFRESH_ALL_SQL)
+
+
+# ---------------------------------------------------------------- query parsing
+
+_WORD = re.compile(r"[^\W_]+", re.UNICODE)
+
+
+def query_terms(q: str, *, limit: int = 8) -> list[str]:
+    """Lower-cased word fragments, e.g. 'Lab-res, Maria' -> ['lab', 'res', 'maria']."""
+    return [w.lower() for w in _WORD.findall(q)][:limit]
+
+
+def to_tsquery_text(terms: Sequence[str], operator: Literal["&", "|"]) -> str:
+    """Prefix query: every term becomes ``term:*``. Terms are already alphanumeric."""
+    return f" {operator} ".join(f"{t}:*" for t in terms)
+
+
+# ---------------------------------------------------------------- filters
+
+
+@dataclass(frozen=True)
+class SearchFilters:
+    """S-04: combinable filters."""
+
+    type_id: int | None = None
+    company: str | None = None
+    team: str | None = None
+    manager_id: int | None = None
+    tag: str | None = None
+    list_id: int | None = None
+    favorites: bool = False
+    include_archived: bool = False
+
+    def apply(self, stmt: Select[tuple[Contact]]) -> Select[tuple[Contact]]:
+        if not self.include_archived:
+            stmt = stmt.where(Contact.archived_at.is_(None))
+        if self.type_id is not None:
+            stmt = stmt.where(Contact.contact_type_id == self.type_id)
+        if self.company:
+            stmt = stmt.where(func.lower(Contact.company) == self.company.lower())
+        if self.team:
+            stmt = stmt.where(func.lower(Contact.team) == self.team.lower())
+        if self.manager_id is not None:
+            stmt = stmt.where(Contact.manager_id == self.manager_id)
+        if self.tag:
+            stmt = stmt.where(
+                Contact.id.in_(
+                    select(contact_tag.c.contact_id)
+                    .join(Tag, Tag.id == contact_tag.c.tag_id)
+                    .where(func.lower(Tag.name) == self.tag.lower())
+                )
+            )
+        if self.list_id is not None:
+            stmt = stmt.where(
+                Contact.id.in_(
+                    select(ListMember.contact_id).where(ListMember.list_id == self.list_id)
+                )
+            )
+        if self.favorites:
+            stmt = stmt.where(Contact.is_favorite.is_(True))
+        return stmt
+
+    @property
+    def active(self) -> bool:
+        return any(
+            (
+                self.type_id is not None,
+                self.company,
+                self.team,
+                self.manager_id is not None,
+                self.tag,
+                self.list_id is not None,
+                self.favorites,
+            )
+        )
+
+
+# ---------------------------------------------------------------- results
+
+
+@dataclass
+class SearchHit:
+    contact: Contact
+    rank: float = 0.0
+    matched: list[tuple[str, str]] = field(default_factory=list)
+    fuzzy: bool = False
+
+
+def _with_details(stmt: Select[tuple[Contact]]) -> Select[tuple[Contact]]:
+    return stmt.options(
+        selectinload(Contact.contact_type),
+        selectinload(Contact.emails),
+        selectinload(Contact.phones),
+        selectinload(Contact.manager),
+        selectinload(Contact.reports),
+        selectinload(Contact.tags),
+        selectinload(Contact.memberships).selectinload(ListMember.contact_list),
+    )
+
+
+def _order(sort: SortKey) -> list[Any]:
+    name = func.lower(Contact.display_name)
+    orders: dict[str, list[Any]] = {
+        "relevance": [name],
+        "name": [name],
+        "company": [func.lower(Contact.company).nulls_last(), name],
+        "team": [func.lower(Contact.team).nulls_last(), name],
+        "type": [Contact.contact_type_id, name],
+        "updated": [Contact.updated_at.desc(), name],
+    }
+    return orders[sort]
+
+
+def search(
+    session: Session,
+    q: str = "",
+    filters: SearchFilters | None = None,
+    *,
+    sort: SortKey = "relevance",
+    limit: int = 200,
+) -> list[SearchHit]:
+    """Ranked context search (S-01 to S-04). With no query, lists contacts by ``sort``."""
+    filters = filters or SearchFilters()
+    terms = query_terms(q)
+    base = filters.apply(_with_details(select(Contact)))
+
+    if not terms:
+        rows = session.scalars(base.order_by(*_order(sort)).limit(limit)).all()
+        return [SearchHit(c) for c in rows]
+
+    hits: dict[int, SearchHit] = {}
+
+    name_query = func.to_tsquery("simple", literal(to_tsquery_text(terms, "|")))
+
+    def run(operator: Literal["&", "|"]) -> None:
+        tsq = func.to_tsquery("simple", literal(to_tsquery_text(terms, operator)))
+        # ts_rank saturates when many fields match, so a match on the person's own
+        # name (weight A) gets an explicit boost: "data platform maria" puts Maria
+        # first, then her team.
+        name_boost = case(
+            (
+                func.ts_filter(Contact.search_vector, literal_column(NAME_WEIGHT)).op("@@")(
+                    name_query
+                ),
+                1.0,
+            ),
+            else_=0.0,
+        )
+        rank = func.ts_rank(Contact.search_vector, tsq, 1) + name_boost
+        stmt = base.add_columns(rank).where(Contact.search_vector.op("@@")(tsq))
+        order = (
+            [rank.desc(), func.lower(Contact.display_name)] if sort == "relevance" else _order(sort)
+        )
+        for contact, score in session.execute(stmt.order_by(*order).limit(limit)).all():
+            hits.setdefault(contact.id, SearchHit(contact, float(score)))
+
+    run("&")
+    if not hits and len(terms) > 1:
+        run("|")  # nobody matches every word: rank those matching the most words
+    if len(hits) < 3:
+        # Typo tolerance on names (S-03): trigram similarity, e.g. "Mria" -> "Maria".
+        phrase = " ".join(terms)
+        name = func.lower(Contact.display_name)
+        sim = func.greatest(func.similarity(name, phrase), func.word_similarity(phrase, name))
+        stmt = base.add_columns(sim).where(sim >= FUZZY_THRESHOLD)
+        for contact, score in session.execute(stmt.order_by(sim.desc()).limit(10)).all():
+            if contact.id not in hits:
+                hits[contact.id] = SearchHit(contact, float(score) * 0.01, fuzzy=True)
+
+    results = list(hits.values())
+    for hit in results:
+        hit.matched = matched_fields(hit.contact, terms)
+    return results
+
+
+# ---------------------------------------------------------------- match context (S-02)
+
+_SNIPPET = 60
+
+
+def _field_values(contact: Contact) -> list[tuple[str, str]]:
+    values: list[tuple[str, str | None]] = [
+        ("team", contact.team),
+        ("manager", contact.manager.display_name if contact.manager else None),
+        ("company", contact.company),
+        ("title", contact.title),
+        ("department", contact.department),
+        ("works on", contact.works_on),
+        *[("tag", t.name) for t in contact.tags],
+        *[("list", m.contact_list.name) for m in contact.memberships],
+        *[("email", e.email) for e in contact.emails],
+        ("location", contact.location),
+        ("notes", contact.notes),
+        ("aka", " ".join(filter(None, [contact.first_name, contact.last_name, contact.nickname]))),
+    ]
+    return [(label, v) for label, v in values if v]
+
+
+def _snippet(value: str, term: str) -> str:
+    flat = " ".join(value.split())
+    if len(flat) <= _SNIPPET:
+        return flat
+    pos = flat.lower().find(term)
+    start = max(0, pos - 20)
+    end = min(len(flat), start + _SNIPPET)
+    return ("…" if start else "") + flat[start:end].strip() + ("…" if end < len(flat) else "")
+
+
+def matched_fields(contact: Contact, terms: Sequence[str]) -> list[tuple[str, str]]:
+    """Which context fields matched the query, e.g. [("team", "Data Platform")].
+
+    Words that match the person's own name are left out: the name is already shown.
+    """
+    name_words = [w.lower() for w in _WORD.findall(contact.display_name)]
+    context_terms = [t for t in terms if not any(w.startswith(t) for w in name_words)]
+    found: list[tuple[str, str]] = []
+    for label, value in _field_values(contact):
+        words = [w.lower() for w in _WORD.findall(value)]
+        hit = next((t for t in context_terms if any(w.startswith(t) for w in words)), None)
+        if hit is not None:
+            item = (label, _snippet(value, hit))
+            if item not in found:
+                found.append(item)
+    return found
+
+
+# ---------------------------------------------------------------- facets for filter dropdowns
+
+
+def distinct_values(session: Session, column: Any) -> list[str]:
+    rows = session.execute(
+        select(column)
+        .where(column.is_not(None), Contact.archived_at.is_(None))
+        .group_by(column)
+        .order_by(func.lower(column))
+    ).scalars()
+    return [r for r in rows if r]
+
+
+def active_lists(session: Session) -> Sequence[ContactList]:
+    return session.scalars(
+        select(ContactList)
+        .where(ContactList.status == "active")
+        .order_by(func.lower(ContactList.name))
+    ).all()

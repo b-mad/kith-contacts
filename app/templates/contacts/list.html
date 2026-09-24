@@ -1,61 +1,50 @@
 {% extends "base.html" %}
-{% block title %}All contacts{% endblock %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ "Search: " ~ q if q else "All contacts" }}{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>Contacts</h1>
   <a class="button primary" href="/contacts/new">Add contact</a>
 </div>
 
-<form class="filters" method="get" action="/" data-autosubmit>
-  <label for="type">Type</label>
-  <select id="type" name="type" data-testid="type-filter">
-    <option value="">All types</option>
-    {% for t in types %}
-      <option value="{{ t.id }}"{% if t.id == type_id %} selected{% endif %}>{{ t.name }}</option>
-    {% endfor %}
-  </select>
-  <input type="hidden" name="sort" value="{{ sort }}">
-  <label class="check">
-    <input type="checkbox" name="archived" value="1"{% if include_archived %} checked{% endif %}> Show archived
-  </label>
-  <noscript><button type="submit">Apply</button></noscript>
+<form class="search" method="get" action="/" role="search" data-search-form>
+  <label for="q" class="visually-hidden">Search contacts</label>
+  <input id="q" name="q" type="search" value="{{ q }}" autocomplete="off" spellcheck="false"
+         placeholder="Search by name, team, manager, project, tag, company, notes…  (press / )"
+         data-testid="search-input" data-search-input>
+
+  <div class="filters">
+    <select name="type" aria-label="Type" data-testid="filter-type">
+      <option value="">All types</option>
+      {% for t in types %}<option value="{{ t.id }}"{% if filters.type_id == t.id %} selected{% endif %}>{{ t.name }}</option>{% endfor %}
+    </select>
+    <select name="company" aria-label="Company" data-testid="filter-company">
+      <option value="">Any company</option>
+      {% for c in companies %}<option{% if filters.company and filters.company|lower == c|lower %} selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select>
+    <select name="team" aria-label="Team" data-testid="filter-team">
+      <option value="">Any team</option>
+      {% for t in teams %}<option{% if filters.team and filters.team|lower == t|lower %} selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select>
+    <select name="tag" aria-label="Tag" data-testid="filter-tag">
+      <option value="">Any tag</option>
+      {% for t in tags %}<option value="{{ t.name }}"{% if filters.tag and filters.tag|lower == t.name|lower %} selected{% endif %}>{{ t.name }} ({{ t.count }})</option>{% endfor %}
+    </select>
+    <select name="list" aria-label="List" data-testid="filter-list">
+      <option value="">Any list</option>
+      {% for l in lists %}<option value="{{ l.id }}"{% if filters.list_id == l.id %} selected{% endif %}>{{ l.name }}</option>{% endfor %}
+    </select>
+    <label class="check"><input type="checkbox" name="favorites" value="1"{% if filters.favorites %} checked{% endif %}> Favorites</label>
+    <label class="check"><input type="checkbox" name="archived" value="1"{% if filters.include_archived %} checked{% endif %}> Archived</label>
+    {% if manager %}<input type="hidden" name="manager" value="{{ manager.id }}">{% endif %}
+    {% if sort not in ("relevance", "name") %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    <noscript><button type="submit">Search</button></noscript>
+  </div>
 </form>
 
-{% if contacts %}
-  {% macro sort_link(key, label) -%}
-    <a href="?sort={{ key }}{% if type_id %}&amp;type={{ type_id }}{% endif %}{% if include_archived %}&amp;archived=1{% endif %}"
-       {% if sort == key %}aria-current="true" class="sorted"{% endif %}>{{ label }}</a>
-  {%- endmacro %}
-  <div class="table-wrap">
-  <table class="contacts" data-testid="contact-table">
-    <thead>
-      <tr>
-        <th scope="col">{{ sort_link("name", "Name") }}</th>
-        <th scope="col">{{ sort_link("type", "Type") }}</th>
-        <th scope="col">{{ sort_link("company", "Company") }}</th>
-        <th scope="col">{{ sort_link("team", "Team") }}</th>
-        <th scope="col">Title</th>
-        <th scope="col">Manager</th>
-        <th scope="col">Email</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for c in contacts %}
-        <tr{% if c.archived %} class="archived"{% endif %}>
-          <td><a href="/contacts/{{ c.id }}">{{ c.display_name }}</a>{% if c.archived %} <span class="pill muted">Archived</span>{% endif %}</td>
-          <td><span class="pill">{{ c.contact_type.name }}</span></td>
-          <td>{{ c.company or "" }}</td>
-          <td>{{ c.team or "" }}</td>
-          <td>{{ c.title or "" }}</td>
-          <td>{% if c.manager %}<a href="/contacts/{{ c.manager.id }}">{{ c.manager.display_name }}</a>{% endif %}</td>
-          <td>{% if c.emails %}<a href="{{ c.links.mailto }}">{{ c.emails[0].email }}</a>{% endif %}</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  <p class="muted count">{{ contacts | length }} contact{{ "" if contacts | length == 1 else "s" }}</p>
-{% else %}
-  <p class="empty" data-testid="empty-state">No contacts yet.</p>
-{% endif %}
+<div id="results" data-results aria-live="polite">
+  {% include "contacts/_results.html" %}
+</div>
+
+{% include "_action_bar.html" %}
 {% endblock %}

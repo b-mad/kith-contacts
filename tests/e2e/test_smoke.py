@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import socket
 import threading
 import time
@@ -109,4 +110,171 @@ def test_add_contacts_and_pick_manager_by_typing(base_url: str) -> None:
         expect(page.get_by_test_id("reports")).to_contain_text("Dev Browserton")
 
         assert errors == []
+        browser.close()
+
+
+def _make(page: object, base_url: str, body: dict[str, object]) -> dict[str, object]:
+    response = page.request.post(f"{base_url}/api/contacts", data=body)  # type: ignore[attr-defined]
+    assert response.status == 201, response.text()
+    result: dict[str, object] = response.json()
+    return result
+
+
+@pytest.mark.req("S-05", "M-01", "M-02", "M-03")
+def test_live_search_select_and_copy_for_outlook_or_gmail(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        context = browser.new_context()
+        context.grant_permissions(["clipboard-read", "clipboard-write"], origin=base_url)
+        page = context.new_page()
+        errors: list[str] = []
+        page.on("pageerror", lambda exc: errors.append(str(exc)))
+        # Capture compose URLs instead of opening Gmail/Outlook.
+        page.add_init_script("window.open = (url) => { window.__opened = url; return null; };")
+
+        types = {
+            t["name"]: t["id"] for t in page.request.get(f"{base_url}/api/contact-types").json()
+        }
+        _make(
+            page,
+            base_url,
+            {
+                "display_name": "Quinn Copyton",
+                "contact_type_id": types["Employee"],
+                "emails": [{"email": "quinn@acme.example"}],
+                "team": "Copy Team",
+            },
+        )
+        _make(
+            page,
+            base_url,
+            {
+                "display_name": "Rhea Copyton",
+                "contact_type_id": types["Employee"],
+                "emails": [{"email": "rhea@acme.example"}],
+                "team": "Copy Team",
+            },
+        )
+        _make(
+            page,
+            base_url,
+            {
+                "display_name": "Sol Nomail",
+                "contact_type_id": types["Vendor"],
+                "works_on": "Copy machines",
+            },
+        )
+
+        page.goto(base_url)
+        search = page.get_by_test_id("search-input")
+
+        # S-05: results update as you type, no Enter needed.
+        search.press_sequentially("quinn", delay=15)
+        expect(page.get_by_test_id("result-row")).to_have_count(1)
+        page.get_by_label("Select Quinn Copyton").check()
+        expect(page.get_by_test_id("action-bar")).to_be_visible()
+
+        # Selection survives a new search (M-01).
+        search.fill("")
+        search.press_sequentially("copy", delay=15)
+        expect(page.get_by_test_id("result-row")).to_have_count(3)
+        expect(page.get_by_label("Select Quinn Copyton")).to_be_checked()
+        page.get_by_label("Select Rhea Copyton").check()
+        page.get_by_label("Select Sol Nomail").check()
+        expect(page.locator("[data-selected-count]")).to_have_text("3 selected")
+
+        # More than one address: choose Outlook or Gmail (ADR-0009).
+        page.get_by_test_id("copy-emails").click()
+        expect(page.get_by_test_id("copy-menu")).to_be_visible()
+        page.get_by_test_id("copy-outlook").click()
+        assert (
+            page.evaluate("navigator.clipboard.readText()")
+            == "quinn@acme.example; rhea@acme.example"
+        )
+        expect(page.get_by_test_id("action-status")).to_contain_text(
+            "Copied 2 addresses for Outlook"
+        )
+        expect(page.get_by_test_id("action-status")).to_contain_text(
+            "1 skipped (no email): Sol Nomail"
+        )
+
+        page.get_by_test_id("copy-emails").click()
+        expect(page.get_by_test_id("copy-outlook")).to_have_class(re.compile("preferred"))
+        page.get_by_test_id("copy-gmail").click()
+        assert (
+            page.evaluate("navigator.clipboard.readText()")
+            == "quinn@acme.example, rhea@acme.example"
+        )
+
+        # Compose in Gmail with Cc (M-03).
+        page.get_by_test_id("compose").click()
+        page.get_by_label("Cc").check()
+        page.get_by_test_id("compose-gmail").click()
+        assert page.evaluate("window.__opened") == (
+            "https://mail.google.com/mail/?view=cm&fs=1&cc=quinn%40acme.example,rhea%40acme.example"
+        )
+        page.get_by_test_id("compose").click()
+        page.get_by_label("To", exact=True).check()
+        page.get_by_test_id("compose-outlook").click()
+        assert page.evaluate("window.__opened") == (
+            "https://outlook.office.com/mail/deeplink/compose?to=quinn%40acme.example;rhea%40acme.example"
+        )
+
+        # Tag the selection from the action bar (T-01 bulk).
+        page.get_by_test_id("add-tag").click()
+        page.get_by_test_id("tag-input").fill("Copy club")
+        page.get_by_test_id("tag-submit").click()
+        expect(page.get_by_test_id("flash")).to_contain_text("Tagged 3 contact(s)")
+
+        assert errors == []
+        browser.close()
+
+
+@pytest.mark.req("C-14")
+def test_company_defaults_for_employees_and_can_be_added(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page()
+        types = {
+            t["name"]: t["id"] for t in page.request.get(f"{base_url}/api/contact-types").json()
+        }
+        for name in ("Home One", "Home Two"):
+            _make(
+                page,
+                base_url,
+                {
+                    "display_name": name,
+                    "contact_type_id": types["Employee"],
+                    "company": "Homebase Inc",
+                },
+            )
+
+        page.goto(f"{base_url}/contacts/new")
+        company = page.get_by_test_id("company-select")
+        page.get_by_test_id("type-select").select_option(label="Employee")
+        expect(company).to_have_value("Homebase Inc")
+        expect(page.get_by_test_id("company-new")).to_be_hidden()
+
+        # Switching to Vendor clears the default; back to Employee restores it.
+        page.get_by_test_id("type-select").select_option(label="Vendor")
+        expect(company).to_have_value("")
+        page.get_by_test_id("type-select").select_option(label="Employee")
+        expect(company).to_have_value("Homebase Inc")
+
+        # Add a new company.
+        page.get_by_label("Display name").fill("Newco Person")
+        page.get_by_test_id("type-select").select_option(label="Vendor")
+        company.select_option(value="__new__")
+        expect(page.get_by_test_id("company-new")).to_be_visible()
+        page.get_by_test_id("company-new").fill("Brand New Co")
+        page.get_by_test_id("save").click()
+        expect(page.get_by_test_id("contact-card")).to_contain_text("Brand New Co")
         browser.close()

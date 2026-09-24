@@ -164,6 +164,16 @@ class PhoneOut(_Output):
     label: str | None
 
 
+class TagOut(_Output):
+    id: int
+    name: str
+
+
+class ListRef(_Output):
+    id: int
+    name: str
+
+
 class ContactLinks(BaseModel):
     """M-04: one-click actions for the card."""
 
@@ -196,6 +206,8 @@ class ContactOut(_Output):
     is_favorite: bool
     emails: list[EmailOut]
     phones: list[PhoneOut]
+    tags: list[TagOut]
+    lists: list[ListRef]
     links: ContactLinks
     archived: bool
     created_at: datetime

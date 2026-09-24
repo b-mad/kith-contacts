@@ -1,4 +1,4 @@
-"""Server-rendered pages for contacts (Phase 1: C-01 to C-08, M-04).
+"""Server-rendered pages for contacts (C-01 to C-08, C-10, C-14, S-01 to S-05, T-01, M-01).
 
 Forms post back to the server; every POST is protected by a double-submit
 CSRF token (N-05, ADR-0008).
@@ -18,22 +18,25 @@ from starlette.datastructures import FormData
 
 from app.config import Settings
 from app.contacts import (
-    SORT_KEYS,
     ContactError,
     ContactNotFound,
-    SortKey,
     archive_contact,
     create_contact,
+    employee_type_id,
     get_contact,
+    home_company,
+    list_companies,
     list_contact_types,
-    list_contacts,
     restore_contact,
     to_out,
     update_contact,
 )
 from app.db import get_session
-from app.models import Contact
+from app.lists import add_members, all_lists, find_or_create_list, remove_member
+from app.models import Contact, Tag
 from app.schemas import ContactCreate, ContactUpdate
+from app.search import SORT_KEYS, SearchFilters, SortKey, active_lists, distinct_values, search
+from app.tags import add_tag, remove_tag, tag_counts
 
 CSRF_COOKIE = "contacts_csrf"
 CSRF_FIELD = "csrf_token"
@@ -78,34 +81,150 @@ def _load(session: Session, contact_id: int) -> Contact:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Contact not found") from None
 
 
-# ---------------------------------------------------------------- list
+def safe_next(value: object, default: str = "/") -> str:
+    """Only same-site relative paths may be redirect targets."""
+    text = str(value or "")
+    if text.startswith("/") and not text.startswith("//") and "\\" not in text:
+        return text
+    return default
+
+
+def with_notice(path: str, notice: str, **params: object) -> str:
+    from urllib.parse import urlencode
+
+    joiner = "&" if "?" in path else "?"
+    return f"{path}{joiner}{urlencode({'notice': notice, **params})}"
+
+
+NOTICES = {
+    "saved": "Saved.",
+    "tagged": "Tagged {n} contact(s) with “{name}”.",
+    "untagged": "Tag removed.",
+    "listed": "Added {n} contact(s) to “{name}”.",
+    "favorite": "Marked as favorite.",
+    "unfavorite": "Removed from favorites.",
+    "removed": "Removed from the list.",
+    "created": "List created.",
+}
+
+
+def notice_text(request: Request) -> str | None:
+    key = request.query_params.get("notice") or (
+        "saved" if request.query_params.get("saved") else ""
+    )
+    template = NOTICES.get(key)
+    if template is None:
+        return None
+    name = request.query_params.get("name", "")[:100]
+    n = request.query_params.get("n", "")
+    return template.format(n=n if n.isdigit() else "", name=name)
+
+
+def _int(value: str | None) -> int | None:
+    return int(value) if value and value.isdigit() else None
+
+
+def selected_ids(form: FormData) -> list[int]:
+    return sorted({int(str(v)) for v in form.getlist("contact_ids") if str(v).isdigit()})
+
+
+# ---------------------------------------------------------------- list & search (S-01 to S-05)
+
+
+def _search_context(request: Request, session: Session) -> dict[str, Any]:
+    p = request.query_params
+    q = p.get("q", "").strip()[:200]
+    manager_id = _int(p.get("manager"))
+    list_id = _int(p.get("list"))
+    filters = SearchFilters(
+        type_id=_int(p.get("type")),
+        company=p.get("company") or None,
+        team=p.get("team") or None,
+        manager_id=manager_id,
+        tag=p.get("tag") or None,
+        list_id=list_id,
+        favorites=p.get("favorites") == "1",
+        include_archived=p.get("archived") == "1",
+    )
+    sort_raw = p.get("sort", "")
+    default_sort: SortKey = "relevance" if q else "name"
+    sort: SortKey = next((k for k in SORT_KEYS if k == sort_raw), default_sort)
+    hits = search(session, q, filters, sort=sort)
+    manager = None
+    if manager_id is not None:
+        try:
+            manager = get_contact(session, manager_id)
+        except ContactNotFound:
+            manager = None
+    list_name = next(
+        (cl.name for cl, _ in all_lists(session, include_archived=True) if cl.id == list_id), None
+    )
+    return {
+        "q": q,
+        "filters": filters,
+        "sort": sort,
+        "hits": [(to_out(h.contact), h.matched, h.fuzzy) for h in hits],
+        "types": list_contact_types(session),
+        "companies": distinct_values(session, Contact.company),
+        "teams": distinct_values(session, Contact.team),
+        "tags": tag_counts(session),
+        "lists": active_lists(session),
+        "manager": manager,
+        "list_name": list_name,
+        "notice": notice_text(request),
+    }
 
 
 @router.get("/", response_class=HTMLResponse)
 @router.get("/contacts", response_class=HTMLResponse)
-def contact_list(
-    request: Request,
-    session: SessionDep,
-    type: str = "",
-    sort: str = "name",
-    archived: str = "",
-) -> HTMLResponse:
-    type_id = int(type) if type.isdigit() else None
-    sort_key: SortKey = sort if sort in SORT_KEYS else "name"
-    include_archived = archived == "1"
-    contacts = list_contacts(
-        session, contact_type_id=type_id, sort=sort_key, include_archived=include_archived
+def contact_list(request: Request, session: SessionDep) -> HTMLResponse:
+    return _render(request, "contacts/list.html", _search_context(request, session))
+
+
+@router.get("/contacts/results", response_class=HTMLResponse)
+def contact_results(request: Request, session: SessionDep) -> HTMLResponse:
+    """The results table only — fetched while typing (S-05)."""
+    return _render(request, "contacts/_results.html", _search_context(request, session))
+
+
+# ---------------------------------------------------------------- selection actions (M-01)
+
+
+@router.post("/selection/tag", dependencies=CsrfChecked)
+async def tag_selection(request: Request, session: SessionDep) -> Response:
+    form = await request.form()
+    ids = selected_ids(form)
+    back = safe_next(form.get("next"))
+    if not ids:
+        return RedirectResponse(back, status.HTTP_303_SEE_OTHER)
+    try:
+        tag = add_tag(session, ids, str(form.get("tag", "")))
+    except ContactError as exc:
+        session.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message) from None
+    session.commit()
+    return RedirectResponse(
+        with_notice(back, "tagged", n=len(ids), name=tag.name), status.HTTP_303_SEE_OTHER
     )
-    return _render(
-        request,
-        "contacts/list.html",
-        {
-            "contacts": [to_out(c) for c in contacts],
-            "types": list_contact_types(session),
-            "type_id": type_id,
-            "sort": sort_key,
-            "include_archived": include_archived,
-        },
+
+
+@router.post("/selection/list", dependencies=CsrfChecked)
+async def list_selection(request: Request, session: SessionDep) -> Response:
+    form = await request.form()
+    ids = selected_ids(form)
+    back = safe_next(form.get("next"))
+    if not ids:
+        return RedirectResponse(back, status.HTTP_303_SEE_OTHER)
+    try:
+        contact_list = find_or_create_list(session, str(form.get("list_name", "")))
+        add_members(session, contact_list, ids, str(form.get("role_note", "")))
+    except ContactError as exc:
+        session.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message) from None
+    session.commit()
+    return RedirectResponse(
+        with_notice(f"/lists/{contact_list.id}", "listed", n=len(ids), name=contact_list.name),
+        status.HTTP_303_SEE_OTHER,
     )
 
 
@@ -143,6 +262,11 @@ def parse_contact_form(form: FormData) -> tuple[dict[str, Any], dict[str, Any]]:
     ]
     values: dict[str, Any] = {f: str(form.get(f, "")).strip() for f in scalar}
     values["manager_label"] = str(form.get("manager_label", "")).strip()
+    # C-14: company comes from the dropdown, or the "add new" box.
+    new_company = " ".join(str(form.get("company_new", "")).split())
+    if values["company"] == NEW_COMPANY or (not values["company"] and new_company):
+        values["company"] = new_company
+    values["company_new"] = new_company if values["company"] == new_company else ""
     values["is_favorite"] = form.get("is_favorite") == "on"
 
     primary_index = str(form.get("primary_email", "0"))
@@ -167,6 +291,8 @@ def parse_contact_form(form: FormData) -> tuple[dict[str, Any], dict[str, Any]]:
     ]
     return data, values
 
+
+NEW_COMPANY = "__new__"
 
 FIELD_LABELS = {
     "display_name": "Display name",
@@ -205,10 +331,19 @@ def _form_context(
     *,
     contact_id: int | None = None,
     errors: dict[str, str] | None = None,
+    home: str | None = None,
 ) -> dict[str, Any]:
     emails = values.get("emails") or []
     phones = values.get("phones") or []
+    companies = list_companies(session)
+    current = values.get("company") or ""
+    if current and current not in companies and not values.get("company_new"):
+        companies = sorted([*companies, current], key=str.lower)
     return {
+        "companies": companies,
+        "new_company": NEW_COMPANY,
+        "home_company": home or "",
+        "employee_type_id": employee_type_id(session),
         "values": values,
         "emails": emails or [{"address": "", "label": "", "is_primary": True}],
         "phones": phones or [{"number": "", "label": ""}],
@@ -251,6 +386,10 @@ def _values_from_contact(contact: Contact) -> dict[str, Any]:
     return values
 
 
+def _home(request: Request, session: Session) -> str | None:
+    return home_company(session, _settings(request).home_company)
+
+
 def _manager_label(session: Session, manager_id: str) -> str:
     if not manager_id.isdigit():
         return ""
@@ -266,12 +405,16 @@ def _manager_label(session: Session, manager_id: str) -> str:
 @router.get("/contacts/new", response_class=HTMLResponse)
 def new_contact(request: Request, session: SessionDep, manager: str = "") -> HTMLResponse:
     types = list_contact_types(session)
+    home = home_company(session, _settings(request).home_company)
+    first_type = types[0].id if types else None
     values: dict[str, Any] = {
-        "contact_type_id": str(types[0].id) if types else "",
+        "contact_type_id": str(first_type or ""),
         "manager_id": manager if manager.isdigit() else "",
         "manager_label": _manager_label(session, manager),
+        # C-14: a new employee defaults to the home company
+        "company": home if home and first_type == employee_type_id(session) else "",
     }
-    return _render(request, "contacts/form.html", _form_context(session, values))
+    return _render(request, "contacts/form.html", _form_context(session, values, home=home))
 
 
 @router.post("/contacts", dependencies=CsrfChecked)
@@ -279,7 +422,10 @@ async def create_contact_form(request: Request, session: SessionDep) -> Response
     data, values = parse_contact_form(await request.form())
     if errors := unresolved_manager(values):
         return _render(
-            request, "contacts/form.html", _form_context(session, values, errors=errors), 422
+            request,
+            "contacts/form.html",
+            _form_context(session, values, errors=errors, home=_home(request, session)),
+            422,
         )
     try:
         contact = create_contact(
@@ -294,11 +440,11 @@ async def create_contact_form(request: Request, session: SessionDep) -> Response
         errors = {exc.field or "__all__": exc.message}
     else:
         session.commit()
-        return RedirectResponse(f"/contacts/{contact.id}?saved=1", status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(f"/contacts/{contact.id}?notice=saved", status.HTTP_303_SEE_OTHER)
     return _render(
         request,
         "contacts/form.html",
-        _form_context(session, values, errors=errors),
+        _form_context(session, values, errors=errors, home=_home(request, session)),
         status_code=422,
     )
 
@@ -307,11 +453,93 @@ async def create_contact_form(request: Request, session: SessionDep) -> Response
 
 
 @router.get("/contacts/{contact_id}", response_class=HTMLResponse)
-def contact_card(
-    request: Request, contact_id: int, session: SessionDep, saved: str = ""
-) -> HTMLResponse:
+def contact_card(request: Request, contact_id: int, session: SessionDep) -> HTMLResponse:
     contact = _load(session, contact_id)
-    return _render(request, "contacts/card.html", {"c": to_out(contact), "saved": saved == "1"})
+    return _render(
+        request,
+        "contacts/card.html",
+        {
+            "c": to_out(contact),
+            "notice": notice_text(request),
+            "all_tags": [t.name for t in tag_counts(session)],
+            "all_lists": active_lists(session),
+            "roles": {m.contact_list.id: m.role_note for m in contact.memberships},
+        },
+    )
+
+
+@router.post("/contacts/{contact_id}/favorite", dependencies=CsrfChecked)
+def toggle_favorite(contact_id: int, session: SessionDep) -> Response:
+    """C-10."""
+    contact = _load(session, contact_id)
+    contact.is_favorite = not contact.is_favorite
+    session.commit()
+    notice = "favorite" if contact.is_favorite else "unfavorite"
+    return RedirectResponse(
+        with_notice(f"/contacts/{contact_id}", notice), status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/contacts/{contact_id}/tags", dependencies=CsrfChecked)
+async def add_contact_tag(request: Request, contact_id: int, session: SessionDep) -> Response:
+    """T-01."""
+    _load(session, contact_id)
+    form = await request.form()
+    try:
+        tag = add_tag(session, [contact_id], str(form.get("tag", "")))
+    except ContactError as exc:
+        session.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message) from None
+    session.commit()
+    return RedirectResponse(
+        with_notice(f"/contacts/{contact_id}", "tagged", n=1, name=tag.name),
+        status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/contacts/{contact_id}/tags/{tag_id}/remove", dependencies=CsrfChecked)
+def remove_contact_tag(contact_id: int, tag_id: int, session: SessionDep) -> Response:
+    _load(session, contact_id)
+    if session.get(Tag, tag_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tag not found")
+    remove_tag(session, contact_id, tag_id)
+    session.commit()
+    return RedirectResponse(
+        with_notice(f"/contacts/{contact_id}", "untagged"), status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/contacts/{contact_id}/lists", dependencies=CsrfChecked)
+async def add_contact_to_list(request: Request, contact_id: int, session: SessionDep) -> Response:
+    """L-02 from the card."""
+    _load(session, contact_id)
+    form = await request.form()
+    try:
+        contact_list = find_or_create_list(session, str(form.get("list_name", "")))
+        add_members(session, contact_list, [contact_id], str(form.get("role_note", "")))
+    except ContactError as exc:
+        session.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message) from None
+    session.commit()
+    return RedirectResponse(
+        with_notice(f"/contacts/{contact_id}", "listed", n=1, name=contact_list.name),
+        status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/contacts/{contact_id}/lists/{list_id}/remove", dependencies=CsrfChecked)
+def remove_contact_from_list(contact_id: int, list_id: int, session: SessionDep) -> Response:
+    from app.lists import get_list
+
+    try:
+        contact_list = get_list(session, list_id)
+    except ContactNotFound:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "List not found") from None
+    remove_member(session, contact_list, contact_id)
+    session.commit()
+    return RedirectResponse(
+        with_notice(f"/contacts/{contact_id}", "removed"), status.HTTP_303_SEE_OTHER
+    )
 
 
 # ---------------------------------------------------------------- edit
@@ -323,7 +551,12 @@ def edit_contact(request: Request, contact_id: int, session: SessionDep) -> HTML
     return _render(
         request,
         "contacts/form.html",
-        _form_context(session, _values_from_contact(contact), contact_id=contact_id),
+        _form_context(
+            session,
+            _values_from_contact(contact),
+            contact_id=contact_id,
+            home=_home(request, session),
+        ),
     )
 
 
@@ -335,7 +568,9 @@ async def update_contact_form(request: Request, contact_id: int, session: Sessio
         return _render(
             request,
             "contacts/form.html",
-            _form_context(session, values, contact_id=contact_id, errors=errors),
+            _form_context(
+                session, values, contact_id=contact_id, errors=errors, home=_home(request, session)
+            ),
             422,
         )
     try:
@@ -348,11 +583,13 @@ async def update_contact_form(request: Request, contact_id: int, session: Sessio
         errors = {exc.field or "__all__": exc.message}
     else:
         session.commit()
-        return RedirectResponse(f"/contacts/{contact_id}?saved=1", status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(f"/contacts/{contact_id}?notice=saved", status.HTTP_303_SEE_OTHER)
     return _render(
         request,
         "contacts/form.html",
-        _form_context(session, values, contact_id=contact_id, errors=errors),
+        _form_context(
+            session, values, contact_id=contact_id, errors=errors, home=_home(request, session)
+        ),
         status_code=422,
     )
 

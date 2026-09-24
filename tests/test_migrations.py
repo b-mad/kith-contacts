@@ -19,12 +19,22 @@ from app.migrate import (
     alembic_config,
     current_revision,
     ensure_contact_types,
+    head_revision,
     upgrade_to_head,
 )
 from app.models import Base, ContactType
 from tests.conftest import _database_url, make_settings
 
-PHASE_1_TABLES = {"contact_type", "contact", "contact_email", "contact_phone"}
+PHASE_1_TABLES = {
+    "contact_type",
+    "contact",
+    "contact_email",
+    "contact_phone",
+    "tag",
+    "contact_tag",
+    "contact_list",
+    "list_member",
+}
 
 
 @pytest.fixture
@@ -54,7 +64,7 @@ def test_upgrade_creates_schema_and_extension(scratch_settings: Settings) -> Non
     engine = _engine(scratch_settings)
     try:
         assert set(inspect(engine).get_table_names()) >= PHASE_1_TABLES
-        assert current_revision(engine) == "0001"
+        assert current_revision(engine) == head_revision()
         with engine.connect() as conn:
             ext = conn.scalar(text("SELECT extname FROM pg_extension WHERE extname = 'pg_trgm'"))
         assert ext == "pg_trgm"
@@ -77,7 +87,7 @@ def test_downgrade_to_base_and_upgrade_again(scratch_settings: Settings) -> None
     try:
         assert PHASE_1_TABLES.isdisjoint(inspect(engine).get_table_names())
         command.upgrade(cfg, "head")
-        assert current_revision(engine) == "0001"
+        assert current_revision(engine) == head_revision()
     finally:
         engine.dispose()
 

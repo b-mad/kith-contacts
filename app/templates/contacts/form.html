@@ -21,7 +21,8 @@
       {{ m.text_input("Display name", "display_name", values, errors, required=True, hint="How you refer to them — a nickname or partial name is fine.") }}
       <div class="field{% if errors.get('contact_type_id') %} has-error{% endif %}">
         <label for="contact_type_id">Type <span aria-hidden="true">*</span></label>
-        <select id="contact_type_id" name="contact_type_id" required>
+        <select id="contact_type_id" name="contact_type_id" required
+                data-employee-type="{{ employee_type_id or '' }}" data-home-company="{{ home_company }}" data-testid="type-select">
           {% for t in types %}
             <option value="{{ t.id }}"{% if values.get('contact_type_id') == t.id | string %} selected{% endif %}>{{ t.name }}</option>
           {% endfor %}
@@ -45,7 +46,22 @@
   <fieldset>
     <legend>Organization</legend>
     <div class="row">
-      {{ m.text_input("Company", "company", values, errors) }}
+      <div class="field company-picker{% if errors.get('company') %} has-error{% endif %}" data-company-picker>
+        <label for="company">Company</label>
+        {% set current = values.get('company', '') %}
+        <select id="company" name="company" data-testid="company-select">
+          <option value="">— None —</option>
+          {% for name in companies %}
+            <option value="{{ name }}"{% if current == name %} selected{% endif %}>{{ name }}{% if name == home_company %} (home){% endif %}</option>
+          {% endfor %}
+          <option value="{{ new_company }}"{% if values.get('company_new') %} selected{% endif %}>+ Add new company…</option>
+        </select>
+        <div class="new-company" data-new-company>
+          <label for="company_new" class="small">New company name</label>
+          <input id="company_new" name="company_new" type="text" value="{{ values.get('company_new', '') }}" autocomplete="off" data-testid="company-new">
+        </div>
+        {{ m.field_error(errors, "company") }}
+      </div>
       {{ m.text_input("Title", "title", values, errors) }}
     </div>
     <div class="row three">

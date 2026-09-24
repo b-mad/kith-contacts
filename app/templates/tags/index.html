@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Tags{% endblock %}
+{% block content %}
+<h1>Tags</h1>
+{% if tags %}
+  <ul class="tag-cloud" data-testid="tag-cloud">
+    {% for t in tags %}
+      <li><a class="tag" href="/?tag={{ t.name | urlencode }}">{{ t.name }} <span class="count">{{ t.count }}</span></a></li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="empty">No tags yet. Add tags on a contact card, or select several contacts and choose “Add tag”.</p>
+{% endif %}
+{% endblock %}

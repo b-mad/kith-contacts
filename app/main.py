@@ -20,7 +20,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app import api, web
+from app import api, web, web_lists
 from app.config import Settings, load_settings
 from app.contacts import ContactError, ContactNotFound
 from app.db import create_db_engine, make_session_factory
@@ -120,4 +120,5 @@ def create_app(settings: Settings | None = None, *, run_migrations: bool = True)
     app.include_router(api.router)
     app.include_router(api.write_router)
     app.include_router(web.router)
+    app.include_router(web_lists.router)
     return app

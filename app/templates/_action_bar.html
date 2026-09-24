@@ -1,0 +1,62 @@
+{# Sticky bar for multi-select actions (M-01 to M-03, T-01, L-02). Needs JavaScript. #}
+{% import "_macros.html" as m with context %}
+<div class="action-bar" data-action-bar hidden data-testid="action-bar" role="region" aria-label="Selected contacts">
+  <span class="selected-count" data-selected-count>0 selected</span>
+
+  <div class="menu-wrap">
+    <button type="button" class="primary" data-copy-emails data-testid="copy-emails">Copy emails</button>
+    <div class="menu" data-copy-menu hidden role="menu" data-testid="copy-menu">
+      <p class="menu-title">Copy addresses for…</p>
+      <button type="button" role="menuitem" data-copy-for="outlook" data-testid="copy-outlook">Outlook <span class="muted">(a; b)</span></button>
+      <button type="button" role="menuitem" data-copy-for="gmail" data-testid="copy-gmail">Gmail <span class="muted">(a, b)</span></button>
+    </div>
+  </div>
+
+  <div class="menu-wrap">
+    <button type="button" data-compose data-testid="compose">Compose ▾</button>
+    <div class="menu" data-compose-menu hidden role="menu" data-testid="compose-menu">
+      <p class="menu-title">New email in…</p>
+      <button type="button" role="menuitem" data-compose-in="gmail" data-testid="compose-gmail">Gmail</button>
+      <button type="button" role="menuitem" data-compose-in="outlook" data-testid="compose-outlook">Outlook on the web</button>
+      <button type="button" role="menuitem" data-compose-in="mailto" data-testid="compose-mailto">Default mail app</button>
+      <fieldset class="menu-radio">
+        <legend class="visually-hidden">Recipients field</legend>
+        <label class="check"><input type="radio" name="compose_field" value="to" checked> To</label>
+        <label class="check"><input type="radio" name="compose_field" value="cc"> Cc</label>
+      </fieldset>
+    </div>
+  </div>
+
+  <div class="menu-wrap">
+    <button type="button" data-open-menu="list-menu" data-testid="add-to-list">Add to list ▾</button>
+    <form class="menu" id="list-menu" method="post" action="/selection/list" hidden data-selection-form data-testid="list-menu">
+      {{ m.csrf() }}
+      <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+      <label for="sel-list-name">List</label>
+      <input id="sel-list-name" name="list_name" list="sel-lists" required placeholder="Existing or new list name" data-testid="list-name-input">
+      <datalist id="sel-lists">{% for l in lists %}<option value="{{ l.name }}">{% endfor %}</datalist>
+      <label for="sel-role">Role note (optional)</label>
+      <input id="sel-role" name="role_note" placeholder="e.g. customer sponsor">
+      <button type="submit" class="primary" data-testid="list-submit">Add</button>
+    </form>
+  </div>
+
+  <div class="menu-wrap">
+    <button type="button" data-open-menu="tag-menu" data-testid="add-tag">Add tag ▾</button>
+    <form class="menu" id="tag-menu" method="post" action="/selection/tag" hidden data-selection-form data-testid="tag-menu">
+      {{ m.csrf() }}
+      <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+      <label for="sel-tag">Tag</label>
+      <input id="sel-tag" name="tag" list="sel-tags" required placeholder="e.g. HL7" data-testid="tag-input">
+      <datalist id="sel-tags">{% for t in tags %}<option value="{{ t.name }}">{% endfor %}</datalist>
+      <button type="submit" class="primary" data-testid="tag-submit">Add</button>
+    </form>
+  </div>
+
+  <button type="button" class="link" data-clear-selection>Clear</button>
+  <p class="action-status" data-action-status role="status" aria-live="polite" data-testid="action-status"></p>
+  <div class="copy-fallback" data-copy-fallback hidden>
+    <label for="copy-text">Copy these addresses (⌘C / Ctrl+C):</label>
+    <textarea id="copy-text" rows="2" readonly data-copy-text></textarea>
+  </div>
+</div>

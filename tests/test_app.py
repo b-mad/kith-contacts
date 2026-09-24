@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.main import APP_DIR, SECURITY_HEADERS, create_app
+from app.migrate import head_revision
 from app.models import Contact, ContactType
 from tests.conftest import make_settings
 
@@ -25,7 +26,7 @@ def test_healthz_reports_instance_and_database(client: TestClient) -> None:
         "env": "test",
         "status": "ok",
         "database": "ok",
-        "revision": "0001",
+        "revision": head_revision(),
     }
 
 

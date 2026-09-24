@@ -1,0 +1,67 @@
+{# Results table — rendered in the page and fetched alone while typing (S-05). #}
+{% set chips = [] %}
+{% if manager %}{% set _ = chips.append(("manager", "Reports to " ~ manager.display_name)) %}{% endif %}
+{% if filters.tag %}{% set _ = chips.append(("tag", "Tag: " ~ filters.tag)) %}{% endif %}
+{% if list_name %}{% set _ = chips.append(("list", "List: " ~ list_name)) %}{% endif %}
+{% if filters.company %}{% set _ = chips.append(("company", "Company: " ~ filters.company)) %}{% endif %}
+{% if filters.team %}{% set _ = chips.append(("team", "Team: " ~ filters.team)) %}{% endif %}
+{% if filters.favorites %}{% set _ = chips.append(("favorites", "Favorites")) %}{% endif %}
+{% if chips %}
+  <p class="chips" data-testid="filter-chips">
+    {% for key, label in chips %}
+      <a class="chip" href="/?{{ request.url.remove_query_params(key).query }}" data-remove-filter="{{ key }}" aria-label="Remove filter {{ label }}">{{ label }} <span aria-hidden="true">×</span></a>
+    {% endfor %}
+    <a class="small" href="/">Clear all</a>
+  </p>
+{% endif %}
+
+{% if hits %}
+  {% macro sort_link(key, label) -%}
+    <a href="?{{ request.url.include_query_params(sort=key).query }}"{% if sort == key %} aria-current="true" class="sorted"{% endif %}>{{ label }}</a>
+  {%- endmacro %}
+  <div class="table-wrap">
+  <table class="contacts" data-testid="contact-table">
+    <thead>
+      <tr>
+        <th scope="col" class="select-col"><input type="checkbox" aria-label="Select all" data-select-all data-testid="select-all"></th>
+        <th scope="col">{{ sort_link("name", "Name") }}</th>
+        <th scope="col">{{ sort_link("type", "Type") }}</th>
+        <th scope="col">{{ sort_link("company", "Company") }}</th>
+        <th scope="col">{{ sort_link("team", "Team") }}</th>
+        <th scope="col">Title</th>
+        <th scope="col">Manager</th>
+        <th scope="col">Email</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c, matched, fuzzy in hits %}
+        {% set email = c.emails[0].email if c.emails else "" %}
+        <tr data-contact-id="{{ c.id }}" data-email="{{ email }}" data-name="{{ c.display_name }}" data-testid="result-row"{% if c.archived %} class="archived"{% endif %}>
+          <td class="select-col"><input type="checkbox" class="select-contact" value="{{ c.id }}" aria-label="Select {{ c.display_name }}"></td>
+          <td>
+            <a href="/contacts/{{ c.id }}">{{ c.display_name }}</a>{% if c.is_favorite %} <span class="star" aria-label="Favorite">★</span>{% endif %}
+            {% if c.archived %} <span class="pill muted">Archived</span>{% endif %}
+            {% if matched or fuzzy %}
+              <div class="matched" data-testid="matched">
+                {% if fuzzy %}<span class="muted">similar name</span>{% endif %}
+                {% for field, value in matched[:3] %}<span class="match"><span class="match-field">{{ field }}:</span> {{ value }}</span>{% endfor %}
+              </div>
+            {% endif %}
+          </td>
+          <td><span class="pill">{{ c.contact_type.name }}</span></td>
+          <td>{{ c.company or "" }}</td>
+          <td>{{ c.team or "" }}</td>
+          <td>{{ c.title or "" }}</td>
+          <td>{% if c.manager %}<a href="/contacts/{{ c.manager.id }}">{{ c.manager.display_name }}</a>{% endif %}</td>
+          <td>{% if email %}<a href="mailto:{{ email }}">{{ email }}</a>{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted count" data-testid="result-count">{{ hits | length }} contact{{ "" if hits | length == 1 else "s" }}{% if q %} matching “{{ q }}”{% endif %}</p>
+{% elif q or filters.active %}
+  <p class="empty" data-testid="no-results">No contacts match{% if q %} “{{ q }}”{% endif %}. Try fewer words, or a team, manager, company or tag.</p>
+{% else %}
+  <p class="empty" data-testid="empty-state">No contacts yet.</p>
+{% endif %}

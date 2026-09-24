@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     backup_dir: Path | None = None
     contact_types: Annotated[tuple[str, ...], NoDecode] = DEFAULT_CONTACT_TYPES
     phone_region: str = Field(default="US", pattern=r"^[A-Z]{2}$")
+    home_company: str | None = Field(default=None, max_length=200)  # C-14
 
     @field_validator("contact_types", mode="before")
     @classmethod

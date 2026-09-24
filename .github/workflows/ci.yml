@@ -33,7 +33,7 @@ jobs:
       - name: Tests (unit + integration, coverage >= 80%)
         run: make test
       - name: Requirement traceability
-        run: uv run python -m scripts.req_trace --phase 1 --strict
+        run: uv run python -m scripts.req_trace --phase 2 --strict
       - name: End-to-end smoke test
         run: |
           uv run playwright install --with-deps chromium

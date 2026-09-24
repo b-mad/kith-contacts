@@ -7,6 +7,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -24,6 +25,8 @@ from app.contacts import (
 )
 from app.db import get_session
 from app.schemas import ContactCreate, ContactOut, ContactRef, ContactTypeOut, ContactUpdate
+from app.search import SearchFilters, search
+from app.tags import tag_counts
 
 
 def require_json(request: Request) -> None:
@@ -71,6 +74,63 @@ def lookup(
 ) -> Any:
     """Manager picker suggestions (C-07)."""
     return lookup_contacts(session, q, exclude_id=exclude)
+
+
+class MatchOut(BaseModel):
+    field: str
+    value: str
+
+
+class SearchResult(BaseModel):
+    contact: ContactOut
+    matched: list[MatchOut]
+    fuzzy: bool
+
+
+@router.get("/search", response_model=list[SearchResult])
+def search_contacts(
+    session: SessionDep,
+    q: Annotated[str, Query(max_length=200)] = "",
+    type: int | None = None,
+    company: str | None = None,
+    team: str | None = None,
+    manager: int | None = None,
+    tag: str | None = None,
+    list: int | None = None,
+    favorites: bool = False,
+    include_archived: bool = False,
+) -> list[SearchResult]:
+    """Context search (S-01 to S-04): ranked hits with the fields that matched."""
+    filters = SearchFilters(
+        type_id=type,
+        company=company,
+        team=team,
+        manager_id=manager,
+        tag=tag,
+        list_id=list,
+        favorites=favorites,
+        include_archived=include_archived,
+    )
+    return [
+        SearchResult(
+            contact=to_out(hit.contact),
+            matched=[MatchOut(field=f, value=v) for f, v in hit.matched],
+            fuzzy=hit.fuzzy,
+        )
+        for hit in search(session, q, filters)
+    ]
+
+
+class TagCountOut(BaseModel):
+    id: int
+    name: str
+    count: int
+
+
+@router.get("/tags", response_model=list[TagCountOut])
+def tags(session: SessionDep, q: Annotated[str, Query(max_length=50)] = "") -> Any:
+    """Tag autocomplete (T-01) with usage counts."""
+    return [TagCountOut(id=t.id, name=t.name, count=t.count) for t in tag_counts(session, q)]
 
 
 @router.get("/contacts/{contact_id}", response_model=ContactOut)

@@ -50,6 +50,15 @@ def ensure_contact_types(session: Session, names: tuple[str, ...]) -> int:
     return len(names)
 
 
+def head_revision() -> str:
+    from alembic.script import ScriptDirectory
+
+    head = ScriptDirectory.from_config(alembic_config("postgresql://unused")).get_current_head()
+    if head is None:  # pragma: no cover - there is always at least one migration
+        raise MigrationError("No migrations found")
+    return head
+
+
 def current_revision(engine: Engine) -> str | None:
     from alembic.runtime.migration import MigrationContext
 

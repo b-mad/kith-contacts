@@ -7,7 +7,7 @@ context — team, manager, project, tags — even when you forget their name.
 - Decisions: [docs/adr/](docs/adr/README.md)
 - Agent / contributor rules: [CLAUDE.md](CLAUDE.md)
 
-**Status:** Phase 1 (contact core) complete — add, edit, archive and browse contacts.
+**Status:** Phase 2 (find and act — the MVP) complete: context search, tags, project lists, multi-select with Copy emails / Compose for Outlook or Gmail.
 
 ## Prerequisites
 

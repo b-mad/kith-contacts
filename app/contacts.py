@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.links import contact_teams_url, mailto_url, slack_handle_display, tel_url
 from app.links import normalize_phone as _normalize_phone
-from app.models import Contact, ContactEmail, ContactPhone, ContactType
+from app.models import Contact, ContactEmail, ContactPhone, ContactType, ListMember
 from app.schemas import (
     ContactCreate,
     ContactLinks,
@@ -20,6 +20,7 @@ from app.schemas import (
     EmailIn,
     PhoneIn,
 )
+from app.search import refresh_search
 
 SortKey = Literal["name", "company", "team", "type", "updated"]
 SORT_KEYS: tuple[SortKey, ...] = ("name", "company", "team", "type", "updated")
@@ -49,6 +50,8 @@ def _with_details(stmt: Select[tuple[Contact]]) -> Select[tuple[Contact]]:
         selectinload(Contact.phones),
         selectinload(Contact.manager),
         selectinload(Contact.reports),
+        selectinload(Contact.tags),
+        selectinload(Contact.memberships).selectinload(ListMember.contact_list),
     )
 
 
@@ -213,15 +216,66 @@ _SCALAR_FIELDS = (
 )
 
 
+# ---------------------------------------------------------------- companies (C-14)
+
+
+def list_companies(session: Session) -> list[str]:
+    """Distinct company names in use, alphabetically (for the company dropdown)."""
+    rows = session.scalars(
+        select(Contact.company)
+        .where(Contact.company.is_not(None))
+        .group_by(Contact.company)
+        .order_by(func.lower(Contact.company))
+    ).all()
+    return [r for r in rows if r]
+
+
+def resolve_company(session: Session, raw: str | None) -> str | None:
+    """Reuse an existing spelling when the name matches ignoring case (C-14)."""
+    name = " ".join((raw or "").split())
+    if not name:
+        return None
+    existing = session.scalars(
+        select(Contact.company)
+        .where(func.lower(Contact.company) == name.lower())
+        .group_by(Contact.company)
+        .order_by(func.count().desc())
+    ).first()
+    return existing or name
+
+
+def home_company(session: Session, configured: str | None = None) -> str | None:
+    """Default company for new employees: HOME_COMPANY, else the most common one among
+    contacts whose type is named "Employee" (C-14, ADR-0009)."""
+    if configured:
+        return resolve_company(session, configured)
+    return session.scalars(
+        select(Contact.company)
+        .join(ContactType, ContactType.id == Contact.contact_type_id)
+        .where(func.lower(ContactType.name) == "employee", Contact.company.is_not(None))
+        .group_by(Contact.company)
+        .order_by(func.count().desc(), func.lower(Contact.company))
+    ).first()
+
+
+def employee_type_id(session: Session) -> int | None:
+    return session.scalar(select(ContactType.id).where(func.lower(ContactType.name) == "employee"))
+
+
+# ---------------------------------------------------------------- writes (continued)
+
+
 def create_contact(session: Session, data: ContactCreate, *, phone_region: str = "US") -> Contact:
     _check_contact_type(session, data.contact_type_id)
     _check_manager(session, None, data.manager_id)
     contact = Contact(**{f: getattr(data, f) for f in _SCALAR_FIELDS})
+    contact.company = resolve_company(session, data.company)
     session.add(contact)
     session.flush()
     _apply_emails(session, contact, data.emails)
     _apply_phones(contact, data.phones, phone_region)
     session.flush()
+    refresh_search(session, [contact.id])
     return get_contact(session, contact.id)
 
 
@@ -233,15 +287,21 @@ def update_contact(
         _check_contact_type(session, data.contact_type_id)
     if "manager_id" in sent:
         _check_manager(session, contact.id, data.manager_id)
+    renamed = "display_name" in sent and data.display_name != contact.display_name
     for field in _SCALAR_FIELDS:
         if field in sent:
             setattr(contact, field, getattr(data, field))
+    if "company" in sent:
+        contact.company = resolve_company(session, data.company)
     if data.emails is not None:
         _apply_emails(session, contact, data.emails)
     if data.phones is not None:
         _apply_phones(contact, data.phones, phone_region)
     contact.updated_at = datetime.now(UTC)
     session.flush()
+    # Reports carry their manager's name in their search document (S-01).
+    report_ids = [r.id for r in contact.reports] if renamed else []
+    refresh_search(session, [contact.id, *report_ids])
     session.expire(contact)
     return get_contact(session, contact.id)
 
@@ -298,6 +358,12 @@ def to_out(contact: Contact) -> ContactOut:
             ),
             "emails": sorted(contact.emails, key=lambda e: (not e.is_primary, e.id or 0)),
             "phones": contact.phones,
+            "tags": contact.tags,
+            "lists": [
+                m.contact_list
+                for m in sorted(contact.memberships, key=lambda m: m.contact_list.name.lower())
+                if m.contact_list.status == "active"
+            ],
             "links": contact_links(contact),
             "archived": contact.archived_at is not None,
             "created_at": contact.created_at,

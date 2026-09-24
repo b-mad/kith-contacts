@@ -2,7 +2,6 @@
 {% import "_macros.html" as m with context %}
 {% block title %}{{ c.display_name }}{% endblock %}
 {% block content %}
-{% if saved %}<p class="flash" role="status" data-testid="flash">Saved.</p>{% endif %}
 
 <article class="card" data-testid="contact-card">
   <header class="card-head">
@@ -16,6 +15,9 @@
       </p>
     </div>
     <div class="card-tools">
+      <form method="post" action="/contacts/{{ c.id }}/favorite">{{ m.csrf() }}
+        <button type="submit" data-testid="favorite" aria-pressed="{{ 'true' if c.is_favorite else 'false' }}">{{ "★ Favorite" if c.is_favorite else "☆ Favorite" }}</button>
+      </form>
       <a class="button" href="/contacts/{{ c.id }}/edit" data-testid="edit">Edit</a>
       {% if c.archived %}
         <form method="post" action="/contacts/{{ c.id }}/restore">{{ m.csrf() }}<button type="submit" data-testid="restore">Restore</button></form>
@@ -74,9 +76,54 @@
               {% endfor %}
             </ul>
           {% else %}<span class="muted">None</span>{% endif %}
-          <a class="small" href="/contacts/new?manager={{ c.id }}">+ Add a report</a>
+          {% if c.reports %}<a class="small" href="/?manager={{ c.id }}" data-testid="see-team">See team</a> · {% endif %}<a class="small" href="/contacts/new?manager={{ c.id }}">+ Add a report</a>
         </dd>
       </dl>
+    </section>
+  </div>
+
+  <div class="card-grid">
+    <section aria-labelledby="tags-h">
+      <h2 id="tags-h">Tags</h2>
+      <ul class="tag-list" data-testid="tags">
+        {% for t in c.tags %}
+          <li class="tag">
+            <a href="/?tag={{ t.name | urlencode }}">{{ t.name }}</a>
+            <form method="post" action="/contacts/{{ c.id }}/tags/{{ t.id }}/remove">{{ m.csrf() }}
+              <button type="submit" class="tag-remove" aria-label="Remove tag {{ t.name }}">×</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+      <form class="inline-form" method="post" action="/contacts/{{ c.id }}/tags">{{ m.csrf() }}
+        <label for="new-tag" class="visually-hidden">Add tag</label>
+        <input id="new-tag" name="tag" list="all-tags" placeholder="Add a tag…" required maxlength="50" data-testid="tag-add-input">
+        <datalist id="all-tags">{% for name in all_tags %}<option value="{{ name }}">{% endfor %}</datalist>
+        <button type="submit" data-testid="tag-add">Add</button>
+      </form>
+    </section>
+
+    <section aria-labelledby="lists-h">
+      <h2 id="lists-h">Lists</h2>
+      {% if c.lists %}
+        <ul class="plain" data-testid="lists">
+          {% for l in c.lists %}
+            <li>
+              <a href="/lists/{{ l.id }}">{{ l.name }}</a>{% if roles.get(l.id) %} <span class="muted">· {{ roles[l.id] }}</span>{% endif %}
+              <form class="inline" method="post" action="/contacts/{{ c.id }}/lists/{{ l.id }}/remove">{{ m.csrf() }}
+                <button type="submit" class="link small" aria-label="Remove from {{ l.name }}">Remove</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}<p class="muted">Not in any list.</p>{% endif %}
+      <form class="inline-form" method="post" action="/contacts/{{ c.id }}/lists">{{ m.csrf() }}
+        <label for="add-list" class="visually-hidden">Add to list</label>
+        <input id="add-list" name="list_name" list="all-lists" placeholder="Add to list (existing or new)…" required data-testid="list-add-input">
+        <datalist id="all-lists">{% for l in all_lists %}<option value="{{ l.name }}">{% endfor %}</datalist>
+        <input name="role_note" placeholder="Role (optional)" aria-label="Role note" class="role-input">
+        <button type="submit" data-testid="list-add">Add</button>
+      </form>
     </section>
   </div>
 

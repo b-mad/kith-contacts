@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Lists{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Project lists</h1></div>
+
+<form class="inline-form create-list" method="post" action="/lists" data-testid="create-list">{{ m.csrf() }}
+  <label for="list-name" class="visually-hidden">New list name</label>
+  <input id="list-name" name="name" placeholder="New list, e.g. Q4 LIS integration" required maxlength="100" value="{{ form_name or '' }}" data-testid="new-list-name">
+  <label for="list-desc" class="visually-hidden">Description</label>
+  <input id="list-desc" name="description" placeholder="Description (optional)">
+  <button type="submit" class="primary">Create list</button>
+</form>
+{% if error %}<p class="field-error" role="alert" data-testid="list-error">{{ error }}</p>{% endif %}
+
+{% if rows %}
+  <table class="contacts" data-testid="lists-table">
+    <thead><tr><th scope="col">List</th><th scope="col">Description</th><th scope="col">People</th><th scope="col">Status</th></tr></thead>
+    <tbody>
+      {% for cl, count in rows %}
+        <tr{% if cl.status == "archived" %} class="archived"{% endif %}>
+          <td><a href="/lists/{{ cl.id }}">{{ cl.name }}</a></td>
+          <td>{{ cl.description or "" }}</td>
+          <td>{{ count }}</td>
+          <td>{% if cl.status == "archived" %}<span class="pill muted">Archived</span>{% else %}<span class="pill">Active</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="empty" data-testid="no-lists">No lists yet. Create one above, or select people on the Contacts page and choose “Add to list”.</p>
+{% endif %}
+<p class="small"><a href="/lists{{ '' if include_archived else '?archived=1' }}">{{ "Hide archived lists" if include_archived else "Show archived lists" }}</a></p>
+{% endblock %}
