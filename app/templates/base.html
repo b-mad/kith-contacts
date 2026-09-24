@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Contacts{% endblock %} · {{ instance.instance_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('instance_css') }}">
+</head>
+<body class="env-{{ instance.app_env }}">
+  <header class="instance-bar" data-testid="instance-bar">
+    <a class="brand" href="/">Contacts</a>
+    <span class="instance-name" data-testid="instance-name">{{ instance.instance_name }}</span>
+    {% if not instance.is_production %}
+      <span class="env-badge" data-testid="env-badge">{{ instance.app_env | upper }}</span>
+    {% endif %}
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

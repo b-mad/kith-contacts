@@ -1,0 +1,83 @@
+[project]
+name = "contacts-app"
+version = "0.1.0"
+description = "Locally hosted contact manager for finding people by context."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.14",
+    "fastapi>=0.115",
+    "jinja2>=3.1",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.7",
+    "sqlalchemy>=2.0.36",
+    "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=0.1",
+    "mypy>=1.13",
+    "playwright>=1.49",
+    "pre-commit>=4.0",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+]
+
+[tool.uv]
+package = false
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",   # pycodestyle, pyflakes
+    "I",             # isort
+    "B",             # bugbear
+    "UP",            # pyupgrade
+    "S",             # bandit (security)
+    "SIM",           # simplify
+    "RUF",
+    "PT",            # pytest style
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+"migrations/**" = ["E501"]
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["^migrations/versions/"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_decorators = false
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--cov=app",
+    "--cov=scripts",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-fail-under=80",
+    "-m", "not e2e",
+]
+markers = [
+    "req(id): the requirement ID(s) from docs/requirements.md this test verifies",
+    "e2e: browser end-to-end tests (run with: make e2e)",
+]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+omit = ["app/__main__.py"]

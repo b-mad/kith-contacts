@@ -1,0 +1,24 @@
+# Local PostgreSQL server shared by all instances (ADR-0003, ADR-0005).
+# Each instance gets its own database and role via `make instance`.
+#   docker compose -f docker-compose.db.yml -p contacts-db up -d
+name: contacts-db
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-postgres}
+    ports:
+      - "127.0.0.1:5432:5432"   # N-04: never exposed beyond localhost
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

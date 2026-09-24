@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      TEST_DATABASE_ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Lint
+        run: make lint
+      - name: Type check
+        run: make typecheck
+      - name: Tests (unit + integration, coverage >= 80%)
+        run: make test
+      - name: Requirement traceability
+        run: uv run python -m scripts.req_trace --phase 0 --strict
+      - name: End-to-end smoke test
+        run: |
+          uv run playwright install --with-deps chromium
+          make e2e

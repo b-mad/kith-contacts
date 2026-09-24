@@ -1,0 +1,66 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #59636e;
+  --border: #d1d9e0;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --border: #3d444d;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+}
+
+.instance-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: var(--instance-color);
+  color: #ffffff;
+}
+
+.instance-bar .brand { color: inherit; font-weight: 700; text-decoration: none; }
+.instance-name { font-weight: 600; }
+
+/* I-03: non-production instances are unmistakable. */
+.env-badge {
+  margin-left: auto;
+  padding: 0.1rem 0.5rem;
+  border: 2px solid #ffffff;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+body:not(.env-production) .instance-bar {
+  background-image: repeating-linear-gradient(
+    -45deg, transparent 0 12px, rgb(255 255 255 / 0.15) 12px 24px
+  );
+}
+
+main { max-width: 72rem; margin: 0 auto; padding: 1rem; }
+
+table.contacts { width: 100%; border-collapse: collapse; }
+table.contacts th, table.contacts td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.empty { color: var(--muted); }
