@@ -133,11 +133,37 @@ def test_failed_dump_leaves_no_partial_file(instance: Settings) -> None:
         str(instance.database_url).replace("contacts_", "missing_", 1),
         instance_name=instance.instance_name,
         backup_dir=str(instance.resolved_backup_dir),
-        backup_tool="local",
-    )
-    with pytest.raises(BackupError, match="pg_dump failed"):
+    )  # auto: local pg_dump where installed, else docker (e.g. a Mac without libpq)
+    with pytest.raises(BackupError, match=r"failed|Cannot connect|No usable pg_dump"):
         backup(broken)
     assert list(instance.resolved_backup_dir.glob("*.dump")) == []
+
+
+@pytest.mark.req("D-04")
+def test_missing_pg_dump_gives_a_clear_error(
+    instance: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    forced = make_settings(
+        str(instance.database_url),
+        instance_name=instance.instance_name,
+        backup_dir=str(instance.resolved_backup_dir),
+        backup_tool="local",
+    )
+    monkeypatch.setenv("PATH", "")
+    with pytest.raises(BackupError, match=r"pg_dump not found.*BACKUP_TOOL=docker"):
+        backup(forced)
+    assert list(instance.resolved_backup_dir.glob("*.dump")) == []
+
+
+@pytest.mark.req("D-04")
+def test_invalid_file_is_rejected_before_any_safety_backup(
+    instance: Settings, tmp_path: Path
+) -> None:
+    bogus = tmp_path / "bogus.dump"
+    bogus.write_bytes(b"PGDM")  # truncated signature
+    with pytest.raises(BackupError, match="Not a valid backup"):
+        restore(instance, bogus)
+    assert list(instance.resolved_backup_dir.glob("*before-restore*.dump")) == []
 
 
 # ---------------------------------------------------------------- retention (N-06)

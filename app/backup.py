@@ -95,15 +95,20 @@ def local_tool_major(program: str = "pg_dump") -> int | None:
 
 
 def server_major(conn: Connection) -> int:
-    with psycopg.connect(
-        host=conn.host,
-        port=conn.port,
-        user=conn.user,
-        password=conn.password,
-        dbname=conn.database,
-        connect_timeout=5,
-    ) as db:
-        row = db.execute("SHOW server_version_num").fetchone()
+    try:
+        with psycopg.connect(
+            host=conn.host,
+            port=conn.port,
+            user=conn.user,
+            password=conn.password,
+            dbname=conn.database,
+            connect_timeout=5,
+        ) as db:
+            row = db.execute("SHOW server_version_num").fetchone()
+    except psycopg.OperationalError as exc:
+        raise BackupError(
+            f"Cannot connect to database {conn.database} on {conn.host}:{conn.port}: {exc}"
+        ) from exc
     if row is None:  # pragma: no cover - SHOW always returns a row
         raise BackupError("Could not read the server version")
     return int(row[0]) // 10000
@@ -182,6 +187,15 @@ def _run(
             check=False,
             timeout=600,
         )
+    except FileNotFoundError as exc:
+        raise BackupError(
+            f"{argv[0]} not found: install the PostgreSQL client tools "
+            "(macOS: brew install libpq) or set BACKUP_TOOL=docker"
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise BackupError(f"{argv[0]} timed out after {exc.timeout:.0f} seconds") from exc
+    except OSError as exc:
+        raise BackupError(f"Could not run {argv[0]}: {exc}") from exc
     finally:
         for f in (stdin_f, stdout_f):
             if f:
@@ -280,10 +294,16 @@ def ensure_recent_backup(settings: Settings, *, now: datetime | None = None) -> 
     return made
 
 
+DUMP_SIGNATURE = b"PGDMP"  # first bytes of every pg_dump -Fc file
+
+
 def restore(settings: Settings, source: Path) -> BackupFile:
     """Replace the database with ``source``. Takes a safety backup first; returns it."""
     if not source.is_file():
         raise BackupError(f"Backup file not found: {source}")
+    with source.open("rb") as f:
+        if f.read(len(DUMP_SIGNATURE)) != DUMP_SIGNATURE:
+            raise BackupError(f"Not a valid backup file (expected pg_dump custom format): {source}")
     conn = Connection.from_settings(settings)
     tool = resolve_tool(settings, conn)
     safety = backup(settings, label="before-restore")
