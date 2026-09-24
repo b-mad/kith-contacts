@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.2.1 |
+| Version | 1.3 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-09-24 |
@@ -133,7 +133,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | L-02 | Add or remove contacts from a list, from the card, search results or bulk selection. A contact can be in many lists. | Must | 2 |
 | L-03 | Per-membership role note ("customer sponsor", "vendor PM"). | Should | 2 |
 | L-04 | List view shows members with type, company, role and contact methods. | Must | 2 |
-| L-05 | Lists can carry tags and a status (active / archived). | Could | 3 |
+| L-05 | Lists can carry tags and a status (active / archived). Status delivered in Phase 2; list tags moved to Phase 4 (ADR-0011). | Could | 4 |
 
 ### Communication
 
@@ -199,8 +199,9 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | Table | Key fields | Notes |
 | --- | --- | --- |
 | `contact_type` | id, name (unique), sort_order | Per-instance list seeded from `CONTACT_TYPES` (C-05, I-08). |
-| `contact` | id, display_name\*, first_name, last_name, nickname, contact_type_id → contact_type, company, title, team, department, location, manager_id → contact, works_on, notes, slack_handle, slack_url, teams_url, photo_path, pronunciation, is_favorite, archived_at, created_at, updated_at | \* required. `manager_id` nullable; no self-reference; cycles rejected in app logic. |
+| `contact` | id, display_name\*, first_name, last_name, nickname, contact_type_id → contact_type, company, title, team, department, location, manager_id → contact, works_on, notes, slack_handle, slack_url, teams_url, pronunciation, is_favorite, archived_at, created_at, updated_at | \* required. `manager_id` nullable; no self-reference; cycles rejected in app logic. |
 | `contact_email` | id, contact_id, email, label, is_primary | Unique (contact_id, lower(email)); at most one primary per contact. |
+| `contact_photo` | contact_id, content_type, data, updated_at | Phase 3. ≤ 512 px, EXIF stripped; stored in the database so backups include it (ADR-0011). |
 | `contact_phone` | id, contact_id, number, label | Stored as E.164 when parseable, using the instance's `PHONE_REGION` (ADR-0008). |
 | `tag` | id, name (unique, case-insensitive), color | Phase 2. |
 | `contact_tag` | contact_id, tag_id | Phase 2. Composite key. |
@@ -227,8 +228,8 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 0 — Foundation ✅ | Repo, PostgreSQL, instance config; dev instance on localhost | N-01, N-02, N-10, I-01, I-02, I-04 | 3–4 days |
 | 1 — Contact core ✅ | Store and edit rich contacts | C-01–C-08, M-04, I-03, I-05 | 1 week |
 | 2 — Find and act (MVP) ✅ | Context search, tags, lists, copy emails | S-01–S-05, T-01–T-02, L-01–L-04, M-01–M-03, C-10, C-14 | 2 weeks |
-| 3 — Daily-driver | Production instances; org view, import/export, backups | S-06, T-03–T-04, L-05, C-09, M-05, D-01–D-04, N-06, I-06–I-08 | 1–2 weeks |
-| 4 — Depth | Power-user features | C-11–C-13, S-07, T-05, I-09 | 1–2 weeks |
+| 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, T-03–T-04, C-09, M-05, D-01–D-04, N-06, I-06–I-08 | 1–2 weeks |
+| 4 — Depth | Power-user features | C-11–C-13, S-07, T-05, L-05 (list tags), I-09 | 1–2 weeks |
 | 5 — Smart | Semantic search and directory sync | S-08, D-05 | 2+ weeks |
 
 ### Phase 0 — Foundation
@@ -300,6 +301,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.3 | 2026-09-24 | Phase 3 delivered. L-05 list tags moved to Phase 4. Photos stored in the database. Backup tool, daily auto-backup and import/export formats decided. | 0011 |
 | 1.2.1 | 2026-09-24 | Phase 2 delivered. Clarified: search document maintained by the application rather than triggers. | 0010 |
 | 1.2 | 2026-09-24 | M-02 and M-03 changed: choose Outlook or Gmail when copying or composing to several contacts. C-14 added: company dropdown with add-new and a default for new employees. | 0009 |
 | 1.1.1 | 2026-09-24 | Phase 1 delivered. Clarified: phone numbers normalized to E.164 using the instance's `PHONE_REGION`; Slack/Teams links must be https. No requirement added or removed. | 0008 |

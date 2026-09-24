@@ -40,3 +40,4 @@ not change meaning — those are logged in the requirements change log only.
 | [0008](0008-server-rendered-forms-csrf-and-phone-numbers.md) | Server-rendered forms, CSRF protection and phone number format | Accepted | C-01–C-08, M-04, N-04, N-05 |
 | [0009](0009-mail-client-choice-and-company-picker.md) | Choose Gmail or Outlook when emailing a group; company picker with a default | Accepted | M-02, M-03, C-14 |
 | [0010](0010-search-document-maintained-in-application.md) | Search document maintained by the application, not database triggers | Accepted | S-01–S-05 |
+| [0011](0011-backups-import-export-and-photos.md) | Backups, import/export formats and photo storage | Accepted | D-01–D-04, I-06, I-07, N-06, C-09, L-05 |
