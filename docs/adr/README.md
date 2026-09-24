@@ -1,0 +1,39 @@
+# Architecture Decision Records
+
+An ADR records one significant decision: the context, the choice, and its
+consequences. ADRs are how this project remembers *why* — for architecture
+and for changes to [the requirements](../requirements.md).
+
+## When to write an ADR
+
+Write one when a change:
+
+- adds, removes, withdraws, re-scopes or re-prioritizes a requirement in `docs/requirements.md`;
+- picks or replaces a technology, library, data store or external integration;
+- changes the data model in a way that is hard to reverse (dropping data, changing keys);
+- changes security, privacy, backup or instance-isolation behavior;
+- sets or changes a development practice everyone must follow.
+
+No ADR is needed for bug fixes, refactors, or wording clarifications that do
+not change meaning — those are logged in the requirements change log only.
+
+## How
+
+1. Copy `template.md` to `NNNN-short-title.md` using the next free number.
+2. Fill it in with **Status: Proposed**. Link the requirement IDs it affects.
+3. In the same change, update `docs/requirements.md` (bump the version, add a change-log row naming the ADR).
+4. When the product owner approves, set **Status: Accepted** and add the date.
+5. Never edit an accepted ADR's decision. To change it, write a new ADR that
+   **supersedes** it and set the old one's status to `Superseded by ADR-NNNN`.
+
+## Index
+
+| ADR | Title | Status | Requirements |
+| --- | --- | --- | --- |
+| [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted | — |
+| [0002](0002-requirements-as-versioned-source-of-truth.md) | Requirements as a versioned source of truth | Accepted | all |
+| [0003](0003-postgresql-data-store.md) | PostgreSQL as the data store | Accepted | N-01, N-03, S-01–S-03, S-08 |
+| [0004](0004-python-fastapi-htmx-stack.md) | Python, FastAPI and HTMX stack | Accepted | N-10 |
+| [0005](0005-isolated-instances-per-database.md) | Isolated instances: one database and env file per instance | Accepted | I-01–I-09, N-05 |
+| [0006](0006-testing-and-definition-of-done.md) | Testing strategy and definition of done | Accepted | N-10 |
+| [0007](0007-slack-teams-and-local-backups.md) | Slack and Teams on every card; local-folder backups | Accepted | C-04, M-04, I-06, N-06 |
