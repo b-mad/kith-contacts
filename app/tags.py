@@ -1,4 +1,4 @@
-"""Tags (T-01, T-02)."""
+"""Tags (T-01, T-02, T-04, T-05)."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ from dataclasses import dataclass
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.contacts import ContactError
-from app.models import Contact, Tag, contact_tag
+from app.models import Contact, Tag, contact_tag, list_tag
 from app.search import refresh_search
 
 MAX_TAG_LENGTH = 50
@@ -120,6 +120,15 @@ def rename_tag(session: Session, tag: Tag, raw: str) -> Tag:
             .values([{"contact_id": i, "tag_id": target.id} for i in affected])
             .on_conflict_do_nothing()
         )
+    tagged_lists = list(
+        session.scalars(select(list_tag.c.list_id).where(list_tag.c.tag_id == tag.id))
+    )
+    if tagged_lists:  # L-05: lists follow the merge too
+        session.execute(
+            insert(list_tag)
+            .values([{"list_id": i, "tag_id": target.id} for i in tagged_lists])
+            .on_conflict_do_nothing()
+        )
     session.delete(tag)
     session.flush()
     session.expire_all()
@@ -141,3 +150,43 @@ def set_tag_color(session: Session, tag: Tag, color: str | None) -> None:
         raise ContactError("Unknown color", "color")
     tag.color = color or None
     session.flush()
+
+
+# ---------------------------------------------------------------- related tags (T-05)
+
+
+@dataclass(frozen=True)
+class RelatedTag:
+    name: str
+    shared: int
+
+
+def related_tags(session: Session, name: str, limit: int = 8) -> list[RelatedTag]:
+    """Tags that most often appear on the same active contacts as ``name``."""
+    base = contact_tag.alias("base")
+    other = contact_tag.alias("other")
+    this_tag = aliased(Tag)
+    shared = func.count(func.distinct(base.c.contact_id))
+    rows = session.execute(
+        select(Tag.name, shared)
+        .select_from(base)
+        .join(this_tag, this_tag.id == base.c.tag_id)
+        .join(other, (other.c.contact_id == base.c.contact_id) & (other.c.tag_id != base.c.tag_id))
+        .join(Tag, Tag.id == other.c.tag_id)
+        .join(Contact, (Contact.id == base.c.contact_id) & Contact.archived_at.is_(None))
+        .where(func.lower(this_tag.name) == name.lower())
+        .group_by(Tag.id, Tag.name)
+        .order_by(shared.desc(), func.lower(Tag.name))
+        .limit(limit)
+    ).all()
+    return [RelatedTag(n, int(c)) for n, c in rows]
+
+
+def list_tag_counts(session: Session) -> dict[int, int]:
+    """Number of lists carrying each tag (tag admin)."""
+    return {
+        int(tag_id): int(n)
+        for tag_id, n in session.execute(
+            select(list_tag.c.tag_id, func.count()).group_by(list_tag.c.tag_id)
+        ).all()
+    }

@@ -17,6 +17,26 @@
   </div>
 </div>
 
+<section class="list-tags" aria-labelledby="list-tags-h">
+  <h2 id="list-tags-h">Tags</h2>
+  <ul class="tag-list" data-testid="list-tags">
+    {% for t in cl.tags %}
+      <li class="tag tag-c-{{ t.color or 'none' }}">
+        <a href="/lists?tag={{ t.name | urlencode }}">{{ t.name }}</a>
+        <form method="post" action="/lists/{{ cl.id }}/tags/{{ t.id }}/remove">{{ m.csrf() }}
+          <button type="submit" class="tag-remove" aria-label="Remove tag {{ t.name }} from list">×</button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+  <form class="inline-form" method="post" action="/lists/{{ cl.id }}/tags">{{ m.csrf() }}
+    <label for="list-tag" class="visually-hidden">Tag this list</label>
+    <input id="list-tag" name="tag" list="list-tag-names" placeholder="Tag this list…" required maxlength="50" data-testid="list-tag-input">
+    <datalist id="list-tag-names">{% for t in tags %}<option value="{{ t.name }}">{% endfor %}</datalist>
+    <button type="submit" data-testid="list-tag-add">Add</button>
+  </form>
+</section>
+
 <details class="edit-list">
   <summary>Rename or describe</summary>
   <form class="inline-form" method="post" action="/lists/{{ cl.id }}/edit">{{ m.csrf() }}

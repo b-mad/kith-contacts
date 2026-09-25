@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Possible duplicates{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Possible duplicates</h1></div>
+<p class="muted">People who share an email address, or have very similar names at the same company. Merging keeps one record and moves everything from the other onto it.</p>
+
+{% for p in pairs %}
+  <section class="dup-pair" data-testid="dup-pair">
+    <p><strong>{{ p.reasons | join(" · ") | capitalize }}</strong></p>
+    <div class="people">
+      {% for c in (p.a, p.b) %}
+        <div>
+          <a href="/contacts/{{ c.id }}">{{ c.display_name }}</a>
+          <div class="muted small">{{ c.contact_type.name }}{% if c.title %} · {{ c.title }}{% endif %}{% if c.company %} · {{ c.company }}{% endif %}</div>
+          <div class="small">{{ c.emails | map(attribute="email") | join(", ") }}</div>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="tools">
+      <a class="button primary" href="/duplicates/merge?a={{ p.a.id }}&amp;b={{ p.b.id }}" data-testid="review-merge">Review and merge…</a>
+      <form method="post" action="/duplicates/dismiss">{{ m.csrf() }}
+        <input type="hidden" name="a" value="{{ p.a.id }}"><input type="hidden" name="b" value="{{ p.b.id }}">
+        <button type="submit" data-testid="dismiss">Not the same person</button>
+      </form>
+    </div>
+  </section>
+{% else %}
+  <p class="empty" data-testid="no-duplicates">No likely duplicates found.</p>
+{% endfor %}
+{% endblock %}

@@ -12,6 +12,7 @@
     <dt>Environment</dt><dd>{{ instance.app_env }}</dd>
     <dt>Contacts</dt><dd>{{ contact_count }}</dd>
     <dt>Contact types</dt><dd><a href="/settings/types">Manage contact types</a></dd>
+    <dt>Data quality</dt><dd><a href="/duplicates" data-testid="duplicates-link">Find and merge duplicates</a></dd>
   </dl>
 </section>
 
@@ -65,6 +66,6 @@
 
 <section class="panel" aria-labelledby="import-h">
   <h2 id="import-h">Import</h2>
-  <p><a class="button" href="/import" data-testid="import-link">Import contacts from CSV or vCard…</a></p>
+  <p><a class="button" href="/import" data-testid="import-link">Import contacts from CSV, vCard or JSON…</a></p>
 </section>
 {% endblock %}

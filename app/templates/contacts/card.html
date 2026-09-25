@@ -26,6 +26,7 @@
       </form>
       <a class="button" href="/contacts/{{ c.id }}/edit" data-testid="edit">Edit</a>
       <a class="button" href="/contacts/{{ c.id }}/vcard" data-testid="vcard">vCard</a>
+      <a class="button" href="/contacts/{{ c.id }}/export.json" data-testid="export-json" title="Download this contact with its fields, activity and photo, then import it in another instance">Copy to another instance</a>
       {% if c.archived %}
         <form method="post" action="/contacts/{{ c.id }}/restore">{{ m.csrf() }}<button type="submit" data-testid="restore">Restore</button></form>
       {% else %}
@@ -155,6 +156,45 @@
       {% if c.has_photo %}
         <form method="post" action="/contacts/{{ c.id }}/photo/remove">{{ m.csrf() }}<button type="submit" class="link small" data-testid="photo-remove">Remove photo</button></form>
       {% endif %}
+    </section>
+  </div>
+
+  <div class="card-grid">
+    <section aria-labelledby="activity-h" class="activity">
+      <h2 id="activity-h">Activity{% if c.last_contact %} <span class="muted small" data-testid="last-contact">· last contact {{ c.last_contact.strftime("%b") }} {{ c.last_contact.day }}, {{ c.last_contact.year }}</span>{% endif %}</h2>
+      <form class="activity-form" method="post" action="/contacts/{{ c.id }}/activities" data-testid="activity-form">{{ m.csrf() }}
+        <label for="act-kind" class="visually-hidden">Kind</label>
+        <select id="act-kind" name="kind" data-testid="activity-kind">
+          {% for key, label in kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+        </select>
+        <label for="act-date" class="visually-hidden">Date</label>
+        <input id="act-date" type="date" name="occurred_on" value="{{ today }}" data-testid="activity-date">
+        <label for="act-summary" class="visually-hidden">What happened</label>
+        <input id="act-summary" name="summary" placeholder="What happened? e.g. intro call about the LIS interface" required maxlength="2000" data-testid="activity-summary">
+        <button type="submit" data-testid="activity-add">Log</button>
+      </form>
+      {% if c.activities %}
+        <ol class="timeline" data-testid="activities">
+          {% for a in c.activities %}
+            <li data-testid="activity">
+              <span class="pill kind-{{ a.kind }}">{{ kinds[a.kind] }}</span>
+              <time datetime="{{ a.occurred_on.isoformat() }}" class="muted small">{{ a.occurred_on.strftime("%b") }} {{ a.occurred_on.day }}, {{ a.occurred_on.year }}</time>
+              <span class="prewrap">{{ a.summary }}</span>
+              <form class="inline" method="post" action="/contacts/{{ c.id }}/activities/{{ a.id }}/delete">{{ m.csrf() }}
+                <button type="submit" class="link small" aria-label="Delete activity from {{ a.occurred_on.isoformat() }}">Delete</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}<p class="muted small">No activity yet. Log meetings, calls and emails to remember when you last spoke.</p>{% endif %}
+    </section>
+    <section aria-labelledby="fields-h">
+      <h2 id="fields-h">More details</h2>
+      {% if c.custom_fields %}
+        <dl data-testid="custom-field-list">
+          {% for f in c.custom_fields %}<dt>{{ f.name }}</dt><dd>{{ f.value }}</dd>{% endfor %}
+        </dl>
+      {% else %}<p class="muted small">No extra fields. <a href="/contacts/{{ c.id }}/edit">Add one</a>.</p>{% endif %}
     </section>
   </div>
 

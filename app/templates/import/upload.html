@@ -3,13 +3,13 @@
 {% block title %}Import contacts{% endblock %}
 {% block content %}
 <h1>Import contacts</h1>
-<p>Upload a <strong>CSV</strong> (for example exported from Outlook, Google Contacts or a spreadsheet) or a <strong>vCard (.vcf)</strong> file.
+<p>Upload a <strong>CSV</strong> (for example exported from Outlook, Google Contacts or a spreadsheet), a <strong>vCard (.vcf)</strong> file, or a <strong>JSON</strong> file exported from this app — for example a contact copied from another instance with “Copy to another instance”.
 You'll see a preview and can adjust the column mapping before anything is saved.</p>
 {% if error %}<p class="error-summary" role="alert" data-testid="import-error">{{ error }}</p>{% endif %}
 <form method="post" action="/import/preview" enctype="multipart/form-data" class="contact-form" data-testid="import-form">{{ m.csrf() }}
   <div class="field">
-    <label for="file">File (CSV or vCard, up to 5 MB)</label>
-    <input id="file" name="file" type="file" accept=".csv,.txt,.vcf,.vcard,text/csv,text/vcard" required data-testid="import-file">
+    <label for="file">File (CSV, vCard or JSON, up to 5 MB)</label>
+    <input id="file" name="file" type="file" accept=".csv,.txt,.vcf,.vcard,.json,text/csv,text/vcard,application/json" required data-testid="import-file">
   </div>
   <div class="row">
     <div class="field">

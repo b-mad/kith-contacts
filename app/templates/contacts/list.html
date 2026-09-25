@@ -7,6 +7,14 @@
   <a class="button primary" href="/contacts/new">Add contact</a>
 </div>
 
+{% if saved %}
+<nav class="saved-searches" aria-label="Saved searches" data-testid="saved-searches">
+  <span class="label">Saved:</span>
+  {% for s in saved %}<a class="chip" href="/?{{ s.query }}"{% if s.query == current_query %} aria-current="true"{% endif %} data-testid="saved-search">{{ s.name }}</a>{% endfor %}
+  <a class="small" href="/saved-searches">Manage</a>
+</nav>
+{% endif %}
+
 <form class="search" method="get" action="/" role="search" data-search-form>
   <label for="q" class="visually-hidden">Search contacts</label>
   <input id="q" name="q" type="search" value="{{ q }}" autocomplete="off" spellcheck="false"

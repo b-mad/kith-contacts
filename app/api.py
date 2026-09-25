@@ -135,14 +135,14 @@ def tags(session: SessionDep, q: Annotated[str, Query(max_length=50)] = "") -> A
 
 @router.get("/contacts/{contact_id}", response_model=ContactOut)
 def read_contact(contact_id: int, session: SessionDep) -> ContactOut:
-    return to_out(get_contact(session, contact_id))
+    return to_out(get_contact(session, contact_id), detail=True)
 
 
 @write_router.post("/contacts", response_model=ContactOut, status_code=status.HTTP_201_CREATED)
 def create(body: ContactCreate, session: SessionDep, settings: SettingsDep) -> ContactOut:
     contact = create_contact(session, body, phone_region=settings.phone_region)
     session.commit()
-    return to_out(contact)
+    return to_out(contact, detail=True)
 
 
 @write_router.patch("/contacts/{contact_id}", response_model=ContactOut)
@@ -153,7 +153,7 @@ def update(
         session, get_contact(session, contact_id), body, phone_region=settings.phone_region
     )
     session.commit()
-    return to_out(contact)
+    return to_out(contact, detail=True)
 
 
 @router.delete("/contacts/{contact_id}", response_model=ContactOut)
@@ -161,14 +161,14 @@ def archive(contact_id: int, session: SessionDep) -> ContactOut:
     """Archive (soft delete) — C-01. DELETE cannot be sent cross-site without CORS preflight."""
     contact = archive_contact(session, get_contact(session, contact_id))
     session.commit()
-    return to_out(get_contact(session, contact.id))
+    return to_out(get_contact(session, contact.id), detail=True)
 
 
 @write_router.post("/contacts/{contact_id}/restore", response_model=ContactOut)
 def restore(contact_id: int, session: SessionDep) -> ContactOut:
     contact = restore_contact(session, get_contact(session, contact_id))
     session.commit()
-    return to_out(get_contact(session, contact.id))
+    return to_out(get_contact(session, contact.id), detail=True)
 
 
 def error_body(message: str, field: str | None) -> JSONResponse:

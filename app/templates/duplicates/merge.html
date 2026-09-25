@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Merge {{ a.display_name }} and {{ b.display_name }}{% endblock %}
+{% block content %}
+<h1>Merge duplicates</h1>
+<form method="post" action="/duplicates/merge" data-testid="merge-form">{{ m.csrf() }}
+  <input type="hidden" name="a" value="{{ a.id }}"><input type="hidden" name="b" value="{{ b.id }}">
+
+  <fieldset>
+    <legend>Which record should stay?</legend>
+    <p class="hint">Links to the kept record keep working. The other record is removed after everything is copied onto the kept one; a snapshot of it is saved.</p>
+    <label class="check"><input type="radio" name="keep" value="a" checked data-testid="keep-a"> {{ a.display_name }} <span class="muted small">(added {{ a.created_at.strftime("%b %Y") }})</span></label>
+    <label class="check"><input type="radio" name="keep" value="b" data-testid="keep-b"> {{ b.display_name }} <span class="muted small">(added {{ b.created_at.strftime("%b %Y") }})</span></label>
+  </fieldset>
+
+  <div class="table-wrap">
+  <table class="contacts merge-table" data-testid="merge-table">
+    <thead><tr><th scope="col">Field</th><th scope="col">{{ a.display_name }}</th><th scope="col">{{ b.display_name }}</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+        <tr{% if r.conflict %} data-testid="conflict-{{ r.name }}"{% endif %}>
+          <th scope="row">{{ r.label }}</th>
+          {% if r.conflict %}
+            <td><label><input type="radio" name="choice_{{ r.name }}" value="a" checked> {{ r.a }}</label></td>
+            <td><label><input type="radio" name="choice_{{ r.name }}" value="b"> {{ r.b }}</label></td>
+          {% else %}
+            <td>{{ r.a or "—" }}</td><td>{{ r.b or "—" }}</td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="small muted">Where only one record has a value, it is kept. Where both differ, choose above (the kept record's value is chosen unless you pick the other).</p>
+
+  <h2>Combined automatically</h2>
+  <ul class="plain small" data-testid="merge-counts">
+    <li>{{ counts.emails }} email(s), {{ counts.phones }} phone(s), {{ counts.fields }} extra field(s)</li>
+    <li>{{ counts.tags }} tag(s), {{ counts.lists }} list(s), {{ counts.activities }} activity entr{{ "y" if counts.activities == 1 else "ies" }}</li>
+    <li>Works on and notes are combined; direct reports move to the kept record.</li>
+  </ul>
+
+  <div class="form-actions">
+    <button type="submit" class="primary" data-testid="merge">Merge</button>
+    <a href="/duplicates">Cancel</a>
+  </div>
+</form>
+{% endblock %}

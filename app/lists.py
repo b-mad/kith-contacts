@@ -1,14 +1,14 @@
-"""Project lists (L-01 to L-04)."""
+"""Project lists (L-01 to L-05)."""
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.contacts import ContactError, ContactNotFound
-from app.models import Contact, ContactList, ListMember
+from app.models import Contact, ContactList, ListMember, Tag, list_tag
 from app.search import refresh_search
 
 MAX_NAME = 100
@@ -53,6 +53,7 @@ def get_list(session: Session, list_id: int) -> ContactList:
             selectinload(ContactList.members)
             .selectinload(ListMember.contact)
             .selectinload(Contact.contact_type),
+            selectinload(ContactList.tags),
         )
     ).one_or_none()
     if contact_list is None:
@@ -61,7 +62,7 @@ def get_list(session: Session, list_id: int) -> ContactList:
 
 
 def all_lists(
-    session: Session, *, include_archived: bool = False
+    session: Session, *, include_archived: bool = False, tag: str | None = None
 ) -> Sequence[tuple[ContactList, int]]:
     """Lists with their active member counts, newest activity first by name."""
     count = (
@@ -71,9 +72,21 @@ def all_lists(
         .where(ListMember.list_id == ContactList.id, Contact.archived_at.is_(None))
         .scalar_subquery()
     )
-    stmt = select(ContactList, count).order_by(ContactList.status, func.lower(ContactList.name))
+    stmt = (
+        select(ContactList, count)
+        .options(selectinload(ContactList.tags))
+        .order_by(ContactList.status, func.lower(ContactList.name))
+    )
     if not include_archived:
         stmt = stmt.where(ContactList.status == "active")
+    if tag:  # L-05: filter lists by one of their tags
+        stmt = stmt.where(
+            ContactList.id.in_(
+                select(list_tag.c.list_id)
+                .join(Tag, Tag.id == list_tag.c.tag_id)
+                .where(func.lower(Tag.name) == tag.lower())
+            )
+        )
     return [(row[0], int(row[1])) for row in session.execute(stmt).all()]
 
 
@@ -158,3 +171,25 @@ def set_role_note(
         raise ContactNotFound(contact_id)
     member.role_note = _clean_role(role_note)
     session.flush()
+
+
+# ---------------------------------------------------------------- list tags (L-05)
+
+
+def add_list_tag(session: Session, contact_list: ContactList, raw: str) -> Tag:
+    """Tag a list with an existing or new tag (the same vocabulary as contacts)."""
+    from app.tags import get_or_create_tag
+
+    tag = get_or_create_tag(session, raw)
+    if all(t.id != tag.id for t in contact_list.tags):
+        contact_list.tags.append(tag)
+        session.flush()
+    return tag
+
+
+def remove_list_tag(session: Session, contact_list: ContactList, tag_id: int) -> None:
+    session.execute(
+        delete(list_tag).where(list_tag.c.list_id == contact_list.id, list_tag.c.tag_id == tag_id)
+    )
+    session.flush()
+    session.expire(contact_list, ["tags"])

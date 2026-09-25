@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 
 from sqlalchemy import Select, func, or_, select
@@ -11,12 +11,20 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.links import contact_teams_url, mailto_url, slack_handle_display, tel_url
 from app.links import normalize_phone as _normalize_phone
-from app.models import Contact, ContactEmail, ContactPhone, ContactType, ListMember
+from app.models import (
+    Contact,
+    ContactEmail,
+    ContactPhone,
+    ContactType,
+    CustomField,
+    ListMember,
+)
 from app.schemas import (
     ContactCreate,
     ContactLinks,
     ContactOut,
     ContactUpdate,
+    CustomFieldIn,
     EmailIn,
     PhoneIn,
 )
@@ -53,6 +61,8 @@ def _with_details(stmt: Select[tuple[Contact]]) -> Select[tuple[Contact]]:
         selectinload(Contact.tags),
         selectinload(Contact.photo),
         selectinload(Contact.memberships).selectinload(ListMember.contact_list),
+        selectinload(Contact.custom_fields),
+        selectinload(Contact.activities),
     )
 
 
@@ -195,6 +205,35 @@ def _apply_phones(contact: Contact, phones: list[PhoneIn], region: str) -> None:
     ]
 
 
+def _apply_custom_fields(session: Session, contact: Contact, fields: list[CustomFieldIn]) -> None:
+    """C-11: replace the fields, reusing rows by name so the unique index never sees a clash."""
+    wanted = {f.name.lower() for f in fields}
+    for row in list(contact.custom_fields):
+        if row.name.lower() not in wanted:
+            contact.custom_fields.remove(row)
+    session.flush()
+    existing = {row.name.lower(): row for row in contact.custom_fields}
+    for order, item in enumerate(fields):
+        match = existing.get(item.name.lower())
+        if match is None:
+            contact.custom_fields.append(
+                CustomField(name=item.name, value=item.value, sort_order=order)
+            )
+        else:
+            match.name, match.value, match.sort_order = item.name, item.value, order
+
+
+def custom_field_names(session: Session) -> list[str]:
+    """Field names already in use, most used first (suggestions in the form)."""
+    rows = session.execute(
+        select(func.min(CustomField.name))
+        .group_by(func.lower(CustomField.name))
+        .order_by(func.count().desc(), func.lower(func.min(CustomField.name)))
+        .limit(100)
+    ).scalars()
+    return list(rows)
+
+
 _SCALAR_FIELDS = (
     "display_name",
     "first_name",
@@ -279,6 +318,8 @@ def create_contact(
     session.flush()
     _apply_emails(session, contact, data.emails)
     _apply_phones(contact, data.phones, phone_region)
+    if data.custom_fields:
+        _apply_custom_fields(session, contact, data.custom_fields)
     session.flush()
     if bulk:
         return contact
@@ -304,6 +345,8 @@ def update_contact(
         _apply_emails(session, contact, data.emails)
     if data.phones is not None:
         _apply_phones(contact, data.phones, phone_region)
+    if data.custom_fields is not None:
+        _apply_custom_fields(session, contact, data.custom_fields)
     contact.updated_at = datetime.now(UTC)
     session.flush()
     # Reports carry their manager's name in their search document (S-01).
@@ -348,7 +391,20 @@ def contact_links(contact: Contact) -> ContactLinks:
     )
 
 
-def to_out(contact: Contact) -> ContactOut:
+def last_contact(contact: Contact) -> date | None:
+    """C-13: date of the newest interaction (notes don't count)."""
+    return max((a.occurred_on for a in contact.activities if a.kind != "note"), default=None)
+
+
+def to_out(contact: Contact, *, detail: bool = False) -> ContactOut:
+    """``detail=True`` adds custom fields and activities (card and single-contact API)."""
+    extra: dict[str, Any] = {}
+    if detail:
+        extra = {
+            "custom_fields": contact.custom_fields,
+            "activities": contact.activities,
+            "last_contact": last_contact(contact),
+        }
     return ContactOut.model_validate(
         {
             **{
@@ -376,6 +432,7 @@ def to_out(contact: Contact) -> ContactOut:
             "has_photo": contact.photo is not None,
             "created_at": contact.created_at,
             "updated_at": contact.updated_at,
+            **extra,
         }
     )
 
@@ -388,7 +445,9 @@ __all__ = [
     "archive_contact",
     "contact_links",
     "create_contact",
+    "custom_field_names",
     "get_contact",
+    "last_contact",
     "list_contact_types",
     "list_contacts",
     "lookup_contacts",

@@ -1,17 +1,20 @@
 """SQLAlchemy models — data model in docs/requirements.md §6.
 
 Migration 0001 created the Phase 1 tables; 0002 adds tags, lists and the
-search vector (Phase 2).
+search vector (Phase 2); 0003 photos (Phase 3); 0004 custom fields, activities,
+saved searches, list tags, duplicate dismissals and merge snapshots (Phase 4).
 """
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -24,7 +27,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import TSVECTOR
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, Mapped, deferred, mapped_column, relationship
 
 # Deterministic constraint names keep Alembic migrations stable.
@@ -50,6 +53,13 @@ class ContactType(Base):
     name: Mapped[str] = mapped_column(String(50), unique=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
+
+list_tag = Table(
+    "list_tag",
+    Base.metadata,
+    Column("list_id", ForeignKey("contact_list.id", ondelete="CASCADE"), primary_key=True),
+    Column("tag_id", ForeignKey("tag.id", ondelete="CASCADE"), primary_key=True, index=True),
+)
 
 contact_tag = Table(
     "contact_tag",
@@ -90,6 +100,7 @@ class ContactList(Base):
     members: Mapped[list[ListMember]] = relationship(
         back_populates="contact_list", cascade="all, delete-orphan"
     )
+    tags: Mapped[list[Tag]] = relationship(secondary=list_tag, order_by="Tag.name")
 
 
 class ListMember(Base):
@@ -173,6 +184,13 @@ class Contact(Base):
     phones: Mapped[list[ContactPhone]] = relationship(
         back_populates="contact", cascade="all, delete-orphan"
     )
+    custom_fields: Mapped[list[CustomField]] = relationship(
+        cascade="all, delete-orphan", order_by="CustomField.sort_order, CustomField.id"
+    )
+    activities: Mapped[list[Activity]] = relationship(
+        cascade="all, delete-orphan",
+        order_by="Activity.occurred_on.desc(), Activity.id.desc()",
+    )
 
 
 class ContactPhoto(Base):
@@ -227,3 +245,85 @@ class ContactPhone(Base):
     label: Mapped[str | None] = mapped_column(String(50))
 
     contact: Mapped[Contact] = relationship(back_populates="phones")
+
+
+class CustomField(Base):
+    """C-11: a key/value pair on a contact (ADR-0012)."""
+
+    __tablename__ = "custom_field"
+    __table_args__ = (
+        Index(
+            "uq_custom_field_contact_id_lower_name",
+            "contact_id",
+            func.lower(text("name")),
+            unique=True,
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    contact_id: Mapped[int] = mapped_column(ForeignKey("contact.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(50))
+    value: Mapped[str] = mapped_column(String(500))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+
+ACTIVITY_KINDS = ("meeting", "call", "email", "message", "note")
+
+
+class Activity(Base):
+    """C-13: a dated interaction note (ADR-0012)."""
+
+    __tablename__ = "activity"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('meeting', 'call', 'email', 'message', 'note')", name="kind_valid"
+        ),
+        Index("ix_activity_contact_id_occurred_on", "contact_id", "occurred_on"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    contact_id: Mapped[int] = mapped_column(ForeignKey("contact.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(10))
+    occurred_on: Mapped[date] = mapped_column(Date)
+    summary: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SavedSearch(Base):
+    """S-07: a named search-page query string (ADR-0012)."""
+
+    __tablename__ = "saved_search"
+    __table_args__ = (Index("uq_saved_search_lower_name", func.lower(text("name")), unique=True),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    query: Mapped[str] = mapped_column(String(1000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DuplicateDismissal(Base):
+    """C-12: a pair the user marked "not a duplicate"; stored with contact_a < contact_b."""
+
+    __tablename__ = "duplicate_dismissal"
+    __table_args__ = (CheckConstraint("contact_a < contact_b", name="ordered"),)
+
+    contact_a: Mapped[int] = mapped_column(
+        ForeignKey("contact.id", ondelete="CASCADE"), primary_key=True
+    )
+    contact_b: Mapped[int] = mapped_column(
+        ForeignKey("contact.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+
+
+class ContactMerge(Base):
+    """C-12: JSON snapshot of a contact removed by a merge, so it can be recovered."""
+
+    __tablename__ = "contact_merge"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kept_id: Mapped[int | None] = mapped_column(
+        ForeignKey("contact.id", ondelete="SET NULL"), index=True
+    )
+    merged_name: Mapped[str] = mapped_column(String(200))
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    merged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

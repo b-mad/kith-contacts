@@ -313,3 +313,22 @@ details.restore summary, td details summary { cursor: pointer; color: var(--acce
 .pill.warn { background: #fff8c5; color: #4d2d00; }
 .pill.bad { background: var(--error-bg); }
 tr.row-error td { color: var(--muted); }
+
+/* Phase 4: activity log, saved searches, duplicates, related tags (ADR-0012) */
+.activity-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
+.activity-form select, .activity-form input[type="date"] { width: auto; flex: 0 0 auto; }
+.activity-form input[name="summary"] { flex: 1 1 16rem; width: auto; }
+.timeline { list-style: none; padding: 0; margin: 0.5rem 0; }
+.timeline li { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
+.timeline .prewrap { flex: 1 1 14rem; }
+.saved-searches { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0.25rem 0 0.75rem; }
+.saved-searches .label { color: var(--muted); font-size: 0.85rem; }
+.save-search { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.25rem 0; }
+.save-search input { width: auto; flex: 0 1 16rem; }
+.related-tags { margin: 0.25rem 0 0.75rem; }
+.related-tags a { margin-right: 0.35rem; }
+.merge-table td, .merge-table th { vertical-align: top; }
+.merge-table label { display: flex; gap: 0.4rem; align-items: baseline; }
+.dup-pair { border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
+.dup-pair .people { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.75rem; }
+.dup-pair .tools { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }

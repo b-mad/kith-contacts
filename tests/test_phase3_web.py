@@ -227,7 +227,7 @@ def test_import_vcard_file(seeded_client: TestClient) -> None:
 
 
 def test_import_errors(client: TestClient) -> None:
-    assert "Choose a CSV or vCard file" in post(client, "/import/preview").text
+    assert "Choose a CSV, vCard or JSON file" in post(client, "/import/preview").text
     empty = post(client, "/import/preview", files={"file": ("x.csv", b"\n", "text/csv")})
     assert empty.status_code == 422
     assert "no rows" in empty.text

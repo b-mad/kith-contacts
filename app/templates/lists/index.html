@@ -12,15 +12,17 @@
   <button type="submit" class="primary">Create list</button>
 </form>
 {% if error %}<p class="field-error" role="alert" data-testid="list-error">{{ error }}</p>{% endif %}
+{% if tag %}<p class="chips" data-testid="list-tag-filter"><a class="chip" href="/lists{{ '?archived=1' if include_archived else '' }}" aria-label="Remove filter tag {{ tag }}">Tag: {{ tag }} <span aria-hidden="true">×</span></a></p>{% endif %}
 
 {% if rows %}
   <table class="contacts" data-testid="lists-table">
-    <thead><tr><th scope="col">List</th><th scope="col">Description</th><th scope="col">People</th><th scope="col">Status</th></tr></thead>
+    <thead><tr><th scope="col">List</th><th scope="col">Description</th><th scope="col">Tags</th><th scope="col">People</th><th scope="col">Status</th></tr></thead>
     <tbody>
       {% for cl, count in rows %}
         <tr{% if cl.status == "archived" %} class="archived"{% endif %}>
           <td><a href="/lists/{{ cl.id }}">{{ cl.name }}</a></td>
           <td>{{ cl.description or "" }}</td>
+          <td>{% for t in cl.tags %}<a class="tag tag-c-{{ t.color or 'none' }}" href="/lists?tag={{ t.name | urlencode }}">{{ t.name }}</a> {% endfor %}</td>
           <td>{{ count }}</td>
           <td>{% if cl.status == "archived" %}<span class="pill muted">Archived</span>{% else %}<span class="pill">Active</span>{% endif %}</td>
         </tr>

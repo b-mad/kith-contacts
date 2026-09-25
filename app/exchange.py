@@ -7,12 +7,15 @@ and vCard. Imports: CSV with column mapping, or vCard; both go through
 
 from __future__ import annotations
 
+import base64
+import contextlib
 import csv
 import io
+import json
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from pydantic import ValidationError
@@ -43,6 +46,8 @@ def _all_contacts(session: Session) -> list[Contact]:
                 selectinload(Contact.manager),
                 selectinload(Contact.tags),
                 selectinload(Contact.memberships).selectinload(ListMember.contact_list),
+                selectinload(Contact.custom_fields),
+                selectinload(Contact.activities),
             )
             .order_by(func.lower(Contact.display_name), Contact.id)
             .execution_options(populate_existing=True)  # always export what is stored now
@@ -53,10 +58,58 @@ def _all_contacts(session: Session) -> list[Contact]:
 # ---------------------------------------------------------------- export (D-03)
 
 
-def export_json(session: Session, instance_name: str) -> dict[str, Any]:
-    def iso(value: datetime | None) -> str | None:
-        return value.isoformat() if value else None
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value else None
 
+
+def contact_record(contact: Contact, *, include_photo: bool = False) -> dict[str, Any]:
+    """One contact in the ``contacts-app/1`` format (D-03, I-09, C-12 merge snapshots)."""
+    c = contact
+    record: dict[str, Any] = {
+        "id": c.id,
+        "display_name": c.display_name,
+        "first_name": c.first_name,
+        "last_name": c.last_name,
+        "nickname": c.nickname,
+        "type": c.contact_type.name,
+        "company": c.company,
+        "title": c.title,
+        "team": c.team,
+        "department": c.department,
+        "location": c.location,
+        "manager_id": c.manager_id,
+        "manager": c.manager.display_name if c.manager else None,
+        "works_on": c.works_on,
+        "notes": c.notes,
+        "slack_handle": c.slack_handle,
+        "slack_url": c.slack_url,
+        "teams_url": c.teams_url,
+        "pronunciation": c.pronunciation,
+        "is_favorite": c.is_favorite,
+        "archived_at": _iso(c.archived_at),
+        "created_at": _iso(c.created_at),
+        "updated_at": _iso(c.updated_at),
+        "emails": [
+            {"email": e.email, "label": e.label, "is_primary": e.is_primary} for e in c.emails
+        ],
+        "phones": [{"number": p.number, "label": p.label} for p in c.phones],
+        "tags": [t.name for t in c.tags],
+        "lists": [{"name": m.contact_list.name, "role_note": m.role_note} for m in c.memberships],
+        "custom_fields": [{"name": f.name, "value": f.value} for f in c.custom_fields],
+        "activities": [
+            {"kind": a.kind, "occurred_on": a.occurred_on.isoformat(), "summary": a.summary}
+            for a in c.activities
+        ],
+    }
+    if include_photo and c.photo is not None:
+        record["photo"] = {
+            "content_type": c.photo.content_type,
+            "data_base64": base64.b64encode(c.photo.data).decode("ascii"),
+        }
+    return record
+
+
+def export_json(session: Session, instance_name: str) -> dict[str, Any]:
     contacts = _all_contacts(session)
     return {
         "format": FORMAT,
@@ -71,46 +124,29 @@ def export_json(session: Session, instance_name: str) -> dict[str, Any]:
             for t in session.scalars(select(Tag).order_by(Tag.name))
         ],
         "lists": [
-            {"name": cl.name, "description": cl.description, "status": cl.status}
-            for cl in session.scalars(select(ContactList).order_by(ContactList.name))
-        ],
-        "contacts": [
             {
-                "id": c.id,
-                "display_name": c.display_name,
-                "first_name": c.first_name,
-                "last_name": c.last_name,
-                "nickname": c.nickname,
-                "type": c.contact_type.name,
-                "company": c.company,
-                "title": c.title,
-                "team": c.team,
-                "department": c.department,
-                "location": c.location,
-                "manager_id": c.manager_id,
-                "manager": c.manager.display_name if c.manager else None,
-                "works_on": c.works_on,
-                "notes": c.notes,
-                "slack_handle": c.slack_handle,
-                "slack_url": c.slack_url,
-                "teams_url": c.teams_url,
-                "pronunciation": c.pronunciation,
-                "is_favorite": c.is_favorite,
-                "archived_at": iso(c.archived_at),
-                "created_at": iso(c.created_at),
-                "updated_at": iso(c.updated_at),
-                "emails": [
-                    {"email": e.email, "label": e.label, "is_primary": e.is_primary}
-                    for e in c.emails
-                ],
-                "phones": [{"number": p.number, "label": p.label} for p in c.phones],
-                "tags": [t.name for t in c.tags],
-                "lists": [
-                    {"name": m.contact_list.name, "role_note": m.role_note} for m in c.memberships
-                ],
+                "name": cl.name,
+                "description": cl.description,
+                "status": cl.status,
+                "tags": [t.name for t in cl.tags],
             }
-            for c in contacts
+            for cl in session.scalars(
+                select(ContactList)
+                .options(selectinload(ContactList.tags))
+                .order_by(ContactList.name)
+            )
         ],
+        "contacts": [contact_record(c) for c in contacts],
+    }
+
+
+def export_contact_json(contact: Contact, instance_name: str) -> dict[str, Any]:
+    """I-09: one contact, with its photo, for copying into another instance."""
+    return {
+        "format": FORMAT,
+        "exported_at": datetime.now(UTC).isoformat(),
+        "instance": instance_name,
+        "contacts": [contact_record(contact, include_photo=True)],
     }
 
 
@@ -280,6 +316,70 @@ def rows_from_vcards(cards: Sequence[ParsedCard]) -> list[dict[str, Any]]:
     return records
 
 
+def _text(value: object) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def rows_from_json(raw: str) -> list[dict[str, Any]]:
+    """Records from a ``contacts-app/1`` JSON export — one contact or a whole instance (I-09)."""
+    if len(raw.encode("utf-8")) > MAX_IMPORT_BYTES:
+        raise ContactError("File is larger than 5 MB", "file")
+    try:
+        doc = json.loads(raw)
+    except ValueError:
+        raise ContactError("That file is not valid JSON", "file") from None
+    if not isinstance(doc, dict) or doc.get("format") != FORMAT:
+        raise ContactError("That JSON file is not an export from this app", "file")
+    contacts = doc.get("contacts")
+    if not isinstance(contacts, list) or not contacts:
+        raise ContactError("The file has no contacts", "file")
+    if len(contacts) > MAX_IMPORT_ROWS:
+        raise ContactError(f"At most {MAX_IMPORT_ROWS} rows can be imported at once", "file")
+    records: list[dict[str, Any]] = []
+    for item in contacts:
+        c = item if isinstance(item, dict) else {}
+        record: dict[str, Any] = {
+            key: value
+            for key in (
+                "display_name", "first_name", "last_name", "nickname", "type", "company",
+                "title", "team", "department", "location", "manager", "works_on", "notes",
+                "slack_handle", "slack_url", "teams_url", "pronunciation",
+            )
+            if (value := _text(c.get(key)))
+        }  # fmt: skip
+        record["tags"] = "; ".join(t for t in c.get("tags") or [] if isinstance(t, str))
+        record["_emails"] = [
+            (e["email"], _text(e.get("label")) or "", bool(e.get("is_primary")))
+            for e in c.get("emails") or []
+            if isinstance(e, dict) and _text(e.get("email"))
+        ]
+        record["_phones"] = [
+            (p["number"], _text(p.get("label")) or "")
+            for p in c.get("phones") or []
+            if isinstance(p, dict) and _text(p.get("number"))
+        ]
+        record["_custom_fields"] = [
+            {"name": f.get("name"), "value": f.get("value")}
+            for f in c.get("custom_fields") or []
+            if isinstance(f, dict)
+        ]
+        record["is_favorite"] = c.get("is_favorite") is True
+        record["_extra"] = {
+            "lists": [
+                (m["name"], _text(m.get("role_note")))
+                for m in c.get("lists") or []
+                if isinstance(m, dict) and _text(m.get("name"))
+            ],
+            "activities": [a for a in c.get("activities") or [] if isinstance(a, dict)],
+            "photo": c.get("photo") if isinstance(c.get("photo"), dict) else None,
+            "archived": bool(c.get("archived_at")),
+        }
+        records.append(record)
+    return records
+
+
 # ---------------------------------------------------------------- import: planning
 
 
@@ -291,10 +391,30 @@ class PlannedRow:
     tags: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     duplicate_of: str | None = None
+    extra: dict[str, Any] = field(default_factory=dict)  # JSON imports (I-09)
 
     @property
     def ok(self) -> bool:
         return not self.errors
+
+    @property
+    def extras_summary(self) -> str:
+        """E.g. '2 fields · 3 activities · 1 list · photo' for the preview."""
+        parts = []
+        counts = (
+            (len(self.data.get("custom_fields") or []), "field"),
+            (len(self.extra.get("activities") or []), "activity"),
+            (len(self.extra.get("lists") or []), "list"),
+        )
+        for n, noun in counts:
+            if n:
+                plural = "activities" if noun == "activity" else f"{noun}s"
+                parts.append(f"{n} {noun if n == 1 else plural}")
+        if self.extra.get("photo"):
+            parts.append("photo")
+        if self.extra.get("archived"):
+            parts.append("archived")
+        return " · ".join(parts)
 
 
 _TAG_SPLIT = re.compile(r"\s*(?:;|,|:::)\s*")
@@ -353,6 +473,9 @@ def plan_import(
                     "works_on",
                     "notes",
                     "slack_handle",
+                    "slack_url",
+                    "teams_url",
+                    "pronunciation",
                 )
                 if record.get(k)
             },
@@ -370,7 +493,12 @@ def plan_import(
                 data["emails"].append(
                     {"email": email.strip(), "label": label or None, "is_primary": primary}
                 )
+        if record.get("is_favorite") is True:
+            data["is_favorite"] = True
+        if record.get("_custom_fields"):
+            data["custom_fields"] = record["_custom_fields"]
         row.data = data
+        row.extra = dict(record.get("_extra") or {})
         row.manager_name = record.get("manager")
         row.tags = _split_tags(record.get("tags", ""))
         try:
@@ -415,6 +543,7 @@ def run_import(
     """Create contacts; then link managers by name; optionally put them all in a list."""
     result = ImportResult()
     pending_managers: list[tuple[int, str]] = []
+    extras: list[tuple[int, dict[str, Any]]] = []
     tagged: dict[str, list[int]] = {}  # lower-cased tag -> contact ids
     spelling: dict[str, str] = {}  # lower-cased tag -> first spelling seen
     for row in planned:
@@ -431,6 +560,8 @@ def run_import(
             session, ContactCreate.model_validate(data), phone_region=phone_region, bulk=True
         )
         result.created.append(contact.id)
+        if row.extra:
+            extras.append((contact.id, row.extra))
         for tag in row.tags:
             tagged.setdefault(tag.lower(), []).append(contact.id)
             spelling.setdefault(tag.lower(), tag)
@@ -456,6 +587,7 @@ def run_import(
                 )
                 result.managers_linked += 1
 
+    _apply_extras(session, extras)
     refresh_search(session, result.created)
 
     if list_name and list_name.strip() and result.created:
@@ -463,3 +595,53 @@ def run_import(
         add_members(session, contact_list, result.created)
         result.list_id = contact_list.id
     return result
+
+
+def _apply_extras(session: Session, extras: Sequence[tuple[int, dict[str, Any]]]) -> None:
+    """I-09: list memberships (with roles), activities, photo and archived state from JSON.
+
+    Anything malformed is skipped rather than failing the whole import.
+    """
+    from app.activity import add_activity
+    from app.photos import set_photo
+
+    memberships: dict[str, tuple[str, list[tuple[int, str | None]]]] = {}
+    for contact_id, extra in extras:
+        for name, role in extra.get("lists") or []:
+            memberships.setdefault(name.lower(), (name, []))[1].append((contact_id, role))
+        for activity in extra.get("activities") or []:
+            try:
+                occurred = date.fromisoformat(str(activity.get("occurred_on", "")))
+                add_activity(
+                    session,
+                    contact_id,
+                    kind=str(activity.get("kind", "")),
+                    summary=str(activity.get("summary", "")),
+                    occurred_on=occurred,
+                    refresh=False,
+                )
+            except (ContactError, ValueError):
+                continue
+        photo = extra.get("photo")
+        if photo:
+            with contextlib.suppress(ContactError, ValueError):
+                set_photo(session, contact_id, base64.b64decode(str(photo.get("data_base64", ""))))
+        if extra.get("archived"):
+            session.execute(
+                update(Contact)
+                .where(Contact.id == contact_id)
+                .values(archived_at=datetime.now(UTC))
+            )
+    for name, members in memberships.values():
+        try:
+            contact_list = find_or_create_list(session, name)
+        except ContactError:
+            continue
+        current = {m.contact_id for m in contact_list.members}
+        for contact_id, role in members:
+            if contact_id not in current:
+                contact_list.members.append(
+                    ListMember(contact_id=contact_id, role_note=(role or "")[:200] or None)
+                )
+                current.add(contact_id)
+    session.flush()

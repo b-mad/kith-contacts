@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Self
 
 from pydantic import (
@@ -67,6 +67,23 @@ class PhoneIn(_Input):
     label: Label = None
 
 
+class CustomFieldIn(_Input):
+    """C-11: one key/value pair, e.g. ("Epic role", "Beaker analyst")."""
+
+    name: str = Field(min_length=1, max_length=50)
+    value: str = Field(min_length=1, max_length=500)
+
+
+def _check_custom_fields(fields: list[CustomFieldIn]) -> list[CustomFieldIn]:
+    seen: set[str] = set()
+    for item in fields:
+        key = item.name.lower()
+        if key in seen:
+            raise ValueError(f"field “{item.name}” is listed twice")
+        seen.add(key)
+    return fields
+
+
 def _check_emails(emails: list[EmailIn]) -> list[EmailIn]:
     """C-02: no duplicates (case-insensitive); exactly one primary when any exist."""
     seen: set[str] = set()
@@ -107,10 +124,12 @@ class ContactCreate(ContactFields):
     contact_type_id: int
     emails: list[EmailIn] = Field(default_factory=list, max_length=20)
     phones: list[PhoneIn] = Field(default_factory=list, max_length=20)
+    custom_fields: list[CustomFieldIn] = Field(default_factory=list, max_length=30)
 
     @model_validator(mode="after")
     def _emails_valid(self) -> Self:
         _check_emails(self.emails)
+        _check_custom_fields(self.custom_fields)
         return self
 
 
@@ -121,6 +140,7 @@ class ContactUpdate(ContactFields):
     contact_type_id: int | None = None
     emails: list[EmailIn] | None = Field(default=None, max_length=20)
     phones: list[PhoneIn] | None = Field(default=None, max_length=20)
+    custom_fields: list[CustomFieldIn] | None = Field(default=None, max_length=30)
 
     @model_validator(mode="after")
     def _emails_valid(self) -> Self:
@@ -130,6 +150,8 @@ class ContactUpdate(ContactFields):
             raise ValueError("contact_type_id cannot be empty")
         if self.emails is not None:
             _check_emails(self.emails)
+        if self.custom_fields is not None:
+            _check_custom_fields(self.custom_fields)
         return self
 
 
@@ -175,6 +197,18 @@ class ListRef(_Output):
     name: str
 
 
+class CustomFieldOut(_Output):
+    name: str
+    value: str
+
+
+class ActivityOut(_Output):
+    id: int
+    kind: str
+    occurred_on: date
+    summary: str
+
+
 class ContactLinks(BaseModel):
     """M-04: one-click actions for the card."""
 
@@ -212,5 +246,9 @@ class ContactOut(_Output):
     links: ContactLinks
     archived: bool
     has_photo: bool = False
+    # Detail views only (card, single-contact API); None in lists and search results.
+    custom_fields: list[CustomFieldOut] | None = None
+    activities: list[ActivityOut] | None = None
+    last_contact: date | None = None
     created_at: datetime
     updated_at: datetime

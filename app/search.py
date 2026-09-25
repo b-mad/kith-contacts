@@ -4,8 +4,8 @@ Each contact has a weighted ``search_vector``:
 
     A  display, first, last and nick names
     B  team, company, manager's name, tags
-    C  title, department, works on, list names, emails
-    D  notes, location
+    C  title, department, works on, list names, emails, custom fields
+    D  notes, location, activity summaries
 
 ``refresh_search`` rebuilds it for given contacts; every write that changes
 any of those inputs must call it (the service layer does). Queries use prefix
@@ -30,7 +30,7 @@ NAME_WEIGHT = "'{a}'::\"char\"[]"  # ts_filter weight array: names only
 SortKey = Literal["relevance", "name", "company", "team", "type", "updated"]
 SORT_KEYS: tuple[SortKey, ...] = ("relevance", "name", "company", "team", "type", "updated")
 
-# Kept in sync with migrations/versions/*_0002_*.py (which embeds a frozen copy).
+# Kept in sync with the newest migration that embeds a frozen copy (0004).
 _DOCUMENT_SQL = """
     setweight(to_tsvector('simple', concat_ws(' ', c.display_name, c.first_name, c.last_name,
         c.nickname)), 'A')
@@ -42,8 +42,11 @@ _DOCUMENT_SQL = """
         (SELECT string_agg(cl.name, ' ') FROM list_member lm
            JOIN contact_list cl ON cl.id = lm.list_id WHERE lm.contact_id = c.id),
         (SELECT string_agg(ce.email || ' ' || translate(ce.email, '.@_-+', '     '), ' ')
-           FROM contact_email ce WHERE ce.contact_id = c.id))), 'C')
-    || setweight(to_tsvector('simple', concat_ws(' ', c.notes, c.location)), 'D')
+           FROM contact_email ce WHERE ce.contact_id = c.id),
+        (SELECT string_agg(cf.name || ' ' || cf.value, ' ')
+           FROM custom_field cf WHERE cf.contact_id = c.id))), 'C')
+    || setweight(to_tsvector('simple', concat_ws(' ', c.notes, c.location,
+        (SELECT string_agg(a.summary, ' ') FROM activity a WHERE a.contact_id = c.id))), 'D')
 """
 
 # The f-string only inserts the constant _DOCUMENT_SQL; ids are a bound parameter.

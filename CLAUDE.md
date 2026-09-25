@@ -40,12 +40,13 @@ requirements, and do not silently deviate from an ADR.
   sibling module per area). Every form POST includes `{{ m.csrf() }}`; templates must
   not use inline `style=` or inline `<script>` (blocked by the CSP).
 - Any write that changes a contact's name, team, company, title, department, works-on,
-  notes, location, manager, emails, tags or list memberships must call
-  `app.search.refresh_search` for every affected contact (ADR-0010). Changing what goes
+  notes, location, manager, emails, tags, list memberships, custom fields or activities
+  must call `app.search.refresh_search` for every affected contact (ADR-0010). Changing what goes
   into the search document needs a new migration that rebuilds it.
 - Anything that deletes or overwrites data (restore, reset, copy) must take a backup
-  first or refuse in production (I-05, ADR-0011). Uploaded files must be closed after
-  reading (`await upload.close()`); use Starlette's `UploadFile` for `isinstance` checks.
+  first or refuse in production (I-05, ADR-0011). The one exception is merging
+  duplicates, which stores a JSON snapshot of the removed contact in `contact_merge`
+  instead (ADR-0012). Uploaded files must be closed after reading (`await upload.close()`); use Starlette's `UploadFile` for `isinstance` checks.
 - Browser-only behavior (clipboard, compose links, live search) is tested with
   Playwright in `tests/e2e/`; run `make e2e`.
 - Type everything; `mypy --strict` must pass. Prefer small pure functions that
@@ -93,13 +94,17 @@ delete a failing test to get a green run unless the requirement was withdrawn.
 | `app/contacts.py` | Contact business logic — routes stay thin and call this |
 | `app/links.py` | Pure helpers for mailto/tel/Slack/Teams links and phone format |
 | `app/search.py` | Context search, filters, match context, and `refresh_search` (ADR-0010) |
-| `app/tags.py`, `app/lists.py` | Tag and project-list business logic |
+| `app/tags.py`, `app/lists.py` | Tags (incl. related tags, T-05) and project lists (incl. list tags, L-05) |
 | `app/web_lists.py` | Pages for lists and tags |
 | `app/backup.py`, `scripts/backup.py` | pg_dump/pg_restore backups, retention, restore, copy-to-dev (ADR-0011) |
-| `app/exchange.py`, `app/vcard.py` | CSV/JSON/vCard export and CSV/vCard import with preview |
+| `app/exchange.py`, `app/vcard.py` | CSV/JSON/vCard export; CSV/vCard/JSON import with preview (JSON carries fields, activity, lists and photo between instances, I-09) |
 | `app/org.py`, `app/related.py` | Org chart and related-contacts scoring |
 | `app/contact_types.py`, `app/photos.py` | Type admin; photo validation/resizing |
 | `app/web_admin.py` | Settings, backups, import/export, org, tag/type admin, photo routes |
+| `app/activity.py` | Activity log: add/delete dated interactions (C-13) |
+| `app/duplicates.py` | Duplicate detection, dismissals and merge with snapshot (C-12) |
+| `app/saved_searches.py` | Saved searches: whitelisted query strings (S-07) |
+| `app/web_depth.py` | Phase 4 pages: duplicates/merge, saved searches |
 | `app/api.py` | JSON API (`/api/...`); writes require `application/json` |
 | `app/web.py` | Server-rendered pages and forms; POSTs need the CSRF token |
 | `app/static/js/app.js` | Vanilla JS: live search, selection + action bar (copy/compose for Outlook or Gmail), pickers, form rows |
@@ -124,6 +129,6 @@ make instance NAME=dev PORT=5180 ENV=development
 make check                   # everything CI runs
 make test                    # tests only
 make seed I=dev              # sample contacts (dev only)
-make trace PHASE=3           # requirement coverage up to a phase
+make trace PHASE=4           # requirement coverage up to a phase
 make migration m="add tags"  # new Alembic migration
 ```

@@ -1,4 +1,5 @@
 {# Results table — rendered in the page and fetched alone while typing (S-05). #}
+{% import "_macros.html" as m with context %}
 {% set chips = [] %}
 {% if manager %}{% set _ = chips.append(("manager", "Reports to " ~ manager.display_name)) %}{% endif %}
 {% if filters.tag %}{% set _ = chips.append(("tag", "Tag: " ~ filters.tag)) %}{% endif %}
@@ -13,6 +14,23 @@
     {% endfor %}
     <a class="small" href="/">Clear all</a>
   </p>
+{% endif %}
+
+{% if related_tags %}
+  <p class="related-tags small" data-testid="related-tags"><span class="muted">Often together with:</span>
+    {% for t in related_tags %}<a href="/?tag={{ t.name | urlencode }}">{{ t.name }}</a> <span class="muted">({{ t.shared }})</span>{% if not loop.last %} · {% endif %}{% endfor %}
+  </p>
+{% endif %}
+{% if current_query %}
+  <details class="save-search-wrap">
+    <summary class="small">Save this search…</summary>
+    <form class="save-search" method="post" action="/saved-searches" data-testid="save-search">{{ m.csrf() }}
+      <input type="hidden" name="query" value="{{ current_query }}">
+      <label for="saved-name" class="visually-hidden">Name for this search</label>
+      <input id="saved-name" name="name" placeholder="e.g. Vendors tagged HL7" required maxlength="100" data-testid="save-search-name">
+      <button type="submit">Save</button>
+    </form>
+  </details>
 {% endif %}
 
 {% if hits %}

@@ -7,6 +7,7 @@ CSRF token (N-05, ADR-0008).
 from __future__ import annotations
 
 import secrets
+from datetime import date
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -16,12 +17,14 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from starlette.datastructures import FormData
 
+from app.activity import KIND_LABELS, add_activity, delete_activity, parse_date
 from app.config import Settings
 from app.contacts import (
     ContactError,
     ContactNotFound,
     archive_contact,
     create_contact,
+    custom_field_names,
     employee_type_id,
     get_contact,
     home_company,
@@ -35,9 +38,10 @@ from app.db import get_session
 from app.lists import add_members, all_lists, find_or_create_list, remove_member
 from app.models import Contact, Tag
 from app.related import related_contacts
+from app.saved_searches import clean_query, list_saved_searches
 from app.schemas import ContactCreate, ContactUpdate
 from app.search import SORT_KEYS, SearchFilters, SortKey, active_lists, distinct_values, search
-from app.tags import add_tag, remove_tag, tag_counts
+from app.tags import add_tag, related_tags, remove_tag, tag_counts
 
 CSRF_COOKIE = "contacts_csrf"
 CSRF_FIELD = "csrf_token"
@@ -114,6 +118,14 @@ NOTICES = {
     "tag_deleted": "Tag deleted.",
     "photo_saved": "Photo saved.",
     "photo_removed": "Photo removed.",
+    "activity_added": "Activity logged.",
+    "activity_deleted": "Activity deleted.",
+    "merged": "Merged “{name}” into this contact.",
+    "dismissed": "Marked as different people.",
+    "search_saved": "Saved search “{name}”.",
+    "search_deleted": "Saved search deleted.",
+    "search_renamed": "Saved search renamed.",
+    "list_tagged": "Tagged the list “{name}”.",
 }
 
 
@@ -181,6 +193,9 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         "manager": manager,
         "list_name": list_name,
         "notice": notice_text(request),
+        "saved": list_saved_searches(session),
+        "current_query": clean_query(dict(p)),
+        "related_tags": related_tags(session, filters.tag) if filters.tag else [],
     }
 
 
@@ -283,8 +298,10 @@ def parse_contact_form(form: FormData) -> tuple[dict[str, Any], dict[str, Any]]:
     for i, row in enumerate(emails):
         row["is_primary"] = str(i) == primary_index  # type: ignore[assignment]
     phones = _row_values(form, "phone", ("number", "label"))
+    fields = _row_values(form, "field", ("name", "value"))
     values["emails"] = emails
     values["phones"] = phones
+    values["fields"] = fields
 
     data: dict[str, Any] = {f: values[f] for f in scalar}
     data["manager_id"] = int(values["manager_id"]) if values["manager_id"].isdigit() else None
@@ -298,6 +315,12 @@ def parse_contact_form(form: FormData) -> tuple[dict[str, Any], dict[str, Any]]:
     data["phones"] = [
         {"number": r["number"], "label": r["label"]} for r in phones if r["number"].strip()
     ]
+    # C-11: a row with only a name or only a value is sent so validation can flag it.
+    data["custom_fields"] = [
+        {"name": r["name"], "value": r["value"]}
+        for r in fields
+        if r["name"].strip() or r["value"].strip()
+    ]
     return data, values
 
 
@@ -308,6 +331,7 @@ FIELD_LABELS = {
     "contact_type_id": "Type",
     "emails": "Email",
     "phones": "Phone",
+    "custom_fields": "Field",
     "manager_id": "Manager",
     "slack_handle": "Slack handle",
     "slack_url": "Slack link",
@@ -321,7 +345,11 @@ def errors_from_validation(exc: ValidationError) -> dict[str, str]:
         loc = err["loc"]
         field = str(loc[0]) if loc else "__all__"
         msg = err["msg"].removeprefix("Value error, ")
-        if field in {"emails", "phones"} and len(loc) > 1 and isinstance(loc[1], int):
+        if (
+            field in {"emails", "phones", "custom_fields"}
+            and len(loc) > 1
+            and isinstance(loc[1], int)
+        ):
             msg = f"{FIELD_LABELS[field]} {loc[1] + 1}: {msg}"
         errors.setdefault(field, msg)
     return errors
@@ -356,6 +384,8 @@ def _form_context(
         "values": values,
         "emails": emails or [{"address": "", "label": "", "is_primary": True}],
         "phones": phones or [{"number": "", "label": ""}],
+        "fields": values.get("fields") or [{"name": "", "value": ""}],
+        "field_names": custom_field_names(session),
         "types": list_contact_types(session),
         "contact_id": contact_id,
         "errors": errors or {},
@@ -363,7 +393,7 @@ def _form_context(
 
 
 def _values_from_contact(contact: Contact) -> dict[str, Any]:
-    out = to_out(contact)
+    out = to_out(contact, detail=True)
     values: dict[str, Any] = {
         f: (getattr(contact, f) or "")
         for f in [
@@ -392,6 +422,7 @@ def _values_from_contact(contact: Contact) -> dict[str, Any]:
         {"address": e.email, "label": e.label or "", "is_primary": e.is_primary} for e in out.emails
     ]
     values["phones"] = [{"number": p.number, "label": p.label or ""} for p in out.phones]
+    values["fields"] = [{"name": f.name, "value": f.value} for f in out.custom_fields or []]
     return values
 
 
@@ -468,7 +499,9 @@ def contact_card(request: Request, contact_id: int, session: SessionDep) -> HTML
         request,
         "contacts/card.html",
         {
-            "c": to_out(contact),
+            "c": to_out(contact, detail=True),
+            "kinds": KIND_LABELS,
+            "today": date.today().isoformat(),
             "notice": notice_text(request),
             "all_tags": [t.name for t in tag_counts(session)],
             "all_lists": active_lists(session),
@@ -619,3 +652,41 @@ def restore_contact_form(contact_id: int, session: SessionDep) -> Response:
     restore_contact(session, _load(session, contact_id))
     session.commit()
     return RedirectResponse(f"/contacts/{contact_id}", status.HTTP_303_SEE_OTHER)
+
+
+# ---------------------------------------------------------------- activity log (C-13)
+
+
+@router.post("/contacts/{contact_id}/activities", dependencies=CsrfChecked)
+async def add_activity_form(request: Request, contact_id: int, session: SessionDep) -> Response:
+    _load(session, contact_id)
+    form = await request.form()
+    try:
+        add_activity(
+            session,
+            contact_id,
+            kind=str(form.get("kind", "")),
+            summary=str(form.get("summary", "")),
+            occurred_on=parse_date(str(form.get("occurred_on", ""))),
+        )
+    except ContactError as exc:
+        session.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message) from None
+    session.commit()
+    return RedirectResponse(
+        with_notice(f"/contacts/{contact_id}", "activity_added") + "#activity-h",
+        status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/contacts/{contact_id}/activities/{activity_id}/delete", dependencies=CsrfChecked)
+def delete_activity_form(contact_id: int, activity_id: int, session: SessionDep) -> Response:
+    try:
+        delete_activity(session, contact_id, activity_id)
+    except ContactNotFound:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Activity not found") from None
+    session.commit()
+    return RedirectResponse(
+        with_notice(f"/contacts/{contact_id}", "activity_deleted") + "#activity-h",
+        status.HTTP_303_SEE_OTHER,
+    )

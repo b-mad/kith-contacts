@@ -349,3 +349,52 @@ def test_teams_group_chat_org_chart_and_photo(base_url: str, tmp_path: object) -
 
         assert errors == []
         browser.close()
+
+
+@pytest.mark.req("C-11", "C-13", "S-07")
+def test_custom_fields_activity_and_saved_search(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page()
+        errors: list[str] = []
+        page.on("pageerror", lambda exc: errors.append(str(exc)))
+
+        # C-11: "+ Add field" adds a row; both rows save.
+        page.goto(f"{base_url}/contacts/new")
+        page.fill("#display_name", "Fieldy Person")
+        rows = page.get_by_test_id("custom-fields").locator(".row-item")
+        rows.nth(0).locator("input[name=field_name]").fill("Epic role")
+        rows.nth(0).locator("input[name=field_value]").fill("Beaker analyst")
+        page.get_by_role("button", name="+ Add field").click()
+        expect(rows).to_have_count(2)
+        expect(rows.nth(1).locator("input[name=field_name]")).to_be_focused()
+        rows.nth(1).locator("input[name=field_name]").fill("Birthday")
+        rows.nth(1).locator("input[name=field_value]").fill("June 9")
+        page.get_by_test_id("save").click()
+        expect(page.get_by_test_id("custom-field-list")).to_contain_text("Beaker analyst")
+        expect(page.get_by_test_id("custom-field-list")).to_contain_text("June 9")
+
+        # C-13: log an activity from the card.
+        page.get_by_test_id("activity-kind").select_option("call")
+        page.get_by_test_id("activity-summary").fill("Asked about the courier schedule")
+        page.get_by_test_id("activity-add").click()
+        expect(page.get_by_test_id("flash")).to_have_text("Activity logged.")
+        expect(page.get_by_test_id("activity")).to_contain_text("courier schedule")
+        expect(page.get_by_test_id("last-contact")).to_be_visible()
+
+        # S-07: live search, save it, and it shows as a chip.
+        page.goto(base_url)
+        page.get_by_test_id("search-input").fill("courier")
+        expect(page.get_by_test_id("result-row")).to_have_count(1)
+        page.locator("summary", has_text="Save this search").click()
+        page.get_by_test_id("save-search-name").fill("Courier folks")
+        page.get_by_test_id("save-search-name").press("Enter")
+        expect(page.get_by_test_id("saved-search")).to_have_text("Courier folks")
+        expect(page.get_by_test_id("result-row")).to_have_count(1)
+
+        assert errors == []
+        browser.close()

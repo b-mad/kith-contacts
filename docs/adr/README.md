@@ -41,3 +41,4 @@ not change meaning — those are logged in the requirements change log only.
 | [0009](0009-mail-client-choice-and-company-picker.md) | Choose Gmail or Outlook when emailing a group; company picker with a default | Accepted | M-02, M-03, C-14 |
 | [0010](0010-search-document-maintained-in-application.md) | Search document maintained by the application, not database triggers | Accepted | S-01–S-05 |
 | [0011](0011-backups-import-export-and-photos.md) | Backups, import/export formats and photo storage | Accepted | D-01–D-04, I-06, I-07, N-06, C-09, L-05 |
+| [0012](0012-phase-4-depth-features.md) | Custom fields, activity log, duplicate merge, saved searches and contact transfer | Accepted | C-11–C-13, S-07, T-05, L-05, I-09, S-01 |

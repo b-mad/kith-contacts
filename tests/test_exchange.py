@@ -68,7 +68,9 @@ def test_json_export_is_complete(seeded: Session) -> None:
     assert exported["lists"] == [{"name": "Q4 LIS", "role_note": "tech lead"}]
     assert exported["emails"][0]["email"].endswith(".example")
     assert {t["name"] for t in doc["contact_types"]} >= {"Employee", "Customer", "Vendor"}
-    assert doc["lists"] == [{"name": "Q4 LIS", "description": None, "status": "active"}]
+    assert doc["lists"] == [{"name": "Q4 LIS", "description": None, "status": "active", "tags": []}]
+    assert exported["custom_fields"] == []
+    assert exported["activities"] == []
 
 
 @pytest.mark.req("D-03")

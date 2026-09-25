@@ -20,12 +20,14 @@ from app.contacts import ContactError, ContactNotFound, list_contact_types
 from app.exchange import (
     FIELD_LABELS,
     PlannedRow,
+    export_contact_json,
     export_csv,
     export_json,
     guess_mapping,
     plan_import,
     read_csv,
     rows_from_csv,
+    rows_from_json,
     rows_from_vcards,
     run_import,
 )
@@ -34,7 +36,14 @@ from app.models import Contact, ContactPhoto, Tag
 from app.org import build_org
 from app.photos import remove_photo, set_photo
 from app.search import active_lists
-from app.tags import TAG_COLORS, delete_tag, rename_tag, set_tag_color, tag_counts
+from app.tags import (
+    TAG_COLORS,
+    delete_tag,
+    list_tag_counts,
+    rename_tag,
+    set_tag_color,
+    tag_counts,
+)
 from app.vcard import parse_vcards, to_vcard, to_vcards
 from app.web import (
     CsrfChecked,
@@ -172,7 +181,20 @@ def contact_vcard(contact_id: int, session: SessionDep) -> Response:
     return _download(to_vcard(contact), f"{safe}.vcf", "text/vcard; charset=utf-8")
 
 
-# ---------------------------------------------------------------- import (D-01, D-02)
+@router.get("/contacts/{contact_id}/export.json")
+def contact_json(request: Request, contact_id: int, session: SessionDep) -> Response:
+    """I-09: one contact with everything (and its photo), to import into another instance."""
+    contact = _load(session, contact_id)
+    safe = (
+        "".join(ch if ch.isalnum() else "-" for ch in contact.display_name).strip("-") or "contact"
+    )
+    body = json.dumps(
+        export_contact_json(contact, _settings(request).instance_name), indent=2, ensure_ascii=False
+    )
+    return _download(body, f"{safe}.json", "application/json")
+
+
+# ---------------------------------------------------------------- import (D-01, D-02, I-09)
 
 
 def _import_context(
@@ -225,6 +247,8 @@ async def _read_upload(form: FormData) -> tuple[str, str]:
         name = upload.filename.lower()
         if name.endswith((".vcf", ".vcard")) or data[:11].upper().startswith(b"BEGIN:VCARD"):
             return "vcard", data.decode("utf-8-sig", errors="replace")
+        if name.endswith(".json") or data.lstrip()[:1] == b"{":
+            return "json", data.decode("utf-8-sig", errors="replace")
         read_csv(data)  # validates size/shape early
         try:
             return "csv", data.decode("utf-8-sig")
@@ -234,7 +258,7 @@ async def _read_upload(form: FormData) -> tuple[str, str]:
         await upload.close()  # an empty file field still opens a temp file
     raw = str(form.get("raw", ""))
     if not raw.strip():
-        raise ContactError("Choose a CSV or vCard file to import", "file")
+        raise ContactError("Choose a CSV, vCard or JSON file to import", "file")
     return str(form.get("kind", "csv")), raw
 
 
@@ -242,10 +266,14 @@ def _plan(session: Session, form: FormData, kind: str, raw: str) -> dict[str, An
     types = list_contact_types(session)
     default_type = str(form.get("default_type_id", ""))
     default_type_id = int(default_type) if default_type.isdigit() else types[0].id
-    if kind == "vcard":
-        records = rows_from_vcards(parse_vcards(raw))
+    if kind == "json":  # I-09: an export from this app, possibly another instance
+        records = rows_from_json(raw)
         headers: list[str] = []
         mapping: dict[int, str] = {}
+    elif kind == "vcard":
+        records = rows_from_vcards(parse_vcards(raw))
+        headers = []
+        mapping = {}
     else:
         headers, body = read_csv(raw.encode("utf-8"))
         if any(k.startswith("map_") for k in form):
@@ -328,7 +356,12 @@ def tags_page(request: Request, session: SessionDep) -> HTMLResponse:
     return _render(
         request,
         "tags/index.html",
-        {"tags": tag_counts(session), "colors": TAG_COLORS, "notice": notice_text(request)},
+        {
+            "tags": tag_counts(session),
+            "list_counts": list_tag_counts(session),
+            "colors": TAG_COLORS,
+            "notice": notice_text(request),
+        },
     )
 
 

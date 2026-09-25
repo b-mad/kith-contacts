@@ -25,13 +25,14 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app import api, web, web_admin, web_lists
+from app import api, web, web_admin, web_depth, web_lists
 from app.backup import BackupFile, ensure_recent_backup
 from app.config import Settings, load_settings
 from app.contacts import ContactError, ContactNotFound
 from app.db import create_db_engine, make_session_factory
 from app.links import display_phone, slack_handle_display
 from app.migrate import current_revision, ensure_contact_types, upgrade_to_head
+from app.saved_searches import describe_query
 
 APP_DIR = Path(__file__).resolve().parent
 AUTO_BACKUP_INTERVAL_SECONDS = 3600
@@ -92,6 +93,7 @@ def build_templates(settings: Settings) -> Jinja2Templates:
     templates.env.filters["phone"] = display_phone
     templates.env.filters["slack_handle"] = slack_handle_display
     templates.env.filters["initials"] = initials
+    templates.env.filters["search_summary"] = describe_query
     return templates
 
 
@@ -178,4 +180,5 @@ def create_app(settings: Settings | None = None, *, run_migrations: bool = True)
     app.include_router(web.router)
     app.include_router(web_lists.router)
     app.include_router(web_admin.router)
+    app.include_router(web_depth.router)
     return app

@@ -7,7 +7,7 @@ context — team, manager, project, tags — even when you forget their name.
 - Decisions: [docs/adr/](docs/adr/README.md)
 - Agent / contributor rules: [CLAUDE.md](CLAUDE.md)
 
-**Status:** Phase 3 (daily driver) complete: backups and restore, CSV/vCard/JSON import and export, org chart, related people, photos, tag and contact-type admin. Operations guide: [docs/operations.md](docs/operations.md).
+**Status:** Phase 4 (depth) complete: custom fields, activity log, duplicate finder and merge, saved searches, related tags, tags on lists, and copying a contact between instances. Phase 3 brought backups, import/export, org chart, photos and admin pages. Operations guide: [docs/operations.md](docs/operations.md).
 
 ## Prerequisites
 

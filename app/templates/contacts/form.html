@@ -151,6 +151,30 @@
     </div>
   </fieldset>
 
+  <fieldset>
+    <legend>More details</legend>
+    <p class="hint">Your own fields, e.g. “Epic role”, “Birthday”, “Assistant”. They are searchable.</p>
+    <div class="rows" data-rows="field" data-testid="custom-fields">
+      {% for f in fields %}
+        <div class="row-item">
+          <input type="text" name="field_name" value="{{ f.name }}" aria-label="Field {{ loop.index }} name" placeholder="Field name" list="field-names" maxlength="50" class="label-input">
+          <input type="text" name="field_value" value="{{ f.value }}" aria-label="Field {{ loop.index }} value" placeholder="Value" maxlength="500">
+          <button type="button" class="link" data-remove-row aria-label="Remove field {{ loop.index }}">Remove</button>
+        </div>
+      {% endfor %}
+    </div>
+    <template id="field-row">
+      <div class="row-item">
+        <input type="text" name="field_name" aria-label="Field name" placeholder="Field name" list="field-names" maxlength="50" class="label-input">
+        <input type="text" name="field_value" aria-label="Field value" placeholder="Value" maxlength="500">
+        <button type="button" class="link" data-remove-row aria-label="Remove field">Remove</button>
+      </div>
+    </template>
+    <datalist id="field-names">{% for n in field_names %}<option value="{{ n }}">{% endfor %}</datalist>
+    <button type="button" class="link" data-add-row="field">+ Add field</button>
+    {{ m.field_error(errors, "custom_fields") }}
+  </fieldset>
+
   <div class="form-actions">
     <button type="submit" class="primary" data-testid="save">{{ "Save changes" if editing else "Add contact" }}</button>
     <a href="{{ '/contacts/%d' % contact_id if editing else '/' }}">Cancel</a>

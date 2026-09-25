@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Saved searches{% endblock %}
+{% block content %}
+<h1>Saved searches</h1>
+<p class="muted">Save any search from the Contacts page with “Save this search…”. Saved searches show as chips above the search box.</p>
+{% if saved %}
+  <table class="contacts" data-testid="saved-table">
+    <thead><tr><th scope="col">Name</th><th scope="col">Search</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+    <tbody>
+      {% for s in saved %}
+        <tr data-testid="saved-row">
+          <td>
+            <form method="post" action="/saved-searches/{{ s.id }}/rename" class="inline-form">{{ m.csrf() }}
+              <input name="name" value="{{ s.name }}" aria-label="Name of saved search {{ s.name }}" maxlength="100" required>
+              <button type="submit" class="link small">Rename</button>
+            </form>
+          </td>
+          <td><a href="/?{{ s.query }}">{{ s.query | search_summary }}</a></td>
+          <td>
+            <form method="post" action="/saved-searches/{{ s.id }}/delete">{{ m.csrf() }}
+              <button type="submit" class="link small danger" aria-label="Delete saved search {{ s.name }}">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="empty" data-testid="no-saved">No saved searches yet.</p>
+{% endif %}
+<p><a href="/">← All contacts</a></p>
+{% endblock %}

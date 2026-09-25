@@ -20,7 +20,7 @@
           <td colspan="3">
             <form method="post" action="/tags/{{ t.id }}/edit" class="inline-form tag-edit">{{ m.csrf() }}
               <input name="name" value="{{ t.name }}" aria-label="Name of tag {{ t.name }}" maxlength="50" required>
-              <span class="count-cell">{{ t.count }}</span>
+              <span class="count-cell">{{ t.count }}{% if list_counts.get(t.id) %} · <a href="/lists?tag={{ t.name | urlencode }}" data-testid="tag-lists-link">{{ list_counts[t.id] }} list{{ "" if list_counts[t.id] == 1 else "s" }}</a>{% endif %}</span>
               <select name="color" aria-label="Color of tag {{ t.name }}">
                 <option value="">No color</option>
                 {% for c in colors %}<option value="{{ c }}"{% if t.color == c %} selected{% endif %}>{{ c | capitalize }}</option>{% endfor %}

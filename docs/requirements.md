@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.3 |
+| Version | 1.4 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-09-24 |
@@ -106,7 +106,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 
 | ID | Requirement | Priority | Phase |
 | --- | --- | --- | --- |
-| S-01 | One search box matches across name, email, company, title, team, manager name, "works on", notes, tags and list names. | Must | 2 |
+| S-01 | One search box matches across name, email, company, title, team, manager name, "works on", notes, tags and list names — and, from Phase 4, custom field values and activity summaries (ADR-0012). | Must | 2 |
 | S-02 | Results rank by relevance and show the matching context (e.g. "team: Data Platform · manager: Maria Lopez"). | Must | 2 |
 | S-03 | Prefix and typo-tolerant matching ("lab res", "Mria"). | Must | 2 |
 | S-04 | Filters: contact type, company, team, manager, tag, list; combinable. | Must | 2 |
@@ -207,10 +207,15 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | `contact_tag` | contact_id, tag_id | Phase 2. Composite key. |
 | `contact_list` | id, name, description, status, created_at | Phase 2. The "project list". |
 | `list_member` | list_id, contact_id, role_note, added_at | Phase 2. Composite key. |
-| `contact.search_vector` | Weighted tsvector: name (A); team, manager, company (B); title, tags, works_on (C); notes (D) | Maintained by the application (`app/search.py`, ADR-0010); GIN index; plus `pg_trgm` GIN index on names. |
+| `custom_field` | id, contact_id, name, value, sort_order | Phase 4 (C-11). Unique (contact_id, lower(name)). |
+| `activity` | id, contact_id, kind, occurred_on, summary, created_at | Phase 4 (C-13). kind ∈ meeting, call, email, message, note. |
+| `saved_search` | id, name (unique, case-insensitive), query, created_at | Phase 4 (S-07). `query` is a whitelisted query string. |
+| `list_tag` | list_id, tag_id | Phase 4 (L-05). Composite key. |
+| `duplicate_dismissal` | contact_a, contact_b | Phase 4 (C-12). Pairs marked "not a duplicate"; a < b. |
+| `contact_merge` | id, kept_id, merged_name, snapshot (jsonb), merged_at | Phase 4 (C-12). Snapshot of each contact removed by a merge. |
+| `contact.search_vector` | Weighted tsvector: name (A); team, company, manager, tags (B); title, department, works_on, lists, emails, custom fields (C); notes, location, activities (D) | Maintained by the application (`app/search.py`, ADR-0010); GIN index; plus `pg_trgm` GIN index on names. |
 
 Each instance has its own database, so no table carries an instance column.
-Later phases add `activity` and `custom_field`.
 
 ## 7. Architecture
 
@@ -229,7 +234,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 1 — Contact core ✅ | Store and edit rich contacts | C-01–C-08, M-04, I-03, I-05 | 1 week |
 | 2 — Find and act (MVP) ✅ | Context search, tags, lists, copy emails | S-01–S-05, T-01–T-02, L-01–L-04, M-01–M-03, C-10, C-14 | 2 weeks |
 | 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, T-03–T-04, C-09, M-05, D-01–D-04, N-06, I-06–I-08 | 1–2 weeks |
-| 4 — Depth | Power-user features | C-11–C-13, S-07, T-05, L-05 (list tags), I-09 | 1–2 weeks |
+| 4 — Depth ✅ | Power-user features | C-11–C-13, S-07, T-05, L-05 (list tags), I-09 | 1–2 weeks |
 | 5 — Smart | Semantic search and directory sync | S-08, D-05 | 2+ weeks |
 
 ### Phase 0 — Foundation
@@ -271,7 +276,9 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 ### Phase 4 — Depth
 
-- Duplicate merge, custom fields, activity log, saved searches, related-tag suggestions.
+- Custom fields in the contact form; activity log on the card; duplicate finder and side-by-side merge; saved searches as chips; related tags beside a tag's results; tags on lists; per-contact JSON export and JSON import for moving people between instances (ADR-0012).
+
+**Done when:** two contacts sharing an email appear on the duplicates page and merge into one that keeps every email, tag, list and activity; "met at HIMSS" finds a person by an activity note; a contact exported from `dev` imports into another instance with its custom fields and activities.
 
 ### Phase 5 — Smart
 
@@ -301,6 +308,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.4 | 2026-09-24 | Phase 4 delivered. S-01 clarified: custom fields and activity summaries are searchable. Data model gains custom_field, activity, saved_search, list_tag, duplicate_dismissal, contact_merge. | 0012 |
 | 1.3 | 2026-09-24 | Phase 3 delivered. L-05 list tags moved to Phase 4. Photos stored in the database. Backup tool, daily auto-backup and import/export formats decided. | 0011 |
 | 1.2.1 | 2026-09-24 | Phase 2 delivered. Clarified: search document maintained by the application rather than triggers. | 0010 |
 | 1.2 | 2026-09-24 | M-02 and M-03 changed: choose Outlook or Gmail when copying or composing to several contacts. C-14 added: company dropdown with add-new and a default for new employees. | 0009 |

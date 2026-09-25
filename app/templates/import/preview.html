@@ -47,7 +47,7 @@
 
   <div class="table-wrap">
   <table class="contacts" data-testid="import-preview-table">
-    <thead><tr><th scope="col">Row</th><th scope="col">Name</th><th scope="col">Company</th><th scope="col">Title</th><th scope="col">Email</th><th scope="col">Manager</th><th scope="col">Tags</th><th scope="col">Status</th></tr></thead>
+    <thead><tr><th scope="col">Row</th><th scope="col">Name</th><th scope="col">Company</th><th scope="col">Title</th><th scope="col">Email</th><th scope="col">Manager</th><th scope="col">Tags</th>{% if kind == "json" %}<th scope="col">Also</th>{% endif %}<th scope="col">Status</th></tr></thead>
     <tbody>
       {% for r in preview %}
         <tr data-testid="import-row" class="{{ 'row-error' if not r.ok else ('row-dup' if r.duplicate_of else '') }}">
@@ -58,6 +58,7 @@
           <td>{{ r.data.emails | map(attribute="email") | join(", ") }}</td>
           <td>{{ r.manager_name or "" }}</td>
           <td>{{ r.tags | join(", ") }}</td>
+          {% if kind == "json" %}<td class="small" data-testid="import-extras">{{ r.extras_summary }}</td>{% endif %}
           <td>
             {% if not r.ok %}<span class="pill bad">Error</span> <span class="small">{{ r.errors | join("; ") }}</span>
             {% elif r.duplicate_of %}<span class="pill warn">Duplicate?</span> <span class="small">{{ r.duplicate_of }}</span>

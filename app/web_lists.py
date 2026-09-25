@@ -1,4 +1,4 @@
-"""Pages for project lists (L-01 to L-04) and tags (T-02)."""
+"""Pages for project lists (L-01 to L-05) and tags (T-02)."""
 
 from __future__ import annotations
 
@@ -11,10 +11,12 @@ from sqlalchemy.orm import Session
 from app.contacts import ContactError, ContactNotFound, primary_email
 from app.links import mailto_url
 from app.lists import (
+    add_list_tag,
     add_members,
     all_lists,
     create_list,
     get_list,
+    remove_list_tag,
     remove_member,
     set_list_status,
     set_role_note,
@@ -43,13 +45,16 @@ def _fail(session: Session, exc: ContactError) -> HTTPException:
 
 
 @router.get("/lists", response_class=HTMLResponse)
-def lists_index(request: Request, session: SessionDep, archived: str = "") -> HTMLResponse:
+def lists_index(
+    request: Request, session: SessionDep, archived: str = "", tag: str = ""
+) -> HTMLResponse:
     return _render(
         request,
         "lists/index.html",
         {
-            "rows": all_lists(session, include_archived=archived == "1"),
+            "rows": all_lists(session, include_archived=archived == "1", tag=tag or None),
             "include_archived": archived == "1",
+            "tag": tag,
             "notice": notice_text(request),
             "error": None,
         },
@@ -195,3 +200,28 @@ async def role_form(
         raise _fail(session, exc) from None
     session.commit()
     return RedirectResponse(with_notice(f"/lists/{list_id}", "saved"), status.HTTP_303_SEE_OTHER)
+
+
+# ---------------------------------------------------------------- list tags (L-05)
+
+
+@router.post("/lists/{list_id}/tags", dependencies=CsrfChecked)
+async def add_list_tag_form(request: Request, list_id: int, session: SessionDep) -> Response:
+    contact_list = _load_list(session, list_id)
+    form = await request.form()
+    try:
+        tag = add_list_tag(session, contact_list, str(form.get("tag", "")))
+    except ContactError as exc:
+        raise _fail(session, exc) from None
+    session.commit()
+    return RedirectResponse(
+        with_notice(f"/lists/{list_id}", "list_tagged", name=tag.name),
+        status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/lists/{list_id}/tags/{tag_id}/remove", dependencies=CsrfChecked)
+def remove_list_tag_form(list_id: int, tag_id: int, session: SessionDep) -> Response:
+    remove_list_tag(session, _load_list(session, list_id), tag_id)
+    session.commit()
+    return RedirectResponse(with_notice(f"/lists/{list_id}", "untagged"), status.HTTP_303_SEE_OTHER)
