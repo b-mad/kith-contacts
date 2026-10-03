@@ -185,6 +185,11 @@ def test_every_page_passes_axe_in_every_palette_and_mode(prod_url: str, dev_url:
                     for path in pages:
                         page.goto(prod_url + path)
                         failures += [f"{palette}/{theme} {path}: {v}" for v in _violations(page)]
+                    # The search page with a person open in the preview pane (S-02).
+                    page.goto(prod_url + "/?q=Ada")
+                    page.locator("[data-preview-link]").first.click()
+                    page.wait_for_selector("[data-testid=preview]")
+                    failures += [f"{palette}/{theme} preview: {v}" for v in _violations(page)]
             # The development header (striped instance band) in both modes.
             for theme in ("light", "dark"):
                 _set(page, dev_url, theme=theme, palette="harbor")

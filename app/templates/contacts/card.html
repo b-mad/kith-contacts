@@ -47,17 +47,7 @@
   {% if pv and pv.names_only %}
   <p class="redacted" data-testid="names-only">Only names and companies are shown while presenting.</p>
   {% else %}
-  <nav class="actions" aria-label="Contact actions" data-testid="actions">
-    {% if c.links.mailto %}<a class="action" href="{{ c.links.mailto }}" data-testid="action-email" data-log-kind="email" data-log-contact="{{ c.id }}" data-log-name="{{ c.display_name }}">Email</a>
-    {% else %}<span class="action disabled" aria-disabled="true">Email</span>{% endif %}
-    {% if c.links.tel %}<a class="action" href="{{ c.links.tel }}" data-testid="action-call" data-log-kind="call" data-log-contact="{{ c.id }}" data-log-name="{{ c.display_name }}">Call</a>
-    {% else %}<span class="action disabled" aria-disabled="true">Call</span>{% endif %}
-    {% if c.links.slack %}<a class="action" href="{{ c.links.slack }}" target="_blank" rel="noopener noreferrer" data-testid="action-slack">Slack{% if c.slack_handle %} {{ c.slack_handle | slack_handle }}{% endif %}</a>
-    {% elif c.slack_handle %}<span class="action static" data-testid="action-slack">Slack {{ c.slack_handle | slack_handle }}</span>
-    {% else %}<span class="action disabled" aria-disabled="true">Slack</span>{% endif %}
-    {% if c.links.teams %}<a class="action" href="{{ c.links.teams }}" target="_blank" rel="noopener noreferrer" data-testid="action-teams">Teams</a>
-    {% else %}<span class="action disabled" aria-disabled="true">Teams</span>{% endif %}
-  </nav>
+  {{ m.contact_actions(c) }}
 
   <div class="card-grid">
     <section>

@@ -270,7 +270,7 @@ def test_meaning_results_on_the_search_page(mclient: TestClient, db_session: Ses
     assert "Best matches by meaning" in html
     rows = re.findall(r'data-contact-id="(\d+)"[^>]*data-testid="(meaning-row|result-row)"', html)
     assert rows[0] == (str(ids["maya"]), "meaning-row")
-    assert "notes:</span> Helped us get the FDA 510(k)" in html
+    assert "notes:</span> “Helped us get the FDA 510(k)" in html
     assert html.count(f'data-contact-id="{ids["maya"]}"') == 1  # not listed twice
     assert "by meaning</p>" in html
 

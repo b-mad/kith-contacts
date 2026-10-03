@@ -16,3 +16,19 @@
   {{ field_error(errors, name) }}
 </div>
 {%- endmacro %}
+
+{# M-04: one-click actions for a contact (card and search preview). A missing channel is a
+   disabled control that says why. #}
+{% macro contact_actions(c, label="Contact actions", compact=False) -%}
+<nav class="actions" aria-label="{{ label }}" data-testid="actions">
+  {% if c.links.mailto %}<a class="action" href="{{ c.links.mailto }}" data-testid="action-email" data-log-kind="email" data-log-contact="{{ c.id }}" data-log-name="{{ c.display_name }}">Email</a>
+  {% else %}<span class="action disabled" aria-disabled="true" title="No email address saved">Email</span>{% endif %}
+  {% if c.links.tel %}<a class="action" href="{{ c.links.tel }}" data-testid="action-call" data-log-kind="call" data-log-contact="{{ c.id }}" data-log-name="{{ c.display_name }}">Call</a>
+  {% else %}<span class="action disabled" aria-disabled="true" title="No phone number saved">Call</span>{% endif %}
+  {% if c.links.slack %}<a class="action" href="{{ c.links.slack }}" target="_blank" rel="noopener noreferrer" data-testid="action-slack"{% if compact and c.slack_handle %} title="Slack {{ c.slack_handle | slack_handle }}"{% endif %}>Slack{% if c.slack_handle and not compact %} {{ c.slack_handle | slack_handle }}{% endif %}</a>
+  {% elif c.slack_handle %}<span class="action static" data-testid="action-slack">{% if compact %}<span class="visually-hidden">Slack </span>{{ c.slack_handle | slack_handle }}{% else %}Slack {{ c.slack_handle | slack_handle }}{% endif %}</span>
+  {% else %}<span class="action disabled" aria-disabled="true" title="No Slack handle saved">Slack</span>{% endif %}
+  {% if c.links.teams %}<a class="action" href="{{ c.links.teams }}" target="_blank" rel="noopener noreferrer" data-testid="action-teams">Teams</a>
+  {% else %}<span class="action disabled" aria-disabled="true" title="No work email or Teams link saved">Teams</span>{% endif %}
+</nav>
+{%- endmacro %}

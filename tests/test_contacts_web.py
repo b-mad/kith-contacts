@@ -283,7 +283,7 @@ def test_list_filters_by_type(client: TestClient, types: dict[str, int]) -> None
 
     assert "Vera Vendor" in html
     assert "Carl Customer" not in html
-    assert 'aria-current="true" class="sorted">Company' in html
+    assert '<option value="company" selected>Company</option>' in html  # the Sort control
 
 
 def test_list_ignores_bad_query_values(client: TestClient) -> None:

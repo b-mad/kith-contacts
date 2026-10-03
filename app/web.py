@@ -51,6 +51,7 @@ from app.search import (
     apply_time_query,
     distinct_values,
     last_interactions,
+    query_terms,
     search,
 )
 from app.semantic import MeaningHit, SemanticService, search_by_meaning
@@ -213,6 +214,17 @@ def _meaning(
     return meaning, bool(meaning) and not all_words
 
 
+SORT_CHOICES: tuple[tuple[str, str], ...] = (
+    ("", "Best match"),
+    ("name", "Name"),
+    ("company", "Company"),
+    ("team", "Team"),
+    ("type", "Type"),
+    ("last_contact", "Last contact"),
+    ("updated", "Recently updated"),
+)
+
+
 def _private_count(session: Session, words: str, filters: SearchFilters) -> int:
     """P-04: how many private contacts this search leaves out while presenting."""
     p = presenting()
@@ -274,6 +286,9 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         "q": q,
         "filters": filters,
         "sort": sort,
+        "sort_choice": sort_raw if sort_raw in SORT_KEYS else "",
+        "sort_choices": SORT_CHOICES,
+        "terms": query_terms(words),
         "hits": [(to_out(h.contact), h.matched, h.fuzzy, h.hidden) for h in hits],
         "private_count": _private_count(session, words, period_filters),
         "last_contact": last_contact,
@@ -614,6 +629,27 @@ def contact_card(request: Request, contact_id: int, session: SessionDep) -> HTML
             "is_private": contact.is_private,
         },
     )
+
+
+@router.get("/contacts/{contact_id}/preview", response_class=HTMLResponse)
+def contact_preview(request: Request, contact_id: int, session: SessionDep) -> HTMLResponse:
+    """The search page's preview pane (S-02, ADR-0015): key facts without leaving the results."""
+    contact = _load(session, contact_id)
+    c = to_out(contact, detail=True)
+    return _render(
+        request,
+        "contacts/_preview.html",
+        {
+            "c": c,
+            "recent": (c.activities or [])[:PREVIEW_ACTIVITIES],
+            "kinds": KIND_LABELS,
+            "reminder": reminder_for(session, contact, today=date.today()),
+            "hidden": hidden_counts(session, contact, presenting()),
+        },
+    )
+
+
+PREVIEW_ACTIVITIES = 3
 
 
 @router.post("/contacts/{contact_id}/favorite", dependencies=CsrfChecked)

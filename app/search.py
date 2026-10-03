@@ -21,6 +21,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Any, Literal
 
+from markupsafe import Markup
 from sqlalchemy import (
     ColumnElement,
     Select,
@@ -439,6 +440,25 @@ def matched_fields(contact: Contact, terms: Sequence[str]) -> list[tuple[str, st
             if item not in found:
                 found.append(item)
     return found
+
+
+def highlight(text: str, terms: Sequence[str]) -> Markup:
+    """S-02: wrap each word that a search term starts, e.g. "lab <mark>results</mark>".
+
+    The text is escaped first, so it is safe to render as HTML.
+    """
+    if not terms:
+        return Markup.escape(text)
+    out: list[str] = []
+    last = 0
+    for match in _WORD.finditer(text):
+        word = match.group(0)
+        if any(word.lower().startswith(t) for t in terms):
+            out.append(str(Markup.escape(text[last : match.start()])))
+            out.append(f"<mark>{Markup.escape(word)}</mark>")
+            last = match.end()
+    out.append(str(Markup.escape(text[last:])))
+    return Markup("".join(out))  # noqa: S704 - every piece above is escaped
 
 
 # ---------------------------------------------------------------- facets for filter dropdowns

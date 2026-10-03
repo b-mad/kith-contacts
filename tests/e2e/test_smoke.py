@@ -656,7 +656,9 @@ def test_shift_p_presents_and_hides_private_details(base_url: str) -> None:
         )
         assert page.evaluate("navigator.clipboard.readText()") == "pia@work.example"
 
-        page.get_by_role("link", name="Pia Presenter").click()
+        page.get_by_role("link", name="Pia Presenter").click()  # preview pane first
+        expect(page.get_by_test_id("preview")).to_contain_text("pia@work.example")
+        page.get_by_role("link", name="Pia Presenter").click()  # then the card
         expect(page.get_by_test_id("hidden-notes")).to_be_visible()
         expect(page.locator("body")).not_to_contain_text("Secret memory cue")
 
@@ -665,4 +667,84 @@ def test_shift_p_presents_and_hides_private_details(base_url: str) -> None:
         expect(page.get_by_test_id("presenting-bar")).to_be_visible()
         page.get_by_test_id("stop-presenting").click()
         expect(page.get_by_test_id("presenting-bar")).to_have_count(0)
+        browser.close()
+
+
+@pytest.mark.req("S-02", "S-04", "N-09", "M-02")
+def test_preview_pane_chips_and_keyboard(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        context = browser.new_context(viewport={"width": 1280, "height": 900})
+        context.grant_permissions(["clipboard-read", "clipboard-write"], origin=base_url)
+        page = context.new_page()
+        types = page.request.get(base_url + "/api/contact-types").json()
+        employee = next(t["id"] for t in types if t["name"] == "Employee")
+        for name, email in (
+            ("Pax Preview", "pax@acme.example"),
+            ("Pim Preview", "pim@acme.example"),
+        ):
+            page.request.post(
+                base_url + "/api/contacts",
+                data={
+                    "display_name": name,
+                    "contact_type_id": employee,
+                    "team": "Preview Team",
+                    "title": "Analyst",
+                    "works_on": "Previewing panes",
+                    "emails": [{"email": email}],
+                },
+            )
+
+        page.goto(base_url + "/")
+        pane = page.get_by_test_id("preview-pane")
+        expect(pane).to_be_visible()
+        expect(pane).to_contain_text("Choose a name to see their details here.")
+
+        # Typing searches live; matched words are highlighted.
+        search = page.get_by_test_id("search-input")
+        search.press_sequentially("panes", delay=15)
+        expect(page.get_by_test_id("result-row")).to_have_count(2)
+        expect(page.locator("[data-testid=result-row] mark").first).to_have_text("panes")
+
+        # A click on a name previews instead of navigating; a second click opens the card.
+        page.get_by_role("link", name="Pim Preview").click()
+        expect(page.get_by_test_id("preview")).to_contain_text("pim@acme.example")
+        expect(page).to_have_url(re.compile(r"/\?q=panes$"))
+        row = page.get_by_test_id("result-row").filter(has_text="Pim Preview")
+        expect(row).to_have_class(re.compile("previewing"))
+
+        # ↓ from the search box and between names previews each person; space selects; c copies.
+        search.focus()
+        page.keyboard.press("ArrowDown")
+        expect(page.get_by_test_id("preview")).to_contain_text("pax@acme.example")
+        page.keyboard.press("Space")
+        page.keyboard.press("ArrowDown")
+        expect(page.get_by_test_id("preview")).to_contain_text("pim@acme.example")
+        page.keyboard.press("Space")
+        expect(page.locator("[data-selected-count]")).to_have_text("2 selected")
+        page.keyboard.press("c")
+        expect(page.get_by_test_id("copy-menu")).to_be_visible()
+
+        # Filters are chips; a chosen one is filled and the results follow.
+        page.keyboard.press("Escape")
+        page.get_by_test_id("filter-team").select_option("Preview Team")
+        expect(page.get_by_test_id("filter-chips")).to_contain_text("Team: Preview Team")
+        page.get_by_test_id("more-filters").locator("summary").click()
+        expect(page.get_by_test_id("filter-contacted")).to_be_visible()
+        page.keyboard.press("Escape")  # the popover closes
+        expect(page.get_by_test_id("filter-contacted")).to_be_hidden()
+
+        page.get_by_role("link", name="Pim Preview").click()  # already previewed
+        expect(page).to_have_url(re.compile(r"/contacts/\d+$"))
+
+        # Narrow screens keep one column: a name opens the card straight away.
+        page.set_viewport_size({"width": 700, "height": 900})
+        page.goto(base_url + "/?q=panes")
+        expect(page.get_by_test_id("preview-pane")).to_be_hidden()
+        page.get_by_role("link", name="Pax Preview").click()
+        expect(page).to_have_url(re.compile(r"/contacts/\d+$"))
         browser.close()

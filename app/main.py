@@ -46,6 +46,7 @@ from app.privacy import (
     presenting,
 )
 from app.saved_searches import describe_query
+from app.search import highlight
 from app.semantic import SemanticService, mark_changed
 
 APP_DIR = Path(__file__).resolve().parent
@@ -145,6 +146,7 @@ def build_templates(settings: Settings) -> Jinja2Templates:
     templates.env.filters["slack_handle"] = slack_handle_display
     templates.env.filters["initials"] = initials
     templates.env.filters["search_summary"] = describe_query
+    templates.env.filters["highlight"] = highlight
     return templates
 
 

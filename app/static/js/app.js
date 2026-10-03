@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initLogPrompt();
   initSearch();
   initSelection();
+  initPreview();
   initFormRows();
   $$("[data-manager-picker]").forEach((root) =>
     initPicker(root, {
@@ -138,6 +139,14 @@ function initSelection() {
   $$("[data-open-menu]", bar).forEach((button) =>
     button.addEventListener("click", () => openMenu(document.getElementById(button.dataset.openMenu))),
   );
+
+  // N-09: "c" copies the selected people's emails (outside text fields).
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "c" || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || selected.size === 0) return;
+    if (e.target.closest("textarea, select, [contenteditable], input:not([type=checkbox])")) return;
+    e.preventDefault();
+    $("[data-copy-emails]", bar).click();
+  });
 
   // Selection forms (add to list / add tag) carry the selected ids.
   $$("[data-selection-form]", bar).forEach((form) =>
@@ -480,4 +489,107 @@ function initPresenting() {
     e.preventDefault();
     form.requestSubmit();
   });
+}
+
+// ------------------------------------------------------------------ preview pane (S-02, ADR-0015)
+
+// On wide screens a chosen result opens in the preview pane instead of navigating; choosing it
+// again (or "Open full card") opens the card. Narrow screens and modified clicks navigate as usual.
+function initPreview() {
+  const layout = $("[data-search-layout]");
+  const pane = $("[data-preview-pane]");
+  const results = $("[data-results]");
+  if (!layout || !pane || !results) return;
+  const wide = window.matchMedia("(min-width: 62.5rem)");
+  const empty = pane.innerHTML;
+  let current = null;
+  let generation = 0;
+
+  const enable = () => {
+    pane.hidden = !wide.matches;
+    layout.classList.toggle("with-preview", wide.matches);
+  };
+  enable();
+  wide.addEventListener("change", enable);
+
+  const mark = () => {
+    $$("tr[data-contact-id]", results).forEach((row) => {
+      const on = row.dataset.contactId === current;
+      row.classList.toggle("previewing", on);
+      const link = $("[data-preview-link]", row);
+      if (link && on) link.setAttribute("aria-current", "true");
+      else if (link) link.removeAttribute("aria-current");
+    });
+  };
+
+  const show = async (id) => {
+    if (id === current) return;
+    current = id;
+    mark();
+    const mine = ++generation;
+    const response = await fetch(`/contacts/${id}/preview`, { headers: { Accept: "text/html" } });
+    if (mine !== generation) return; // a newer choice is on its way
+    if (!response.ok) {
+      pane.innerHTML = empty;
+      current = null;
+      mark();
+      return;
+    }
+    pane.innerHTML = await response.text();
+    pane.scrollTop = 0;
+  };
+  const rowId = (link) => link.closest("[data-contact-id]").dataset.contactId;
+
+  results.addEventListener("click", (e) => {
+    const link = e.target.closest("a[data-preview-link]");
+    if (!link || !wide.matches || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (rowId(link) === current) return; // already previewed: open the card
+    e.preventDefault();
+    show(rowId(link));
+  });
+
+  // N-09: ↓ from the search box or ↑ ↓ on a name move between people, previewing each;
+  // space selects the person for Copy emails and the other bulk actions.
+  const links = () => $$("a[data-preview-link]", results);
+  const go = (link) => {
+    if (!link) return;
+    link.focus();
+    if (wide.matches) show(rowId(link));
+  };
+  const input = $("[data-search-input]");
+  if (input) {
+    input.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowDown") return;
+      e.preventDefault();
+      go(links()[0]);
+    });
+  }
+  results.addEventListener("keydown", (e) => {
+    const link = e.target.closest("a[data-preview-link]");
+    if (!link) return;
+    const all = links();
+    const i = all.indexOf(link);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (e.key === "ArrowUp" && i === 0 && input) input.focus();
+      else go(all[i + (e.key === "ArrowDown" ? 1 : -1)]);
+    } else if (e.key === " ") {
+      e.preventDefault();
+      const box = $(".select-contact", link.closest("[data-contact-id]"));
+      if (box) box.click();
+    }
+  });
+  document.addEventListener("results:updated", mark);
+
+  // "More filters" is a small popover: a click elsewhere or Escape closes it.
+  const more = $("[data-more-filters]");
+  if (more) {
+    document.addEventListener("click", (e) => { if (!more.contains(e.target)) more.open = false; });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && more.open) {
+        more.open = false;
+        $("summary", more).focus();
+      }
+    });
+  }
 }

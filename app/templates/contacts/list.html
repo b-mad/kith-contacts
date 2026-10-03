@@ -15,48 +15,69 @@
 </nav>
 {% endif %}
 
+<div class="search-layout" data-search-layout>
+<div class="search-main">
 <form class="search" method="get" action="/" role="search" data-search-form>
   <label for="q" class="visually-hidden">Search contacts</label>
   <input id="q" name="q" type="search" value="{{ q }}" autocomplete="off" spellcheck="false"
          placeholder="Search by name, team, manager, project, tag, company, notes…  (press / )"
          data-testid="search-input" data-search-input>
 
-  <div class="filters">
-    <select name="type" aria-label="Type" data-testid="filter-type">
-      <option value="">All types</option>
+  {# S-04 filters as chips (ADR-0015 step 6): native selects, so they work by keyboard and
+     without JavaScript; a chosen filter is filled. Less-used filters sit under "More". #}
+  {% set more_on = (filters.list_id is not none) + (contacted is not none) + filters.include_archived %}
+  <div class="filters" role="group" aria-label="Filters" data-testid="filters">
+    <select name="type" class="filter-chip" aria-label="Type" data-testid="filter-type">
+      <option value="">Type</option>
       {% for t in types %}<option value="{{ t.id }}"{% if filters.type_id == t.id %} selected{% endif %}>{{ t.name }}</option>{% endfor %}
     </select>
-    <select name="company" aria-label="Company" data-testid="filter-company">
-      <option value="">Any company</option>
+    <select name="company" class="filter-chip" aria-label="Company" data-testid="filter-company">
+      <option value="">Company</option>
       {% for c in companies %}<option{% if filters.company and filters.company|lower == c|lower %} selected{% endif %}>{{ c }}</option>{% endfor %}
     </select>
-    <select name="team" aria-label="Team" data-testid="filter-team">
-      <option value="">Any team</option>
+    <select name="team" class="filter-chip" aria-label="Team" data-testid="filter-team">
+      <option value="">Team</option>
       {% for t in teams %}<option{% if filters.team and filters.team|lower == t|lower %} selected{% endif %}>{{ t }}</option>{% endfor %}
     </select>
-    <select name="tag" aria-label="Tag" data-testid="filter-tag">
-      <option value="">Any tag</option>
+    <select name="tag" class="filter-chip" aria-label="Tag" data-testid="filter-tag">
+      <option value="">Tag</option>
       {% for t in tags %}<option value="{{ t.name }}"{% if filters.tag and filters.tag|lower == t.name|lower %} selected{% endif %}>{{ t.name }} ({{ t.count }})</option>{% endfor %}
     </select>
-    <select name="list" aria-label="List" data-testid="filter-list">
-      <option value="">Any list</option>
-      {% for l in lists %}<option value="{{ l.id }}"{% if filters.list_id == l.id %} selected{% endif %}>{{ l.name }}</option>{% endfor %}
-    </select>
-    <select name="contacted" aria-label="Last contacted" data-testid="filter-contacted">
-      <option value="">Contacted any time</option>
-      {% for n in contacted_choices %}<option value="{{ n }}"{% if contacted == n %} selected{% endif %}>Contacted in the last {{ n }} days</option>{% endfor %}
-    </select>
-    <label class="check"><input type="checkbox" name="favorites" value="1"{% if filters.favorites %} checked{% endif %}> Favorites</label>
-    <label class="check"><input type="checkbox" name="due" value="1"{% if filters.due_by %} checked{% endif %} data-testid="filter-due"> Due to reconnect</label>
-    <label class="check"><input type="checkbox" name="archived" value="1"{% if filters.include_archived %} checked{% endif %}> Archived</label>
+    <label class="filter-chip filter-toggle"><input type="checkbox" name="favorites" value="1"{% if filters.favorites %} checked{% endif %} data-testid="filter-favorites"> <span aria-hidden="true">★</span> Favorites</label>
+    <label class="filter-chip filter-toggle"><input type="checkbox" name="due" value="1"{% if filters.due_by %} checked{% endif %} data-testid="filter-due"> Due to reconnect</label>
+    <details class="more-filters" data-testid="more-filters" data-more-filters>
+      <summary class="filter-chip{% if more_on %} on{% endif %}">More filters{% if more_on %} · {{ more_on }}{% endif %}</summary>
+      <div class="more-panel">
+        <select name="list" class="filter-chip" aria-label="List" data-testid="filter-list">
+          <option value="">List</option>
+          {% for l in lists %}<option value="{{ l.id }}"{% if filters.list_id == l.id %} selected{% endif %}>{{ l.name }}</option>{% endfor %}
+        </select>
+        <select name="contacted" class="filter-chip" aria-label="Last contacted" data-testid="filter-contacted">
+          <option value="">Last contacted</option>
+          {% for n in contacted_choices %}<option value="{{ n }}"{% if contacted == n %} selected{% endif %}>Contacted in the last {{ n }} days</option>{% endfor %}
+        </select>
+        <label class="filter-chip filter-toggle"><input type="checkbox" name="archived" value="1"{% if filters.include_archived %} checked{% endif %} data-testid="filter-archived"> Include archived</label>
+      </div>
+    </details>
+    <label class="sort-control">Sort
+      <select name="sort" data-testid="sort">
+        {% for key, label in sort_choices %}<option value="{{ key }}"{% if sort_choice == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
     {% if manager %}<input type="hidden" name="manager" value="{{ manager.id }}">{% endif %}
-    {% if sort not in ("relevance", "name") %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
     <noscript><button type="submit">Search</button></noscript>
   </div>
 </form>
 
 <div id="results" data-results aria-live="polite">
   {% include "contacts/_results.html" %}
+</div>
+</div>
+
+{# Filled by app.js on wide screens; without JavaScript, names simply open the card. #}
+<aside class="preview-pane panel" aria-label="Preview" data-preview-pane hidden data-testid="preview-pane">
+  <p class="muted preview-empty" data-preview-empty>Choose a name to see their details here. <span class="small">↑ ↓ move between people.</span></p>
+</aside>
 </div>
 
 {% include "_action_bar.html" %}

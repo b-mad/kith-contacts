@@ -78,7 +78,7 @@ def test_search_page_shows_matches_with_context(client: TestClient, team: dict[s
     html = client.get("/?q=lab+results+maria").text
     assert 'data-testid="search-input"' in html
     assert "Dev Patel" in html
-    assert '<span class="match-field">manager:</span> Maria Lopez' in html
+    assert '<span class="match-field">manager:</span> <mark>Maria</mark> Lopez' in html
     assert "Robert Lin" not in html
     assert "matching “lab results maria”" in html
 
