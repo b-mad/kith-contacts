@@ -1,5 +1,8 @@
 /* Design tokens (ADR-0015). The only file in app/static that may contain color literals.
  *
+ * Palettes: Harbor (default), Sage, Clay (A-02). A palette block applies to any element
+ * with data-palette, so previews can show a palette inside a page using another one.
+ *
  * Every color is written once as light-dark(<light>, <dark>). The browser picks the side
  * from `color-scheme`: "light dark" follows the operating system (theme = System),
  * "light" or "dark" forces one (A-01). tests/test_contrast.py checks every pair against
@@ -12,7 +15,7 @@
 
 /* ------------------------------------------------------------------ Harbor (default) */
 :root,
-:root[data-palette="harbor"] {
+[data-palette="harbor"] {
   --bg: light-dark(#f4f6f9, #0d131a);
   --surface: light-dark(#ffffff, #141c25);
   --surface-2: light-dark(#eaeff5, #1b2531);
@@ -27,6 +30,44 @@
   --accent-soft: light-dark(#e1ecf9, #15304e);
   --focus: light-dark(#0b5cad, #8fc4ff);
 }
+
+/* ------------------------------------------------------------------ Sage */
+[data-palette="sage"] {
+  --bg: light-dark(#f4f7f3, #0e1411);
+  --surface: light-dark(#ffffff, #151d19);
+  --surface-2: light-dark(#e9f0e8, #1c2721);
+  --border: light-dark(#d0dbcf, #2b3931);
+  --border-strong: light-dark(#7b8c7d, #627569);
+  --fg: light-dark(#16201a, #e2ebe5);
+  --muted: light-dark(#4f5e55, #a0b3a6);
+  --accent: light-dark(#1c6a46, #74d4a1);
+  --accent-fill: light-dark(#1c6a46, #74d4a1);
+  --accent-fill-hover: light-dark(#165a3b, #97e3bb);
+  --on-accent: light-dark(#ffffff, #052416);
+  --accent-soft: light-dark(#ddeee3, #163627);
+  --focus: light-dark(#1c6a46, #8fe0b5);
+}
+
+/* ------------------------------------------------------------------ Clay */
+[data-palette="clay"] {
+  --bg: light-dark(#f9f6f2, #15110e);
+  --surface: light-dark(#ffffff, #1d1814);
+  --surface-2: light-dark(#f2ebe4, #27201b);
+  --border: light-dark(#e0d5ca, #3a3029);
+  --border-strong: light-dark(#8f8174, #776a5f);
+  --fg: light-dark(#251c17, #efe7e0);
+  --muted: light-dark(#62544a, #b6a89d);
+  --accent: light-dark(#a3431b, #f39a70);
+  --accent-fill: light-dark(#a3431b, #f39a70);
+  --accent-fill-hover: light-dark(#8a3815, #f7b796);
+  --on-accent: light-dark(#ffffff, #2c1105);
+  --accent-soft: light-dark(#f7e4d9, #3d2518);
+  --focus: light-dark(#a3431b, #f6b08f);
+}
+
+/* Palette previews on Settings › Appearance show each palette in a fixed mode. */
+.preview-light { color-scheme: light; }
+.preview-dark { color-scheme: dark; }
 
 /* ------------------------------------------------------------------ Shared by every palette */
 :root {

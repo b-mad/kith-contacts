@@ -16,7 +16,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.appearance import Palette, Theme
+from app.appearance import Density, Palette, Theme
 
 
 def _blank_to_none(value: object) -> object:
@@ -59,10 +59,11 @@ class _Input(BaseModel):
 
 
 class AppearanceIn(_Input):
-    """A-01, A-03: a theme and/or palette from Settings or the header switch (ADR-0015)."""
+    """A-01 to A-05: theme, palette and/or density from Settings or the header (ADR-0015)."""
 
     theme: Theme | None = None
     palette: Palette | None = None
+    density: Density | None = None
 
 
 class EmailIn(_Input):

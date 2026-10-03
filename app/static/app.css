@@ -1,6 +1,7 @@
 /* Colors come from tokens.css (ADR-0015); this file must not contain color literals. */
 :root {
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  accent-color: var(--accent-fill); /* checkboxes and radios follow the palette */
 }
 
 * { box-sizing: border-box; }
@@ -341,3 +342,31 @@ tr.row-error td { color: var(--muted); }
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
   }
 }
+
+/* Phase 6: palette picker and density (A-02, A-05, ADR-0015) */
+.palette-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.75rem; }
+.palette-option {
+  position: relative; display: flex; flex-direction: column; gap: 0.5rem; padding: 0.6rem;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: pointer;
+}
+.palette-option:hover { border-color: var(--border-strong); }
+.palette-option:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.palette-option:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
+.palette-option input { position: absolute; top: 0.9rem; right: 0.9rem; margin: 0; }
+.palette-preview { display: flex; height: 4.5rem; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+.palette-preview > span {
+  flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 0.3rem;
+  padding: 0.5rem; background: var(--bg);
+}
+.pv-line { height: 0.45rem; width: 80%; border-radius: 3px; background: var(--accent-soft); }
+.pv-line.short { width: 50%; background: var(--border-strong); }
+.pv-button { height: 0.9rem; width: 55%; border-radius: 4px; background: var(--accent-fill); }
+
+[data-density="compact"] main { padding-top: 0.5rem; }
+[data-density="compact"] table.contacts { font-size: 0.9rem; line-height: 1.3; }
+[data-density="compact"] table.contacts th,
+[data-density="compact"] table.contacts td { padding: 0.15rem 0.5rem; }
+[data-density="compact"] .matched { margin-top: 0; }
+[data-density="compact"] .avatar { width: 22px; height: 22px; }
+[data-density="compact"] .timeline li { padding: 0.15rem 0; }
+[data-density="compact"] .card { padding: 0.6rem 0.9rem; }

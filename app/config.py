@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     contact_types: Annotated[tuple[str, ...], NoDecode] = DEFAULT_CONTACT_TYPES
     phone_region: str = Field(default="US", pattern=r"^[A-Z]{2}$")
     home_company: str | None = Field(default=None, max_length=200)  # C-14
+    # Palette until one is chosen in Settings (A-02, ADR-0015); same values as appearance.Palette.
+    default_palette: Literal["harbor", "sage", "clay"] = "harbor"
     # Backups (I-06, N-06, ADR-0011)
     backup_tool: Literal["auto", "local", "docker"] = "auto"
     backup_retention_days: int = Field(default=14, ge=1, le=3650)

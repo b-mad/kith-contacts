@@ -26,14 +26,27 @@
         <label class="choice"><input type="radio" name="theme" value="{{ value }}"{% if chosen.theme == value %} checked{% endif %} data-testid="settings-theme-{{ value }}"> <span><strong>{{ label }}</strong> <span class="muted">— {{ hint }}</span></span></label>
       {% endfor %}
     </fieldset>
-    {% if palette_choices | length > 1 %}
     <fieldset class="choice-group">
       <legend>Color palette</legend>
-      {% for value, label, hint in palette_choices %}
-        <label class="choice"><input type="radio" name="palette" value="{{ value }}"{% if chosen.palette == value %} checked{% endif %} data-testid="settings-palette-{{ value }}"> <span><strong>{{ label }}</strong> <span class="muted">— {{ hint }}</span></span></label>
+      <p class="hint">Each palette has a light and a dark version, both checked for WCAG 2.2 AA contrast.</p>
+      <div class="palette-options">
+        {% for value, label, hint in palette_choices %}
+          <label class="palette-option"><input type="radio" name="palette" value="{{ value }}"{% if chosen.palette == value %} checked{% endif %} data-testid="settings-palette-{{ value }}">
+            <span class="palette-preview" data-palette="{{ value }}" aria-hidden="true">
+              <span class="preview-light"><span class="pv-line"></span><span class="pv-line short"></span><span class="pv-button"></span></span>
+              <span class="preview-dark"><span class="pv-line"></span><span class="pv-line short"></span><span class="pv-button"></span></span>
+            </span>
+            <span><strong>{{ label }}</strong> <span class="muted small">— {{ hint }}</span></span>
+          </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <fieldset class="choice-group">
+      <legend>Density</legend>
+      {% for value, label, hint in density_choices %}
+        <label class="choice"><input type="radio" name="density" value="{{ value }}"{% if chosen.density == value %} checked{% endif %} data-testid="settings-density-{{ value }}"> <span><strong>{{ label }}</strong> <span class="muted">— {{ hint }}</span></span></label>
       {% endfor %}
     </fieldset>
-    {% endif %}
     <button type="submit" class="primary" data-testid="appearance-save">Save appearance</button>
   </form>
 </section>

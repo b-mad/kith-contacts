@@ -16,10 +16,12 @@ from sqlalchemy.orm import Session
 from starlette.datastructures import FormData, UploadFile
 
 from app.appearance import (
+    DENSITY_CHOICES,
     PALETTE_CHOICES,
     THEME_CHOICES,
     current_appearance,
     forget_appearance,
+    instance_defaults,
     save_appearance,
 )
 from app.backup import BackupError, backup, find_backup, list_backups, prune, restore
@@ -108,13 +110,14 @@ def settings_page(request: Request, session: SessionDep) -> HTMLResponse:
             "chosen": current_appearance(request.app.state),
             "theme_choices": THEME_CHOICES,
             "palette_choices": PALETTE_CHOICES,
+            "density_choices": DENSITY_CHOICES,
         },
     )
 
 
 @router.post("/settings/appearance", dependencies=CsrfChecked)
 async def save_appearance_form(request: Request, session: SessionDep) -> Response:
-    """A-01, A-03: save the theme and/or palette for this instance (ADR-0015).
+    """A-01 to A-05: save the theme, palette and/or density for this instance (ADR-0015).
 
     A plain form post redirects (works without JavaScript); app.js asks for JSON instead.
     """
@@ -122,17 +125,25 @@ async def save_appearance_form(request: Request, session: SessionDep) -> Respons
     wants_json = "application/json" in request.headers.get("accept", "")
     try:
         choice = AppearanceIn.model_validate(
-            {key: str(form[key]) for key in ("theme", "palette") if key in form}
+            {key: str(form[key]) for key in ("theme", "palette", "density") if key in form}
         )
     except ValidationError:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown theme or palette"
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown theme, palette or density"
         ) from None
-    saved = save_appearance(session, theme=choice.theme, palette=choice.palette)
+    saved = save_appearance(
+        session,
+        theme=choice.theme,
+        palette=choice.palette,
+        density=choice.density,
+        defaults=instance_defaults(request.app.state),
+    )
     session.commit()
     request.app.state.appearance = saved
     if wants_json:
-        return JSONResponse({"theme": saved.theme, "palette": saved.palette})
+        return JSONResponse(
+            {"theme": saved.theme, "palette": saved.palette, "density": saved.density}
+        )
     if form.get("next"):
         return RedirectResponse(safe_next(form.get("next"), "/"), status.HTTP_303_SEE_OTHER)
     return RedirectResponse(

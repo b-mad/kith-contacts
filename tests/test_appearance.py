@@ -1,11 +1,14 @@
-"""Theme mode and palette, saved per instance and rendered by the server (A-01, A-03, ADR-0015)."""
+"""Theme, palette and density, saved per instance and rendered by the server (A-01 to A-05)."""
 
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
+from typing import get_args
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
@@ -14,12 +17,18 @@ from starlette.datastructures import State
 from app.appearance import (
     DEFAULT,
     Appearance,
+    Palette,
     current_appearance,
     forget_appearance,
     load_appearance,
     save_appearance,
 )
+from app.config import Settings
+from app.db import get_session
+from app.main import create_app
+from app.migrate import ensure_contact_types
 from app.models import AppSetting
+from tests.conftest import make_settings
 
 TOKEN = re.compile(r'name="csrf_token" value="([^"]+)"')
 HTML_TAG = re.compile(r"<html [^>]*>")
@@ -37,12 +46,13 @@ def html_tag(client: TestClient, path: str = "/") -> str:
     return match.group(0)
 
 
-def save(client: TestClient, **fields: str) -> object:
+def save(client: TestClient, **fields: str) -> int:
+    """Post the Settings form; returns the status code."""
     return client.post(
         "/settings/appearance",
         data={"csrf_token": csrf(client), **fields},
         follow_redirects=False,
-    )
+    ).status_code
 
 
 @pytest.mark.req("A-01", "A-03")
@@ -102,11 +112,13 @@ def test_the_script_enhanced_switch_gets_json(client: TestClient) -> None:
         headers={"Accept": "application/json"},
     )
     assert response.status_code == 200
-    assert response.json() == {"theme": "dark", "palette": "harbor"}
+    assert response.json() == {"theme": "dark", "palette": "harbor", "density": "comfortable"}
 
 
 @pytest.mark.req("A-03")
-@pytest.mark.parametrize("fields", [{"theme": "sepia"}, {"palette": "neon"}, {"theme": ""}])
+@pytest.mark.parametrize(
+    "fields", [{"theme": "sepia"}, {"palette": "neon"}, {"density": "cozy"}, {"theme": ""}]
+)
 def test_unknown_values_are_rejected_and_nothing_changes(
     client: TestClient, fields: dict[str, str]
 ) -> None:
@@ -163,3 +175,65 @@ def test_the_cached_choice_is_reloaded_after_a_restore_and_defaults_if_the_datab
     assert current_appearance(state) == Appearance(theme="dark")
     forget_appearance(state)
     assert current_appearance(state) == DEFAULT
+
+
+@pytest.mark.req("A-02")
+@pytest.mark.parametrize("palette", ["harbor", "sage", "clay"])
+def test_each_palette_can_be_chosen_and_is_rendered(client: TestClient, palette: str) -> None:
+    assert save(client, palette=palette) == 303
+    assert f'data-palette="{palette}"' in html_tag(client)
+    page = client.get("/settings").text
+    assert re.search(rf'value="{palette}" checked data-testid="settings-palette-{palette}"', page)
+
+
+@pytest.mark.req("A-02")
+def test_settings_previews_every_palette_in_light_and_dark(client: TestClient) -> None:
+    page = client.get("/settings").text
+    for palette in ("harbor", "sage", "clay"):
+        assert f'class="palette-preview" data-palette="{palette}"' in page
+    assert page.count('class="preview-light"') == 3
+    assert page.count('class="preview-dark"') == 3
+
+
+@pytest.mark.req("A-05")
+def test_compact_density_is_saved_and_rendered(client: TestClient) -> None:
+    assert 'data-density="comfortable"' in html_tag(client)
+    save(client, density="compact")
+    assert 'data-density="compact"' in html_tag(client)
+    assert re.search(
+        r'value="compact" checked data-testid="settings-density-compact"',
+        client.get("/settings").text,
+    )
+
+
+@pytest.fixture
+def clay_client(database_url: str, db_session: Session) -> Iterator[TestClient]:
+    """An instance whose env file says DEFAULT_PALETTE=clay."""
+    settings = make_settings(database_url, default_palette="clay")
+    ensure_contact_types(db_session, settings.contact_types)
+    app = create_app(settings, run_migrations=False)
+    app.dependency_overrides[get_session] = lambda: db_session
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+@pytest.mark.req("A-02", "I-01")
+def test_default_palette_comes_from_the_env_file_until_one_is_chosen(
+    clay_client: TestClient,
+) -> None:
+    assert 'data-palette="clay"' in html_tag(clay_client)
+    save(clay_client, theme="dark")  # saving the theme keeps the instance's default palette
+    assert 'data-palette="clay"' in html_tag(clay_client)
+    save(clay_client, palette="sage")
+    assert 'data-palette="sage"' in html_tag(clay_client)
+
+
+@pytest.mark.req("I-01")
+def test_an_unknown_default_palette_is_a_configuration_error(database_url: str) -> None:
+    with pytest.raises(ValidationError):
+        make_settings(database_url, default_palette="neon")
+
+
+def test_settings_and_appearance_accept_the_same_palettes() -> None:
+    field = Settings.model_fields["default_palette"]
+    assert get_args(field.annotation) == get_args(Palette)

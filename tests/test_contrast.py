@@ -90,8 +90,15 @@ def test_contrast_formula_matches_wcag_reference_values() -> None:
 @pytest.mark.req("A-04")
 def test_harbor_is_the_default_palette() -> None:
     css = COMMENT.sub("", TOKENS_CSS.read_text())
-    assert re.search(r":root\s*,\s*:root\[data-palette=\"harbor\"\]\s*\{", css)
+    assert re.search(r":root\s*,\s*\[data-palette=\"harbor\"\]\s*\{", css)
     assert "harbor" in PALETTES
+
+
+@pytest.mark.req("A-02")
+def test_three_palettes_each_define_every_token() -> None:
+    assert sorted(PALETTES) == ["clay", "harbor", "sage"]
+    names = {frozenset(tokens) for tokens in PALETTES.values()}
+    assert len(names) == 1, "every palette must define the same tokens"
 
 
 @pytest.mark.req("A-04")

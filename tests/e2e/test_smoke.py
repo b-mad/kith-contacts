@@ -496,3 +496,35 @@ def test_theme_follows_the_system_until_chosen_and_is_right_on_first_paint(base_
             page.get_by_test_id("theme-system").check()
         expect(body).to_have_css("background-color", dark_bg)
         browser.close()
+
+
+@pytest.mark.req("A-02", "A-05")
+def test_palette_and_density_are_chosen_in_settings(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page(color_scheme="light")
+        page.goto(base_url + "/settings")
+        page.get_by_test_id("settings-palette-clay").check()
+        page.get_by_test_id("settings-density-compact").check()
+        page.get_by_test_id("appearance-save").click()
+        expect(page.get_by_test_id("flash")).to_contain_text("Appearance saved")
+        html = page.locator("html")
+        expect(html).to_have_attribute("data-palette", "clay")
+        expect(html).to_have_attribute("data-density", "compact")
+        expect(page.locator("body")).to_have_css("background-color", "rgb(249, 246, 242)")
+        # The Sage preview shows Sage's own colors inside a Clay page.
+        sage_light = page.locator('.palette-preview[data-palette="sage"] .preview-light')
+        expect(sage_light).to_have_css("background-color", "rgb(244, 247, 243)")
+        sage_dark = page.locator('.palette-preview[data-palette="sage"] .preview-dark')
+        expect(sage_dark).to_have_css("background-color", "rgb(14, 20, 17)")
+
+        # Leave the shared database as other browser tests expect it.
+        page.get_by_test_id("settings-palette-harbor").check()
+        page.get_by_test_id("settings-density-comfortable").check()
+        page.get_by_test_id("appearance-save").click()
+        expect(html).to_have_attribute("data-palette", "harbor")
+        browser.close()
