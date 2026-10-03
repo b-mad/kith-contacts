@@ -398,3 +398,63 @@ def test_custom_fields_activity_and_saved_search(base_url: str) -> None:
 
         assert errors == []
         browser.close()
+
+
+@pytest.fixture(scope="module")
+def meaning_url(settings: Settings) -> Iterator[str]:
+    """A server with search by meaning on (hashing stand-in model, background indexing)."""
+    from tests.fake_embedder import HashingEmbedder
+
+    port = _free_port()
+    app = create_app(settings, embedder=HashingEmbedder())
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started:
+        if time.monotonic() > deadline:  # pragma: no cover
+            raise RuntimeError("server did not start")
+        time.sleep(0.05)
+    yield f"http://127.0.0.1:{port}"
+    server.should_exit = True
+    thread.join(timeout=5)
+
+
+@pytest.mark.req("S-08", "S-05", "M-01")
+def test_live_search_by_meaning_and_select(meaning_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page()
+        errors: list[str] = []
+        page.on("pageerror", lambda exc: errors.append(str(exc)))
+        types = {
+            t["name"]: t["id"] for t in page.request.get(f"{meaning_url}/api/contact-types").json()
+        }
+        _make(page, meaning_url, {
+            "display_name": "Regina Clearance", "contact_type_id": types["Employee"],
+            "emails": [{"email": "regina@acme.example"}],
+            "notes": "Steered the zebrafish device submission through the agency review"})  # fmt: skip
+
+        # The background task embeds the new contact within moments.
+        page.goto(meaning_url)
+        search = page.get_by_test_id("search-input")
+        rows = page.get_by_test_id("meaning-row")
+        deadline = time.monotonic() + 10
+        while rows.count() == 0 and time.monotonic() < deadline:
+            search.fill("")
+            search.fill("who steered our zebrafish device submission")
+            page.wait_for_timeout(300)
+        expect(rows).to_have_count(1)
+        expect(page.get_by_test_id("meaning-results")).to_contain_text("Best matches by meaning")
+        expect(page.get_by_test_id("meaning-why")).to_contain_text("zebrafish device submission")
+
+        # Meaning rows can be selected like any other result.
+        rows.first.locator(".select-contact").check()
+        expect(page.get_by_test_id("action-bar")).to_contain_text("1 selected")
+
+        assert errors == []
+        browser.close()

@@ -36,6 +36,7 @@ from app.models import Contact, ContactPhoto, Tag
 from app.org import build_org
 from app.photos import remove_photo, set_photo
 from app.search import active_lists
+from app.semantic import index_counts, mark_all_stale
 from app.tags import (
     TAG_COLORS,
     delete_tag,
@@ -90,9 +91,21 @@ def settings_page(request: Request, session: SessionDep) -> HTMLResponse:
             "backup_dir": settings.resolved_backup_dir,
             "retention": settings.backup_retention_days,
             "contact_count": session.scalar(select(func.count()).select_from(Contact)),
+            "semantic": request.app.state.semantic,
+            "semantic_counts": index_counts(session, request.app.state.semantic.model_id),
             "notice": notice_text(request),
             "error": request.query_params.get("error"),
         },
+    )
+
+
+@router.post("/settings/semantic/rebuild", dependencies=CsrfChecked)
+def rebuild_semantic(session: SessionDep) -> Response:
+    """S-08: re-check every contact's embeddings (the background task does the work)."""
+    mark_all_stale(session)
+    session.commit()
+    return RedirectResponse(
+        with_notice("/settings", "reindexing") + "#semantic-h", status.HTTP_303_SEE_OTHER
     )
 
 

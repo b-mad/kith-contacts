@@ -33,7 +33,40 @@
   </details>
 {% endif %}
 
-{% if hits %}
+{% macro result_row(c, matched, fuzzy, why=None) -%}
+  {% set email = c.emails[0].email if c.emails else "" %}
+  <tr data-contact-id="{{ c.id }}" data-email="{{ email }}" data-name="{{ c.display_name }}" data-testid="{{ 'meaning-row' if why else 'result-row' }}"{% if c.archived %} class="archived"{% endif %}>
+    <td class="select-col"><input type="checkbox" class="select-contact" value="{{ c.id }}" aria-label="Select {{ c.display_name }}"></td>
+    <td>
+      {% if c.has_photo %}<img class="avatar" src="/contacts/{{ c.id }}/photo" alt="" width="28" height="28">{% else %}<span class="avatar initials" aria-hidden="true">{{ c.display_name | initials }}</span>{% endif %}
+      <a href="/contacts/{{ c.id }}">{{ c.display_name }}</a>{% if c.is_favorite %} <span class="star" aria-label="Favorite">★</span>{% endif %}
+      {% if c.archived %} <span class="pill muted">Archived</span>{% endif %}
+      {% if why %}
+        <div class="matched" data-testid="meaning-why"><span class="match"><span class="match-field">{{ why[0] }}:</span> {{ why[1] }}</span></div>
+      {% elif matched or fuzzy %}
+        <div class="matched" data-testid="matched">
+          {% if fuzzy %}<span class="muted">similar name</span>{% endif %}
+          {% for field, value in matched[:3] %}<span class="match"><span class="match-field">{{ field }}:</span> {{ value }}</span>{% endfor %}
+        </div>
+      {% endif %}
+    </td>
+    <td><span class="pill">{{ c.contact_type.name }}</span></td>
+    <td>{{ c.company or "" }}</td>
+    <td>{{ c.team or "" }}</td>
+    <td>{{ c.title or "" }}</td>
+    <td>{% if c.manager %}<a href="/contacts/{{ c.manager.id }}">{{ c.manager.display_name }}</a>{% endif %}</td>
+    <td>{% if email %}<a href="mailto:{{ email }}">{{ email }}</a>{% endif %}</td>
+  </tr>
+{%- endmacro %}
+
+{% macro meaning_rows() -%}
+  <tbody class="meaning" data-testid="meaning-results">
+    <tr class="section-row"><th scope="rowgroup" colspan="8">{{ "Best matches by meaning" if meaning_first else "Also related, by meaning" }} <span class="muted small">— found from notes, projects and activity, not exact words</span></th></tr>
+    {% for c, label, text in meaning %}{{ result_row(c, [], False, (label, text)) }}{% endfor %}
+  </tbody>
+{%- endmacro %}
+
+{% if hits or meaning %}
   {% macro sort_link(key, label) -%}
     <a href="?{{ request.url.include_query_params(sort=key).query }}"{% if sort == key %} aria-current="true" class="sorted"{% endif %}>{{ label }}</a>
   {%- endmacro %}
@@ -51,34 +84,17 @@
         <th scope="col">Email</th>
       </tr>
     </thead>
+    {% if meaning and meaning_first %}{{ meaning_rows() }}{% endif %}
+    {% if hits %}
     <tbody>
-      {% for c, matched, fuzzy in hits %}
-        {% set email = c.emails[0].email if c.emails else "" %}
-        <tr data-contact-id="{{ c.id }}" data-email="{{ email }}" data-name="{{ c.display_name }}" data-testid="result-row"{% if c.archived %} class="archived"{% endif %}>
-          <td class="select-col"><input type="checkbox" class="select-contact" value="{{ c.id }}" aria-label="Select {{ c.display_name }}"></td>
-          <td>
-            {% if c.has_photo %}<img class="avatar" src="/contacts/{{ c.id }}/photo" alt="" width="28" height="28">{% else %}<span class="avatar initials" aria-hidden="true">{{ c.display_name | initials }}</span>{% endif %}
-            <a href="/contacts/{{ c.id }}">{{ c.display_name }}</a>{% if c.is_favorite %} <span class="star" aria-label="Favorite">★</span>{% endif %}
-            {% if c.archived %} <span class="pill muted">Archived</span>{% endif %}
-            {% if matched or fuzzy %}
-              <div class="matched" data-testid="matched">
-                {% if fuzzy %}<span class="muted">similar name</span>{% endif %}
-                {% for field, value in matched[:3] %}<span class="match"><span class="match-field">{{ field }}:</span> {{ value }}</span>{% endfor %}
-              </div>
-            {% endif %}
-          </td>
-          <td><span class="pill">{{ c.contact_type.name }}</span></td>
-          <td>{{ c.company or "" }}</td>
-          <td>{{ c.team or "" }}</td>
-          <td>{{ c.title or "" }}</td>
-          <td>{% if c.manager %}<a href="/contacts/{{ c.manager.id }}">{{ c.manager.display_name }}</a>{% endif %}</td>
-          <td>{% if email %}<a href="mailto:{{ email }}">{{ email }}</a>{% endif %}</td>
-        </tr>
-      {% endfor %}
+      {% if meaning and meaning_first %}<tr class="section-row"><th scope="rowgroup" colspan="8">Matching some of the words</th></tr>{% endif %}
+      {% for c, matched, fuzzy in hits %}{{ result_row(c, matched, fuzzy) }}{% endfor %}
     </tbody>
+    {% endif %}
+    {% if meaning and not meaning_first %}{{ meaning_rows() }}{% endif %}
   </table>
   </div>
-  <p class="muted count" data-testid="result-count">{{ hits | length }} contact{{ "" if hits | length == 1 else "s" }}{% if q %} matching “{{ q }}”{% endif %}</p>
+  <p class="muted count" data-testid="result-count">{{ hits | length }} contact{{ "" if hits | length == 1 else "s" }}{% if q %} matching “{{ q }}”{% endif %}{% if meaning %} · {{ meaning | length }} by meaning{% endif %}</p>
 {% elif q or filters.active %}
   <p class="empty" data-testid="no-results">No contacts match{% if q %} “{{ q }}”{% endif %}. Try fewer words, or a team, manager, company or tag.</p>
 {% else %}

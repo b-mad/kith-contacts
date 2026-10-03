@@ -7,7 +7,7 @@ context — team, manager, project, tags — even when you forget their name.
 - Decisions: [docs/adr/](docs/adr/README.md)
 - Agent / contributor rules: [CLAUDE.md](CLAUDE.md)
 
-**Status:** Phase 4 (depth) complete: custom fields, activity log, duplicate finder and merge, saved searches, related tags, tags on lists, and copying a contact between instances. Phase 3 brought backups, import/export, org chart, photos and admin pages. Operations guide: [docs/operations.md](docs/operations.md).
+**Status:** Phase 5 started: **search by meaning** — ask “the person who helped with the FDA submission” and get matches from notes, projects and activity, using a model that runs on your computer (`make model` once). Phase 4 (depth) complete: custom fields, activity log, duplicate finder and merge, saved searches, related tags, tags on lists, and copying a contact between instances. Phase 3 brought backups, import/export, org chart, photos and admin pages. Operations guide: [docs/operations.md](docs/operations.md).
 
 ## Prerequisites
 
@@ -24,6 +24,7 @@ make db-up          # PostgreSQL 17 on localhost:5432 (Docker)
 make instance NAME=dev PORT=5180 ENV=development
 
 make seed I=dev     # optional: ~50 sample contacts (refused in production)
+make model          # optional: search by meaning (one-time ~90 MB download, runs locally)
 ./run.sh dev        # http://localhost:5180
 ```
 

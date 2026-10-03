@@ -16,6 +16,23 @@
   </dl>
 </section>
 
+<section class="panel" aria-labelledby="semantic-h" data-testid="semantic">
+  <h2 id="semantic-h">Search by meaning</h2>
+  {% if semantic.ready %}
+    <p class="semantic-status" data-testid="semantic-status"><span class="pill ok">On</span>
+      {{ semantic_counts.indexed }} of {{ semantic_counts.contacts }} contacts indexed{% if semantic_counts.pending %} — the rest are being added in the background{% endif %}.
+      <span class="muted small">Model {{ semantic.model_id }}, running on this computer.</span></p>
+    {% if semantic.last_error %}<p class="field-error" role="alert">Last indexing problem: {{ semantic.last_error }}</p>{% endif %}
+    <p class="muted small">Type a question in the search box, e.g. “the person who helped with the FDA submission”. Matches come from names, roles, projects, notes, extra fields and activity.</p>
+    <form method="post" action="/settings/semantic/rebuild">{{ m.csrf() }}<button type="submit" data-testid="semantic-rebuild">Re-check all contacts</button></form>
+  {% elif semantic.enabled and not semantic.unavailable %}
+    <p class="semantic-status" data-testid="semantic-status"><span class="pill">Starting</span> Loading the model…</p>
+  {% else %}
+    <p class="semantic-status" data-testid="semantic-status"><span class="pill muted">Off</span> {{ semantic.unavailable or "Not set up." }}</p>
+    <p class="muted small">To turn it on: in the project folder run <code>make model</code> once (downloads about 90 MB and checks it), then restart this instance. Nothing is sent anywhere; the model runs on this computer.</p>
+  {% endif %}
+</section>
+
 <section class="panel" aria-labelledby="backup-h" data-testid="backups">
   <h2 id="backup-h">Backups</h2>
   <p class="muted small">

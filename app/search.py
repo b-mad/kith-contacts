@@ -66,11 +66,16 @@ def refresh_search(session: Session, contact_ids: Iterable[int]) -> None:
     if ids:
         session.flush()
         session.execute(REFRESH_SQL, {"ids": ids})
+        session.execute(MARK_STALE_SQL, {"ids": ids})  # S-08: re-embed soon (ADR-0013)
 
 
 def refresh_all(session: Session) -> None:
     session.flush()
     session.execute(REFRESH_ALL_SQL)
+    session.execute(text("UPDATE semantic_doc SET stale = true"))
+
+
+MARK_STALE_SQL = text("UPDATE semantic_doc SET stale = true WHERE contact_id = ANY(:ids)")
 
 
 # ---------------------------------------------------------------- query parsing
@@ -151,12 +156,16 @@ class SearchFilters:
 # ---------------------------------------------------------------- results
 
 
+MatchMode = Literal["all", "any", "fuzzy", "list"]
+
+
 @dataclass
 class SearchHit:
     contact: Contact
     rank: float = 0.0
     matched: list[tuple[str, str]] = field(default_factory=list)
     fuzzy: bool = False
+    mode: MatchMode = "list"  # all words / some words / typo match / no query
 
 
 def _with_details(stmt: Select[tuple[Contact]]) -> Select[tuple[Contact]]:
@@ -225,8 +234,9 @@ def search(
         order = (
             [rank.desc(), func.lower(Contact.display_name)] if sort == "relevance" else _order(sort)
         )
+        mode: MatchMode = "all" if operator == "&" else "any"
         for contact, score in session.execute(stmt.order_by(*order).limit(limit)).all():
-            hits.setdefault(contact.id, SearchHit(contact, float(score)))
+            hits.setdefault(contact.id, SearchHit(contact, float(score), mode=mode))
 
     run("&")
     if not hits and len(terms) > 1:
@@ -239,7 +249,7 @@ def search(
         stmt = base.add_columns(sim).where(sim >= FUZZY_THRESHOLD)
         for contact, score in session.execute(stmt.order_by(sim.desc()).limit(10)).all():
             if contact.id not in hits:
-                hits[contact.id] = SearchHit(contact, float(score) * 0.01, fuzzy=True)
+                hits[contact.id] = SearchHit(contact, float(score) * 0.01, fuzzy=True, mode="fuzzy")
 
     results = list(hits.values())
     for hit in results:

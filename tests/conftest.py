@@ -31,6 +31,8 @@ def make_settings(database_url: str, **overrides: object) -> Settings:
         "database_url": database_url,
         "port": 5199,
         "instance_color": "#bf3989",
+        # Tests inject a fake embedder where needed; never load a real model by accident.
+        "semantic_search": "off",
     }
     values.update(overrides)
     return Settings.model_validate(values)  # values only; ignores env and env files

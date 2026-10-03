@@ -40,7 +40,16 @@ from app.models import Contact, Tag
 from app.related import related_contacts
 from app.saved_searches import clean_query, list_saved_searches
 from app.schemas import ContactCreate, ContactUpdate
-from app.search import SORT_KEYS, SearchFilters, SortKey, active_lists, distinct_values, search
+from app.search import (
+    SORT_KEYS,
+    SearchFilters,
+    SearchHit,
+    SortKey,
+    active_lists,
+    distinct_values,
+    search,
+)
+from app.semantic import MeaningHit, SemanticService, search_by_meaning
 from app.tags import add_tag, related_tags, remove_tag, tag_counts
 
 CSRF_COOKIE = "contacts_csrf"
@@ -126,6 +135,7 @@ NOTICES = {
     "search_deleted": "Saved search deleted.",
     "search_renamed": "Saved search renamed.",
     "list_tagged": "Tagged the list “{name}”.",
+    "reindexing": "Search by meaning is re-checking every contact in the background.",
 }
 
 
@@ -152,6 +162,30 @@ def selected_ids(form: FormData) -> list[int]:
 # ---------------------------------------------------------------- list & search (S-01 to S-05)
 
 
+def _clip(text: str, limit: int = 180) -> str:
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
+def _meaning(
+    request: Request, session: Session, q: str, filters: SearchFilters, hits: list[SearchHit]
+) -> tuple[list[MeaningHit], bool]:
+    """S-08: matches by meaning, and whether they go before the keyword results."""
+    service: SemanticService | None = getattr(request.app.state, "semantic", None)
+    if not q or service is None or not service.ready:
+        return [], False
+    all_words = [h for h in hits if h.mode == "all"]
+    exact = [h for h in hits if h.mode in {"all", "any"}]
+    meaning = search_by_meaning(
+        session,
+        service,
+        q,
+        filters,
+        exclude=[h.contact.id for h in all_words],
+        keyword_hits=len(exact),
+    )
+    return meaning, bool(meaning) and not all_words
+
+
 def _search_context(request: Request, session: Session) -> dict[str, Any]:
     p = request.query_params
     q = p.get("q", "").strip()[:200]
@@ -171,6 +205,10 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
     default_sort: SortKey = "relevance" if q else "name"
     sort: SortKey = next((k for k in SORT_KEYS if k == sort_raw), default_sort)
     hits = search(session, q, filters, sort=sort)
+    meaning, meaning_first = _meaning(request, session, q, filters, hits)
+    if meaning_first:  # keywords only matched some words: show the meaning matches first
+        shown = {m.contact.id for m in meaning}
+        hits = [h for h in hits if h.contact.id not in shown]
     manager = None
     if manager_id is not None:
         try:
@@ -185,6 +223,8 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         "filters": filters,
         "sort": sort,
         "hits": [(to_out(h.contact), h.matched, h.fuzzy) for h in hits],
+        "meaning": [(to_out(m.contact), m.source_label, _clip(m.text)) for m in meaning],
+        "meaning_first": meaning_first,
         "types": list_contact_types(session),
         "companies": distinct_values(session, Contact.company),
         "teams": distinct_values(session, Contact.team),

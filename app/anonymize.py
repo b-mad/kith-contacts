@@ -19,6 +19,13 @@ _STATEMENTS = (
          SET email = 'contact' || contact_id || '-' || id || '@example.invalid'""",
     "DELETE FROM contact_phone",
     "DELETE FROM contact_photo",
+    # Phase 4 free text can name people too (C-11, C-12, C-13).
+    "UPDATE activity SET summary = initcap(kind) || ' ' || id",
+    "UPDATE custom_field SET value = 'Value ' || id",
+    "DELETE FROM contact_merge",
+    # Embeddings are derived from the real text: rebuild them from the anonymized copy (S-08).
+    "DELETE FROM semantic_chunk",
+    "DELETE FROM semantic_doc",
 )
 
 

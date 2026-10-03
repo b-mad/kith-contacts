@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     backup_tool: Literal["auto", "local", "docker"] = "auto"
     backup_retention_days: int = Field(default=14, ge=1, le=3650)
     auto_backup: bool | None = None  # default: on in production, off elsewhere
+    # Search by meaning (S-08, ADR-0013): on when the model is installed, unless "off".
+    semantic_search: Literal["auto", "off"] = "auto"
+    model_dir: Path | None = None  # default ~/.cache/contacts-app/models/all-MiniLM-L6-v2
 
     @field_validator("contact_types", mode="before")
     @classmethod
@@ -86,6 +89,12 @@ class Settings(BaseSettings):
         if self.backup_dir is not None:
             return self.backup_dir.expanduser()
         return Path.home() / "ContactsBackups" / self.instance_slug
+
+    @property
+    def resolved_model_dir(self) -> Path:
+        from app.embedder import default_model_dir
+
+        return self.model_dir.expanduser() if self.model_dir else default_model_dir()
 
 
 def load_settings(env_file: str | Path | None = None) -> Settings:

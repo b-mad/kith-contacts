@@ -26,6 +26,7 @@ from app.contacts import (
 from app.db import get_session
 from app.schemas import ContactCreate, ContactOut, ContactRef, ContactTypeOut, ContactUpdate
 from app.search import SearchFilters, search
+from app.semantic import SemanticService, search_by_meaning
 from app.tags import tag_counts
 
 
@@ -118,6 +119,42 @@ def search_contacts(
             fuzzy=hit.fuzzy,
         )
         for hit in search(session, q, filters)
+    ]
+
+
+class MeaningResult(BaseModel):
+    contact: ContactOut
+    score: float
+    source: str
+    text: str
+
+
+@router.get("/search/meaning", response_model=list[MeaningResult])
+def search_meaning(
+    request: Request,
+    session: SessionDep,
+    q: Annotated[str, Query(min_length=1, max_length=200)],
+    type: int | None = None,
+    tag: str | None = None,
+    list: int | None = None,
+    include_archived: bool = False,
+) -> list[MeaningResult]:
+    """Search by meaning (S-08): people whose notes, projects or activity are closest to ``q``.
+
+    503 when the model is not installed or still loading (see Settings).
+    """
+    service: SemanticService = request.app.state.semantic
+    if not service.ready:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            service.unavailable or "Search by meaning is starting; try again shortly",
+        )
+    filters = SearchFilters(type_id=type, tag=tag, list_id=list, include_archived=include_archived)
+    return [
+        MeaningResult(
+            contact=to_out(m.contact), score=round(m.score, 3), source=m.source, text=m.text
+        )
+        for m in search_by_meaning(session, service, q, filters)
     ]
 
 

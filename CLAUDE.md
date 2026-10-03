@@ -41,12 +41,19 @@ requirements, and do not silently deviate from an ADR.
   not use inline `style=` or inline `<script>` (blocked by the CSP).
 - Any write that changes a contact's name, team, company, title, department, works-on,
   notes, location, manager, emails, tags, list memberships, custom fields or activities
-  must call `app.search.refresh_search` for every affected contact (ADR-0010). Changing what goes
-  into the search document needs a new migration that rebuilds it.
+  must call `app.search.refresh_search` for every affected contact (ADR-0010); it also
+  marks them for re-embedding (search by meaning, ADR-0013). Changing what goes into the
+  search document needs a new migration that rebuilds it.
 - Anything that deletes or overwrites data (restore, reset, copy) must take a backup
   first or refuse in production (I-05, ADR-0011). The one exception is merging
   duplicates, which stores a JSON snapshot of the removed contact in `contact_merge`
-  instead (ADR-0012). Uploaded files must be closed after reading (`await upload.close()`); use Starlette's `UploadFile` for `isinstance` checks.
+  instead (ADR-0012). Uploaded files must be closed after reading
+  (`await upload.close()`); use Starlette's `UploadFile` for `isinstance` checks.
+- Search by meaning (ADR-0013): the app never downloads anything; the model comes from
+  `make model` (pinned revision, SHA-256 checked). Tests use `tests/fake_embedder.py`;
+  real-model checks are marked `@pytest.mark.model` and run with `make test-model`.
+  Anything that copies data for others to see (exports, anonymized copies) must not
+  include `semantic_chunk` text or vectors.
 - Browser-only behavior (clipboard, compose links, live search) is tested with
   Playwright in `tests/e2e/`; run `make e2e`.
 - Type everything; `mypy --strict` must pass. Prefer small pure functions that
@@ -105,6 +112,9 @@ delete a failing test to get a green run unless the requirement was withdrawn.
 | `app/duplicates.py` | Duplicate detection, dismissals and merge with snapshot (C-12) |
 | `app/saved_searches.py` | Saved searches: whitelisted query strings (S-07) |
 | `app/web_depth.py` | Phase 4 pages: duplicates/merge, saved searches |
+| `app/embedder.py` | Local ONNX embedding model loader (S-08) |
+| `app/semantic.py` | Search by meaning: chunks, indexing, in-memory vectors, ranking (ADR-0013) |
+| `scripts/semantic.py` | `make model` (verified download) and `make reindex` |
 | `app/api.py` | JSON API (`/api/...`); writes require `application/json` |
 | `app/web.py` | Server-rendered pages and forms; POSTs need the CSRF token |
 | `app/static/js/app.js` | Vanilla JS: live search, selection + action bar (copy/compose for Outlook or Gmail), pickers, form rows |
@@ -129,6 +139,8 @@ make instance NAME=dev PORT=5180 ENV=development
 make check                   # everything CI runs
 make test                    # tests only
 make seed I=dev              # sample contacts (dev only)
-make trace PHASE=4           # requirement coverage up to a phase
+make trace PHASE=5           # requirement coverage up to a phase
 make migration m="add tags"  # new Alembic migration
+make model                   # install the search-by-meaning model once
+make test-model              # tests with the real model
 ```

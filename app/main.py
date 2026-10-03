@@ -30,9 +30,11 @@ from app.backup import BackupFile, ensure_recent_backup
 from app.config import Settings, load_settings
 from app.contacts import ContactError, ContactNotFound
 from app.db import create_db_engine, make_session_factory
+from app.embedder import Embedder
 from app.links import display_phone, slack_handle_display
 from app.migrate import current_revision, ensure_contact_types, upgrade_to_head
 from app.saved_searches import describe_query
+from app.semantic import SemanticService, mark_changed
 
 APP_DIR = Path(__file__).resolve().parent
 AUTO_BACKUP_INTERVAL_SECONDS = 3600
@@ -62,6 +64,43 @@ async def auto_backup_loop(settings: Settings, status: BackupStatus) -> None:
             status.last_error = str(exc)
         status.last_check = datetime.now(UTC)
         await asyncio.sleep(AUTO_BACKUP_INTERVAL_SECONDS)
+
+
+SEMANTIC_IDLE_SECONDS = 3.0
+SEMANTIC_RECHECK_SECONDS = 3600.0
+
+
+async def semantic_loop(service: SemanticService, session_factory: Any) -> None:
+    """S-08: load the model, then keep every contact's embeddings current (ADR-0013)."""
+    if not await asyncio.to_thread(service.load):
+        log.info("search by meaning unavailable: %s", service.unavailable)
+        return
+    last_recheck = -SEMANTIC_RECHECK_SECONDS
+
+    def step(recheck: bool) -> int:
+        with session_factory() as session:
+            if recheck and service.model_id:
+                mark_changed(session, service.model_id)
+            done = service.index_pending(session)
+            session.commit()
+            if service.model_id:
+                service.index.sync(session, service.model_id)  # warm the cache
+            return done
+
+    while True:
+        now = asyncio.get_running_loop().time()
+        recheck = now - last_recheck >= SEMANTIC_RECHECK_SECONDS
+        try:
+            done = await asyncio.to_thread(step, recheck)
+            service.last_error = None
+            if recheck:
+                last_recheck = now
+            delay = 0.1 if done else SEMANTIC_IDLE_SECONDS
+        except Exception as exc:  # keep the app running; show the problem in Settings
+            log.exception("search-by-meaning indexing failed")
+            service.last_error = str(exc)
+            delay = 30.0
+        await asyncio.sleep(delay)
 
 
 SECURITY_HEADERS = {
@@ -97,8 +136,16 @@ def build_templates(settings: Settings) -> Jinja2Templates:
     return templates
 
 
-def create_app(settings: Settings | None = None, *, run_migrations: bool = True) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    run_migrations: bool = True,
+    embedder: Embedder | None = None,
+    background_indexing: bool = True,
+) -> FastAPI:
+    """``embedder`` and ``background_indexing`` exist for tests (search by meaning, S-08)."""
     settings = settings or load_settings()
+    semantic = SemanticService(settings, embedder=embedder)
     engine = create_db_engine(settings)
     session_factory = make_session_factory(engine)
 
@@ -108,13 +155,13 @@ def create_app(settings: Settings | None = None, *, run_migrations: bool = True)
             upgrade_to_head(settings)  # I-04: raises -> the instance does not start
             with session_factory() as session:
                 ensure_contact_types(session, settings.contact_types)
-        task = (
-            asyncio.create_task(auto_backup_loop(settings, app.state.backup_status))
-            if settings.auto_backup_enabled
-            else None
-        )
+        tasks = []
+        if settings.auto_backup_enabled:
+            tasks.append(asyncio.create_task(auto_backup_loop(settings, app.state.backup_status)))
+        if background_indexing and semantic.enabled:
+            tasks.append(asyncio.create_task(semantic_loop(semantic, session_factory)))
         yield
-        if task is not None:
+        for task in tasks:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
@@ -131,6 +178,7 @@ def create_app(settings: Settings | None = None, *, run_migrations: bool = True)
     app.state.backup_status = BackupStatus(enabled=settings.auto_backup_enabled)
     app.state.engine = engine
     app.state.session_factory = session_factory
+    app.state.semantic = semantic
     app.state.templates = build_templates(settings)
     app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 

@@ -53,3 +53,20 @@ Settings → Export offers CSV (spreadsheets), vCard (Outlook / Google / Apple
 Contacts) and JSON (complete, including lists, roles and tags). Settings → Import
 accepts CSV (Outlook and Google export columns are recognised) or vCard, shows a
 preview with duplicate warnings, and can put everyone imported into a list.
+
+## Search by meaning (S-08 — ADR-0013)
+
+| Task | Command |
+| --- | --- |
+| Install the model once (≈90 MB, shared by all instances) | `make model` |
+| Install it from a folder (no internet / blocked site) | `make model FROM=~/Downloads/all-MiniLM-L6-v2` |
+| Embed every contact now (otherwise the running app does it) | `make reindex I=business-prod` |
+| Check it with the real model | `make test-model` |
+
+- The model is saved in `~/.cache/contacts-app/models/all-MiniLM-L6-v2` and checked
+  against pinned SHA-256 checksums. After installing it, restart running instances.
+- A running instance embeds new and changed contacts in the background within seconds.
+  Settings → Search by meaning shows progress and has **Re-check all contacts**.
+- Turn it off for one instance with `SEMANTIC_SEARCH=off` in its env file.
+- Embeddings live in the instance database (so backups include them) but are never
+  exported, and an anonymized copy to dev rebuilds them from the anonymized text.

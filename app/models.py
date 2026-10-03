@@ -327,3 +327,33 @@ class ContactMerge(Base):
     merged_name: Mapped[str] = mapped_column(String(200))
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB)
     merged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SemanticDoc(Base):
+    """S-08: one row per contact indexed for search by meaning (ADR-0013)."""
+
+    __tablename__ = "semantic_doc"
+
+    contact_id: Mapped[int] = mapped_column(
+        ForeignKey("contact.id", ondelete="CASCADE"), primary_key=True
+    )
+    model: Mapped[str] = mapped_column(String(100))
+    doc_hash: Mapped[str] = mapped_column(String(64))
+    stale: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    embedded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class SemanticChunk(Base):
+    """S-08: a short text from a contact and its embedding (float32 bytes)."""
+
+    __tablename__ = "semantic_chunk"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    contact_id: Mapped[int] = mapped_column(
+        ForeignKey("contact.id", ondelete="CASCADE"), index=True
+    )
+    source: Mapped[str] = mapped_column(String(20))
+    text: Mapped[str] = mapped_column(Text)
+    vector: Mapped[bytes] = mapped_column(LargeBinary)

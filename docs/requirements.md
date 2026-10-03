@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.4 |
+| Version | 1.5 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-09-24 |
@@ -113,7 +113,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | S-05 | Results update as you type (< 200 ms). | Must | 2 |
 | S-06 | Org view: pick a manager and browse reports, up and down the chain. | Should | 3 |
 | S-07 | Saved searches (e.g. "Vendors tagged HL7"). | Could | 4 |
-| S-08 | Natural-language or semantic search ("the person who helped with the FDA submission"). | Could | 5 |
+| S-08 | Natural-language or semantic search ("the person who helped with the FDA submission"), using a local model; results show the text that matched (ADR-0013). | Could | 5 |
 
 ### Tags
 
@@ -185,7 +185,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | N-01 | Hosting | PostgreSQL runs locally in Docker; each app instance starts with one command and serves at `http://localhost:<port>`. Binds to 127.0.0.1 by default; LAN access is opt-in. |
 | N-02 | Platforms | Runs on macOS, Windows and Linux with Docker Desktop; works in current Chrome, Edge, Safari and Firefox. |
 | N-03 | Performance | Search returns in < 200 ms and pages load in < 1 s with 10,000 contacts per instance. |
-| N-04 | Privacy | No telemetry, no third-party calls at runtime; all assets bundled. Database port 5432 is not exposed beyond localhost. |
+| N-04 | Privacy | No telemetry, no third-party calls at runtime; all assets bundled. Database port 5432 is not exposed beyond localhost. The search-by-meaning model is downloaded once by the user (`make model`), verified, and loaded from disk (ADR-0013). |
 | N-05 | Security | One database user per instance with rights only to its own database; credentials in env files excluded from git. Optional UI passcode per instance. Validate and escape all input; CSRF protection on writes. |
 | N-06 | Durability | Nightly `pg_dump` per production instance, 14-day retention, stored in a local folder outside Docker volumes; restore tested in CI. |
 | N-07 | Clipboard | Copy uses the browser Clipboard API (works on `localhost` as a secure context); a fallback shows the text to copy manually. |
@@ -213,6 +213,8 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | `list_tag` | list_id, tag_id | Phase 4 (L-05). Composite key. |
 | `duplicate_dismissal` | contact_a, contact_b | Phase 4 (C-12). Pairs marked "not a duplicate"; a < b. |
 | `contact_merge` | id, kept_id, merged_name, snapshot (jsonb), merged_at | Phase 4 (C-12). Snapshot of each contact removed by a merge. |
+| `semantic_doc` | contact_id, model, doc_hash, stale, embedded_at | Phase 5 (S-08). One row per indexed contact (ADR-0013). |
+| `semantic_chunk` | id, contact_id, source, text, vector (bytea) | Phase 5 (S-08). Derived data; not exported; dropped when anonymizing. |
 | `contact.search_vector` | Weighted tsvector: name (A); team, company, manager, tags (B); title, department, works_on, lists, emails, custom fields (C); notes, location, activities (D) | Maintained by the application (`app/search.py`, ADR-0010); GIN index; plus `pg_trgm` GIN index on names. |
 
 Each instance has its own database, so no table carries an instance column.
@@ -282,7 +284,10 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 ### Phase 5 — Smart
 
-- Local semantic search with `pgvector` and a local embedding model; optional Microsoft Graph / Slack directory sync with review before overwrite.
+- Search by meaning (S-08): a local embedding model (`all-MiniLM-L6-v2`, ONNX), vectors stored in the instance database and compared in the app; a background task keeps them current (ADR-0013).
+- Optional Microsoft Graph / Slack directory sync with review before overwrite (D-05).
+
+**Done when (S-08):** with the model installed, "the person who helped with the FDA submission" lists the contact whose notes mention the 510(k) submission, with that note shown as the reason; the app runs normally when the model is absent.
 
 ## 9. Open questions
 
@@ -308,6 +313,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.5 | 2026-10-03 | S-08 search by meaning designed and delivered: local model, in-process vectors instead of pgvector; N-04 clarified for the one-time model download. Data model gains semantic_doc, semantic_chunk. | 0013 |
 | 1.4 | 2026-09-24 | Phase 4 delivered. S-01 clarified: custom fields and activity summaries are searchable. Data model gains custom_field, activity, saved_search, list_tag, duplicate_dismissal, contact_merge. | 0012 |
 | 1.3 | 2026-09-24 | Phase 3 delivered. L-05 list tags moved to Phase 4. Photos stored in the database. Backup tool, daily auto-backup and import/export formats decided. | 0011 |
 | 1.2.1 | 2026-09-24 | Phase 2 delivered. Clarified: search document maintained by the application rather than triggers. | 0010 |

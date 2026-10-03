@@ -8,7 +8,7 @@ ifeq ($(shell command -v uv 2>/dev/null),)
 $(error uv is not installed. Install it with `brew install uv` (or `curl -LsSf https://astral.sh/uv/install.sh | sh`), then open a new terminal)
 endif
 
-.PHONY: help install fmt lint typecheck test e2e check trace db-up db-down instance migration seed backup backups restore copy-to-dev
+.PHONY: help install fmt lint typecheck test test-model e2e check trace db-up db-down instance migration seed backup backups restore copy-to-dev model reindex
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -30,6 +30,9 @@ typecheck: ## mypy --strict
 
 test: ## Unit + integration tests with coverage (needs PostgreSQL)
 	$(UV) pytest
+
+test-model: ## Tests with the real search-by-meaning model (needs `make model` first)
+	$(UV) pytest -m model --no-cov
 
 e2e: ## Browser end-to-end tests (needs PostgreSQL + Playwright browsers)
 	$(UV) pytest -m e2e --no-cov
@@ -54,6 +57,13 @@ instance: ## Create an instance: make instance NAME=dev PORT=5180 ENV=developmen
 seed: ## Load ~50 sample contacts into a dev instance: make seed I=dev [RESET=1] (refused in production)
 	@test -n "$(I)" || (echo "usage: make seed I=<instance> [RESET=1]" && exit 2)
 	INSTANCE_ENV_FILE=instances/$(I).env $(UV) python -m scripts.seed $(if $(RESET),--reset)
+
+model: ## Install the search-by-meaning model once (~90 MB, checksum-verified): make model [FROM=<folder>]
+	$(UV) python -m scripts.semantic model $(if $(FROM),--from "$(FROM)")
+
+reindex: ## Embed every contact for search by meaning now: make reindex I=dev
+	@test -n "$(I)" || (echo "usage: make reindex I=<instance>" && exit 2)
+	INSTANCE_ENV_FILE=instances/$(I).env $(UV) python -m scripts.semantic reindex
 
 backup: ## Back up an instance now and prune old backups: make backup I=business-prod
 	@test -n "$(I)" || (echo "usage: make backup I=<instance>" && exit 2)

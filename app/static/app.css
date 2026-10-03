@@ -332,3 +332,8 @@ tr.row-error td { color: var(--muted); }
 .dup-pair { border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
 .dup-pair .people { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.75rem; }
 .dup-pair .tools { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+
+/* Phase 5: search by meaning (ADR-0013) */
+.contacts tr.section-row th { text-align: left; font-weight: 600; font-size: 0.85rem; padding-top: 0.75rem; background: var(--surface); }
+.contacts tbody.meaning .match-field { font-style: italic; }
+.semantic-status { margin: 0.25rem 0; }
