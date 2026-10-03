@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.6 |
+| Version | 1.8 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
-| Last updated | 2026-09-24 |
+| Last updated | 2026-10-03 |
 | Change process | [ADR-0002](adr/0002-requirements-as-versioned-source-of-truth.md) |
 
 > **This file is the source of truth for what the application must do.**
@@ -59,7 +59,7 @@ personal lists and local hosting. Features adopted from existing products:
 | [Sift](https://www.justsift.com/integrating-sift/with-microsoft-teams) | Search by attribute "even when you don't know someone's name" | S-01–S-03 |
 | [Microsoft 365 profile card](https://support.microsoft.com/en-gb/office/profile-cards-in-microsoft-365-e80f931f-5fc4-4a59-ba6e-c1e35a85b501) | Manager and reporting chain on the card; private notes | C-07, C-08, S-06 |
 | [Google Contacts labels](https://support.google.com/contacts/answer/30970) | Email a whole group | L-01–L-04, M-02 |
-| [Dex](https://getdex.com/blog/personal-crm-list/) | "How we met" context; keep-in-touch reminders (future) | C-08 |
+| [Dex](https://getdex.com/blog/personal-crm-list/) | "How we met" context; keep-in-touch reminders | C-08, C-15–C-17, S-11 |
 | [Monica](https://github.com/monicahq/monica) | Labels, favorites, custom fields, activity log, self-hosting | T-01, C-10, C-11, C-13 |
 | Sift / M365 | Photo and name pronunciation as memory cues | C-09 |
 
@@ -101,6 +101,9 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | C-12 | Detect and merge likely duplicates (same email or similar name + company). | Should | 4 |
 | C-13 | Activity log: dated interaction notes (meeting, call, email). | Could | 4 |
 | C-14 | Company is chosen from a dropdown of existing companies, with "+ Add new company…"; a new name matching an existing one (ignoring case) reuses its spelling. A new Employee defaults to the home company (`HOME_COMPANY`, else the most common Employee company) (ADR-0009). | Must | 2 |
+| C-15 | Keep-in-touch cadence per contact (every 2 weeks, month, 3 months, 6 months or year; off by default), set on the card or for a selection. Due = last interaction (meeting, call, email or message) + cadence (ADR-0016). | Should | 7 |
+| C-16 | Snooze a keep-in-touch reminder to a date; logging an interaction clears the snooze. | Should | 7 |
+| C-17 | After Email, Call or Compose from the app, offer one-click logging of that interaction. | Could | 7 |
 
 ### Search and discovery
 
@@ -116,6 +119,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | S-08 | Natural-language or semantic search ("the person who helped with the FDA submission"), using a local model; results show the text that matched (ADR-0013). | Could | 5 |
 | S-09 | Filter by recent interaction (contacted in the last 7, 30, 90 or 365 days, from the activity log; notes don't count) and sort by last contact; results show the last contact date (ADR-0014). | Should | 5 |
 | S-10 | Time phrases in the search box ("recently", "last week", "in September", "since June 1", "yesterday") limit results to people with an interaction in that period, newest first, showing that interaction; "met", "called", "emailed", "messaged" narrow the kind (ADR-0014). | Could | 5 |
+| S-11 | **Reconnect** page and a "Due to reconnect" filter: overdue contacts first (most overdue at the top), then those due within 7 days; the count shows in the navigation (ADR-0016). | Should | 7 |
 
 ### Tags
 
@@ -180,6 +184,29 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | dev | Building and testing features | `contacts_dev` | 5180 | development |
 | test | Automated tests | created and dropped per run | — | test |
 
+### Appearance
+
+| ID | Requirement | Priority | Phase |
+| --- | --- | --- | --- |
+| A-01 | Theme mode is System, Light or Dark; System follows the operating system and updates when it changes. Default: System (ADR-0015). | Must | 6 |
+| A-02 | Three palettes — Harbor (default), Sage, Clay — each with a light and a dark version. | Must | 6 |
+| A-03 | Theme mode and palette are saved per instance and applied by the server, with no flash of the wrong theme and no JavaScript required. | Must | 6 |
+| A-04 | Every palette in both modes meets WCAG 2.2 AA: text 4.5:1; field borders, focus rings and icons 3:1; an automated test checks every pair. | Must | 6 |
+| A-05 | Density: Comfortable or Compact. | Could | 6 |
+| A-06 | Honors the operating system's reduce-motion and increase-contrast settings. | Should | 6 |
+
+### Privacy while presenting
+
+| ID | Requirement | Priority | Phase |
+| --- | --- | --- | --- |
+| P-01 | Presenting mode: a header button and ⇧P turn it on and off; a persistent bar shows while it is on; it covers every instance in the browser and turns off when the browser closes (configurable) (ADR-0016). | Should | 7 |
+| P-02 | While presenting, private data is never sent to the browser: notes, activity summaries, personal emails and phones, private extra fields, private tags, lists and contacts. | Must | 7 |
+| P-03 | Tags, lists, contacts and extra fields can be marked private; Settings chooses which built-in fields are hidden and which email/phone labels count as personal. | Should | 7 |
+| P-04 | Search while presenting still matches hidden fields but never quotes them; private contacts are left out, with a count. | Should | 7 |
+| P-05 | Import preview, duplicate merge, backup restore, exports and the JSON API do not expose private data while presenting. | Should | 7 |
+| P-06 | Copy emails and Compose use work addresses only while presenting and say how many were left out. | Should | 7 |
+| P-07 | Per-instance presenting view: work details, names and companies only, or a lock screen. | Could | 7 |
+
 ## 5. Non-functional requirements
 
 | ID | Area | Requirement |
@@ -192,7 +219,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | N-06 | Durability | Nightly `pg_dump` per production instance, 14-day retention, stored in a local folder outside Docker volumes; restore tested in CI. |
 | N-07 | Clipboard | Copy uses the browser Clipboard API (works on `localhost` as a secure context); a fallback shows the text to copy manually. |
 | N-08 | Email hand-off | `mailto:` links stay under ~2,000 characters; above that the app falls back to Copy emails and says why. |
-| N-09 | Usability | Keyboard-first: `/` focuses search, arrow keys move, space selects, `c` copies emails. Readable at 200% zoom; meets WCAG 2.2 AA contrast. |
+| N-09 | Usability | Keyboard-first: `/` focuses search, arrow keys move, space selects, `c` copies emails. Readable at 200% zoom; meets WCAG 2.2 Level AA, including contrast in every theme (A-04), visible focus and 24 × 24 px minimum targets (ADR-0015). |
 | N-10 | Maintainability | Typed Python (type hints checked by mypy, Pydantic models), versioned migrations, ≥ 80% test coverage overall and on search and list logic. |
 | N-11 | Portability | Full export to open formats (CSV, JSON, vCard) per instance so data is never locked in. |
 
@@ -217,6 +244,9 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | `contact_merge` | id, kept_id, merged_name, snapshot (jsonb), merged_at | Phase 4 (C-12). Snapshot of each contact removed by a merge. |
 | `semantic_doc` | contact_id, model, doc_hash, stale, embedded_at | Phase 5 (S-08). One row per indexed contact (ADR-0013). |
 | `semantic_chunk` | id, contact_id, source, text, vector (bytea) | Phase 5 (S-08). Derived data; not exported; dropped when anonymizing. |
+| `app_setting` | key (primary key), value, updated_at | Phase 6 (A-03, ADR-0015). Per-instance preferences: theme, palette, density; Phase 7 adds presenting options. |
+| `contact` (Phase 7 columns) | kit_interval, kit_started_on, kit_snoozed_until, is_private | Phase 7 (C-15, C-16, P-03, ADR-0016). Due date is computed, not stored. |
+| `tag`, `contact_list`, `custom_field` (Phase 7) | is_private | Phase 7 (P-03, ADR-0016). |
 | `contact.search_vector` | Weighted tsvector: name (A); team, company, manager, tags (B); title, department, works_on, lists, emails, custom fields (C); notes, location, activities (D) | Maintained by the application (`app/search.py`, ADR-0010); GIN index; plus `pg_trgm` GIN index on names. |
 
 Each instance has its own database, so no table carries an instance column.
@@ -240,6 +270,8 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, T-03–T-04, C-09, M-05, D-01–D-04, N-06, I-06–I-08 | 1–2 weeks |
 | 4 — Depth ✅ | Power-user features | C-11–C-13, S-07, T-05, L-05 (list tags), I-09 | 1–2 weeks |
 | 5 — Smart | Semantic search, recent interactions and directory sync | S-08–S-10, D-05 | 2+ weeks |
+| 6 — Look and feel | Theme modes, three palettes, accessibility pass, optional layout refresh | A-01–A-06, N-09 | 6–8 days |
+| 7 — Relationships and privacy | Keep-in-touch reminders and presenting mode | C-15–C-17, S-11, P-01–P-07 | ~8 days |
 
 ### Phase 0 — Foundation
 
@@ -292,6 +324,22 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 **Done when (S-08):** with the model installed, "the person who helped with the FDA submission" lists the contact whose notes mention the 510(k) submission, with that note shown as the reason; the app runs normally when the model is absent.
 
+### Phase 6 — Look and feel
+
+- `app/static/tokens.css` with every color as a token, written once per palette with `light-dark()`; `app.css` uses tokens only; contrast fixes for the dark primary button, field borders, `color-scheme`, dark tag tints (ADR-0015).
+- `app_setting` table; Settings › Appearance (theme, palette, density); header theme switch that works without JavaScript; `<html data-theme data-palette data-density>` rendered by the server.
+- Sage and Clay palettes; vendored Atkinson Hyperlegible Next; reduced motion and increased contrast; instance header stripe and chip (I-03).
+- Optional last step: list + preview pane and filter chips.
+
+**Done when:** with the OS in dark mode, System renders dark and Light renders light with no flash on reload, even with JavaScript off; business-prod and personal-prod keep different palettes across a backup and restore; the contrast test and axe-core pass for all six palette-and-mode pairs.
+
+### Phase 7 — Relationships and privacy
+
+- Keep-in-touch cadence and snooze on the card and in bulk; Reconnect page with a nav count; log prompt after Email, Call or Compose (ADR-0016).
+- Presenting mode: ⇧P and header button, bar, session cookie for all instances; allowlist-based presentable view in `app/privacy.py`; private flags and Settings › Privacy and presenting; search, Copy/Compose, raw-data pages and the API respect it.
+
+**Done when:** a contact with a monthly cadence and a call logged 40 days ago appears on Reconnect as overdue by about 10 days, and logging a call removes it; with presenting on, a marker string seeded into every private field appears in no page, fragment or API response.
+
 ## 9. Open questions
 
 - [x] Build language → Python (ADR-0004).
@@ -306,16 +354,19 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 | Data entry burden | High | Quick-add form; CSV/vCard import (Phase 3); directory sync (Phase 5) |
-| Working in the wrong instance | Medium | Instance name and color band; seed/reset blocked in production (I-03, I-05) |
+| Working in the wrong instance | Medium | Instance name and color band; seed/reset blocked in production (I-03, I-05); a different palette per instance (A-02) |
 | Database lost or corrupted | High | Nightly `pg_dump` outside Docker (N-06); open-format export (N-11) |
 | Docker Desktop not running | Medium | PostgreSQL container `restart: unless-stopped`; start Docker at login |
 | Org data goes stale | Medium | "Last verified" date; archive instead of delete |
 | Customer/vendor personal data on a laptop | Medium | Local-only, per-instance DB roles, disk encryption, optional passcode (N-05) |
+| Private details seen while sharing a screen | Medium | Presenting mode withholds them on the server (P-01–P-07) |
 
 ## Change log
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.8 | 2026-10-03 | Phase 7 added: keep-in-touch reminders (C-15–C-17, S-11) and presenting mode (P-01–P-07). Data model gains kit_* and is_private columns. | 0016 |
+| 1.7 | 2026-10-03 | Phase 6 added: theme modes and palettes (A-01–A-06); N-09 reworded to WCAG 2.2 Level AA. Data model gains app_setting. | 0015 |
 | 1.6 | 2026-10-03 | S-09 (recent-interaction filter, last-contact sort) and S-10 (time phrases in search) added after "who have I interacted with recently" found no one. | 0014 |
 | 1.5 | 2026-10-03 | S-08 search by meaning designed and delivered: local model, in-process vectors instead of pgvector; N-04 clarified for the one-time model download. Data model gains semantic_doc, semantic_chunk. | 0013 |
 | 1.4 | 2026-09-24 | Phase 4 delivered. S-01 clarified: custom fields and activity summaries are searchable. Data model gains custom_field, activity, saved_search, list_tag, duplicate_dismissal, contact_merge. | 0012 |
