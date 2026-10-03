@@ -3,6 +3,7 @@ which browsers cannot send cross-site without a CORS preflight (CSRF defence, N-
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -25,9 +26,11 @@ from app.contacts import (
 )
 from app.db import get_session
 from app.schemas import ContactCreate, ContactOut, ContactRef, ContactTypeOut, ContactUpdate
-from app.search import SearchFilters, search
+from app.search import SearchFilters, apply_time_query, last_interactions, search
+from app.search import SortKey as SearchSort
 from app.semantic import SemanticService, search_by_meaning
 from app.tags import tag_counts
+from app.timephrase import contacted_since
 
 
 def require_json(request: Request) -> None:
@@ -82,10 +85,18 @@ class MatchOut(BaseModel):
     value: str
 
 
+class InteractionOut(BaseModel):
+    kind: str
+    occurred_on: date
+    summary: str
+
+
 class SearchResult(BaseModel):
     contact: ContactOut
     matched: list[MatchOut]
     fuzzy: bool
+    last_contact: date | None = None  # S-09
+    interaction: InteractionOut | None = None  # S-10: latest one in the period searched
 
 
 @router.get("/search", response_model=list[SearchResult])
@@ -100,8 +111,13 @@ def search_contacts(
     list: int | None = None,
     favorites: bool = False,
     include_archived: bool = False,
+    contacted: Annotated[int | None, Query(ge=1, le=3650, description="days")] = None,
 ) -> list[SearchResult]:
-    """Context search (S-01 to S-04): ranked hits with the fields that matched."""
+    """Context search (S-01 to S-04): ranked hits with the fields that matched.
+
+    ``contacted=30`` keeps people with an interaction in the last 30 days (S-09); time
+    phrases in ``q`` ("recently", "last week") do the same for that period (S-10).
+    """
     filters = SearchFilters(
         type_id=type,
         company=company,
@@ -111,14 +127,27 @@ def search_contacts(
         list_id=list,
         favorites=favorites,
         include_archived=include_archived,
+        active_from=contacted_since(contacted) if contacted else None,
     )
+    words, filters, time_query = apply_time_query(q, filters)
+    sort: SearchSort = "last_contact" if time_query and not words else "relevance"
+    hits = search(session, words, filters, sort=sort)
+    ids = [h.contact.id for h in hits]
+    last = last_interactions(session, ids)
+    in_period = last_interactions(session, ids, filters) if filters.has_period else {}
     return [
         SearchResult(
             contact=to_out(hit.contact),
             matched=[MatchOut(field=f, value=v) for f, v in hit.matched],
             fuzzy=hit.fuzzy,
+            last_contact=last[hit.contact.id].occurred_on if hit.contact.id in last else None,
+            interaction=(
+                InteractionOut.model_validate(in_period[hit.contact.id], from_attributes=True)
+                if hit.contact.id in in_period
+                else None
+            ),
         )
-        for hit in search(session, q, filters)
+        for hit in hits
     ]
 
 

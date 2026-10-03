@@ -115,6 +115,7 @@ delete a failing test to get a green run unless the requirement was withdrawn.
 | `app/embedder.py` | Local ONNX embedding model loader (S-08) |
 | `app/semantic.py` | Search by meaning: chunks, indexing, in-memory vectors, ranking (ADR-0013) |
 | `scripts/semantic.py` | `make model` (verified download) and `make reindex` |
+| `app/timephrase.py` | Time phrases in the search box ("recently", "last week") → period filter (S-10, ADR-0014) |
 | `app/api.py` | JSON API (`/api/...`); writes require `application/json` |
 | `app/web.py` | Server-rendered pages and forms; POSTs need the CSRF token |
 | `app/static/js/app.js` | Vanilla JS: live search, selection + action bar (copy/compose for Outlook or Gmail), pickers, form rows |

@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 from app.contacts import ContactError, ContactNotFound
 from app.models import SavedSearch
 
-SAVED_PARAMS = ("q", "type", "company", "team", "manager", "tag", "list", "favorites", "archived")
+SAVED_PARAMS = (
+    "q", "type", "company", "team", "manager", "tag", "list", "favorites", "archived", "contacted",
+)  # fmt: skip
 MAX_NAME = 100
 MAX_QUERY = 1000
 
@@ -95,6 +97,7 @@ _LABELS = {
     "list": "list #",
     "favorites": "favorites",
     "archived": "include archived",
+    "contacted": "contacted in the last",
 }
 
 
@@ -105,6 +108,8 @@ def describe_query(query: str) -> str:
         label = _LABELS.get(key, key)
         if key in {"favorites", "archived"}:
             parts.append(label)
+        elif key == "contacted":
+            parts.append(f"{label} {value} days")
         elif key == "q":
             parts.append(f"{label} “{value}”")
         else:

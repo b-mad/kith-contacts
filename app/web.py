@@ -36,7 +36,7 @@ from app.contacts import (
 )
 from app.db import get_session
 from app.lists import add_members, all_lists, find_or_create_list, remove_member
-from app.models import Contact, Tag
+from app.models import Activity, Contact, Tag
 from app.related import related_contacts
 from app.saved_searches import clean_query, list_saved_searches
 from app.schemas import ContactCreate, ContactUpdate
@@ -46,11 +46,14 @@ from app.search import (
     SearchHit,
     SortKey,
     active_lists,
+    apply_time_query,
     distinct_values,
+    last_interactions,
     search,
 )
 from app.semantic import MeaningHit, SemanticService, search_by_meaning
 from app.tags import add_tag, related_tags, remove_tag, tag_counts
+from app.timephrase import CONTACTED_CHOICES, contacted_since
 
 CSRF_COOKIE = "contacts_csrf"
 CSRF_FIELD = "csrf_token"
@@ -162,6 +165,13 @@ def selected_ids(form: FormData) -> list[int]:
 # ---------------------------------------------------------------- list & search (S-01 to S-05)
 
 
+def _interaction(activity: Activity) -> tuple[str, str]:
+    """("Message · Oct 2", "Sent the Q4 schedule") for a result row (S-10)."""
+    d = activity.occurred_on
+    when = f"{d.strftime('%b')} {d.day}" + ("" if d.year == date.today().year else f", {d.year}")
+    return f"{activity.kind.capitalize()} · {when}", _clip(activity.summary, 140)
+
+
 def _clip(text: str, limit: int = 180) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
@@ -191,6 +201,8 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
     q = p.get("q", "").strip()[:200]
     manager_id = _int(p.get("manager"))
     list_id = _int(p.get("list"))
+    contacted = _int(p.get("contacted"))
+    contacted = contacted if contacted in CONTACTED_CHOICES else None
     filters = SearchFilters(
         type_id=_int(p.get("type")),
         company=p.get("company") or None,
@@ -200,15 +212,23 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         list_id=list_id,
         favorites=p.get("favorites") == "1",
         include_archived=p.get("archived") == "1",
+        active_from=contacted_since(contacted) if contacted else None,
     )
+    # S-10: a time phrase ("recently", "last week") becomes a period filter.
+    words, period_filters, time_query = apply_time_query(q, filters)
     sort_raw = p.get("sort", "")
-    default_sort: SortKey = "relevance" if q else "name"
+    default_sort: SortKey = "relevance" if words else "last_contact" if time_query else "name"
     sort: SortKey = next((k for k in SORT_KEYS if k == sort_raw), default_sort)
-    hits = search(session, q, filters, sort=sort)
-    meaning, meaning_first = _meaning(request, session, q, filters, hits)
+    hits = search(session, words, period_filters, sort=sort)
+    meaning, meaning_first = _meaning(request, session, words, period_filters, hits)
     if meaning_first:  # keywords only matched some words: show the meaning matches first
         shown = {m.contact.id for m in meaning}
         hits = [h for h in hits if h.contact.id not in shown]
+    listed = [h.contact.id for h in hits] + [m.contact.id for m in meaning]
+    last_contact = {cid: a.occurred_on for cid, a in last_interactions(session, listed).items()}
+    in_period = (
+        last_interactions(session, listed, period_filters) if period_filters.has_period else {}
+    )
     manager = None
     if manager_id is not None:
         try:
@@ -223,6 +243,12 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         "filters": filters,
         "sort": sort,
         "hits": [(to_out(h.contact), h.matched, h.fuzzy) for h in hits],
+        "last_contact": last_contact,
+        "in_period": {cid: _interaction(a) for cid, a in in_period.items()},
+        "contacted": contacted,
+        "contacted_choices": CONTACTED_CHOICES,
+        "time_query": time_query,
+        "today_year": date.today().year,
         "meaning": [(to_out(m.contact), m.source_label, _clip(m.text)) for m in meaning],
         "meaning_first": meaning_first,
         "types": list_contact_types(session),

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.5 |
+| Version | 1.6 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-09-24 |
@@ -114,6 +114,8 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | S-06 | Org view: pick a manager and browse reports, up and down the chain. | Should | 3 |
 | S-07 | Saved searches (e.g. "Vendors tagged HL7"). | Could | 4 |
 | S-08 | Natural-language or semantic search ("the person who helped with the FDA submission"), using a local model; results show the text that matched (ADR-0013). | Could | 5 |
+| S-09 | Filter by recent interaction (contacted in the last 7, 30, 90 or 365 days, from the activity log; notes don't count) and sort by last contact; results show the last contact date (ADR-0014). | Should | 5 |
+| S-10 | Time phrases in the search box ("recently", "last week", "in September", "since June 1", "yesterday") limit results to people with an interaction in that period, newest first, showing that interaction; "met", "called", "emailed", "messaged" narrow the kind (ADR-0014). | Could | 5 |
 
 ### Tags
 
@@ -237,7 +239,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 2 — Find and act (MVP) ✅ | Context search, tags, lists, copy emails | S-01–S-05, T-01–T-02, L-01–L-04, M-01–M-03, C-10, C-14 | 2 weeks |
 | 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, T-03–T-04, C-09, M-05, D-01–D-04, N-06, I-06–I-08 | 1–2 weeks |
 | 4 — Depth ✅ | Power-user features | C-11–C-13, S-07, T-05, L-05 (list tags), I-09 | 1–2 weeks |
-| 5 — Smart | Semantic search and directory sync | S-08, D-05 | 2+ weeks |
+| 5 — Smart | Semantic search, recent interactions and directory sync | S-08–S-10, D-05 | 2+ weeks |
 
 ### Phase 0 — Foundation
 
@@ -285,6 +287,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 ### Phase 5 — Smart
 
 - Search by meaning (S-08): a local embedding model (`all-MiniLM-L6-v2`, ONNX), vectors stored in the instance database and compared in the app; a background task keeps them current (ADR-0013).
+- Find people by when you last interacted: a Contacted filter, a Last contact column and sort, and time phrases in the search box (S-09, S-10, ADR-0014).
 - Optional Microsoft Graph / Slack directory sync with review before overwrite (D-05).
 
 **Done when (S-08):** with the model installed, "the person who helped with the FDA submission" lists the contact whose notes mention the 510(k) submission, with that note shown as the reason; the app runs normally when the model is absent.
@@ -313,6 +316,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.6 | 2026-10-03 | S-09 (recent-interaction filter, last-contact sort) and S-10 (time phrases in search) added after "who have I interacted with recently" found no one. | 0014 |
 | 1.5 | 2026-10-03 | S-08 search by meaning designed and delivered: local model, in-process vectors instead of pgvector; N-04 clarified for the one-time model download. Data model gains semantic_doc, semantic_chunk. | 0013 |
 | 1.4 | 2026-09-24 | Phase 4 delivered. S-01 clarified: custom fields and activity summaries are searchable. Data model gains custom_field, activity, saved_search, list_tag, duplicate_dismissal, contact_merge. | 0012 |
 | 1.3 | 2026-09-24 | Phase 3 delivered. L-05 list tags moved to Phase 4. Photos stored in the database. Backup tool, daily auto-backup and import/export formats decided. | 0011 |

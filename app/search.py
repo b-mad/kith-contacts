@@ -17,18 +17,32 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import date
 from typing import Any, Literal
 
-from sqlalchemy import Select, bindparam, case, func, literal, literal_column, select, text
+from sqlalchemy import (
+    ColumnElement,
+    Select,
+    bindparam,
+    case,
+    func,
+    literal,
+    literal_column,
+    select,
+    text,
+)
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Contact, ContactList, ListMember, Tag, contact_tag
+from app.models import Activity, Contact, ContactList, ListMember, Tag, contact_tag
+from app.timephrase import INTERACTION_KINDS, TimeQuery, parse_time_query
 
 FUZZY_THRESHOLD = 0.3
 NAME_WEIGHT = "'{a}'::\"char\"[]"  # ts_filter weight array: names only
-SortKey = Literal["relevance", "name", "company", "team", "type", "updated"]
-SORT_KEYS: tuple[SortKey, ...] = ("relevance", "name", "company", "team", "type", "updated")
+SortKey = Literal["relevance", "name", "company", "team", "type", "updated", "last_contact"]
+SORT_KEYS: tuple[SortKey, ...] = (
+    "relevance", "name", "company", "team", "type", "updated", "last_contact",
+)  # fmt: skip
 
 # Kept in sync with the newest migration that embeds a frozen copy (0004).
 _DOCUMENT_SQL = """
@@ -108,6 +122,23 @@ class SearchFilters:
     list_id: int | None = None
     favorites: bool = False
     include_archived: bool = False
+    # S-09/S-10: people with an interaction (not a note) in this period, optionally of these kinds.
+    active_from: date | None = None
+    active_to: date | None = None
+    kinds: tuple[str, ...] = ()
+
+    @property
+    def has_period(self) -> bool:
+        return self.active_from is not None or self.active_to is not None or bool(self.kinds)
+
+    def interactions(self) -> Any:
+        """Activities that count for the period filter (correlated on the outer contact)."""
+        cond: list[ColumnElement[bool]] = [Activity.kind.in_(self.kinds or INTERACTION_KINDS)]
+        if self.active_from is not None:
+            cond.append(Activity.occurred_on >= self.active_from)
+        if self.active_to is not None:
+            cond.append(Activity.occurred_on <= self.active_to)
+        return cond
 
     def apply(self, stmt: Select[tuple[Contact]]) -> Select[tuple[Contact]]:
         if not self.include_archived:
@@ -136,6 +167,12 @@ class SearchFilters:
             )
         if self.favorites:
             stmt = stmt.where(Contact.is_favorite.is_(True))
+        if self.has_period:
+            stmt = stmt.where(
+                select(Activity.id)
+                .where(Activity.contact_id == Contact.id, *self.interactions())
+                .exists()
+            )
         return stmt
 
     @property
@@ -149,6 +186,7 @@ class SearchFilters:
                 self.tag,
                 self.list_id is not None,
                 self.favorites,
+                self.has_period,
             )
         )
 
@@ -190,8 +228,44 @@ def _order(sort: SortKey) -> list[Any]:
         "team": [func.lower(Contact.team).nulls_last(), name],
         "type": [Contact.contact_type_id, name],
         "updated": [Contact.updated_at.desc(), name],
+        "last_contact": [_last_contact_column().desc().nulls_last(), name],
     }
     return orders[sort]
+
+
+def _last_contact_column() -> Any:
+    return (
+        select(func.max(Activity.occurred_on))
+        .where(Activity.contact_id == Contact.id, Activity.kind.in_(INTERACTION_KINDS))
+        .scalar_subquery()
+    )
+
+
+def last_interactions(
+    session: Session, contact_ids: Iterable[int], filters: SearchFilters | None = None
+) -> dict[int, Activity]:
+    """S-09/S-10: each contact's latest interaction (within the filter's period, if any)."""
+    ids = sorted(set(contact_ids))
+    if not ids:
+        return {}
+    filters = filters or SearchFilters()
+    stmt = (
+        select(Activity)
+        .where(Activity.contact_id.in_(ids), *filters.interactions())
+        .order_by(Activity.contact_id, Activity.occurred_on.desc(), Activity.id.desc())
+        .distinct(Activity.contact_id)
+    )
+    return {a.contact_id: a for a in session.scalars(stmt)}
+
+
+def apply_time_query(q: str, filters: SearchFilters) -> tuple[str, SearchFilters, TimeQuery | None]:
+    """S-10: turn a time phrase in ``q`` into a period filter; returns the words left to search."""
+    tq = parse_time_query(q) if q else None
+    if tq is None:
+        return q, filters, None
+    start = max(tq.start, filters.active_from) if filters.active_from else tq.start
+    narrowed = replace(filters, active_from=start, active_to=tq.end, kinds=tq.kinds)
+    return " ".join(tq.terms), narrowed, tq
 
 
 def search(

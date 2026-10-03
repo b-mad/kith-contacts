@@ -7,7 +7,7 @@ context — team, manager, project, tags — even when you forget their name.
 - Decisions: [docs/adr/](docs/adr/README.md)
 - Agent / contributor rules: [CLAUDE.md](CLAUDE.md)
 
-**Status:** Phase 5 started: **search by meaning** — ask “the person who helped with the FDA submission” and get matches from notes, projects and activity, using a model that runs on your computer (`make model` once). Phase 4 (depth) complete: custom fields, activity log, duplicate finder and merge, saved searches, related tags, tags on lists, and copying a contact between instances. Phase 3 brought backups, import/export, org chart, photos and admin pages. Operations guide: [docs/operations.md](docs/operations.md).
+**Status:** Phase 5 started: **search by meaning** — ask “the person who helped with the FDA submission” and get matches from notes, projects and activity, using a model that runs on your computer (`make model` once) — and by **when you last interacted**: a Contacted filter, a Last contact column, and phrases like “who did I meet last week”. Phase 4 (depth) complete: custom fields, activity log, duplicate finder and merge, saved searches, related tags, tags on lists, and copying a contact between instances. Phase 3 brought backups, import/export, org chart, photos and admin pages. Operations guide: [docs/operations.md](docs/operations.md).
 
 ## Prerequisites
 

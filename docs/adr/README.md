@@ -43,3 +43,4 @@ not change meaning — those are logged in the requirements change log only.
 | [0011](0011-backups-import-export-and-photos.md) | Backups, import/export formats and photo storage | Accepted | D-01–D-04, I-06, I-07, N-06, C-09, L-05 |
 | [0012](0012-phase-4-depth-features.md) | Custom fields, activity log, duplicate merge, saved searches and contact transfer | Accepted | C-11–C-13, S-07, T-05, L-05, I-09, S-01 |
 | [0013](0013-search-by-meaning.md) | Search by meaning with a local model and in-process vectors | Accepted | S-08, N-04 |
+| [0014](0014-recent-interactions-and-time-phrases.md) | Find people by when you last interacted (filter, sort and time phrases) | Accepted | S-09, S-10 |

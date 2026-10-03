@@ -7,6 +7,12 @@
 {% if filters.company %}{% set _ = chips.append(("company", "Company: " ~ filters.company)) %}{% endif %}
 {% if filters.team %}{% set _ = chips.append(("team", "Team: " ~ filters.team)) %}{% endif %}
 {% if filters.favorites %}{% set _ = chips.append(("favorites", "Favorites")) %}{% endif %}
+{% if contacted %}{% set _ = chips.append(("contacted", "Contacted in the last " ~ contacted ~ " days")) %}{% endif %}
+{% if time_query %}
+  <p class="chips" data-testid="time-chip">
+    <a class="chip" href="/?{{ request.url.include_query_params(q=time_query.remainder).query }}" aria-label="Remove the time limit {{ time_query.label }}">Interacted {{ time_query.label }}{% if time_query.kinds %} · {{ time_query.kinds | join(", ") }}{% endif %} <span aria-hidden="true">×</span></a>
+  </p>
+{% endif %}
 {% if chips %}
   <p class="chips" data-testid="filter-chips">
     {% for key, label in chips %}
@@ -41,6 +47,10 @@
       {% if c.has_photo %}<img class="avatar" src="/contacts/{{ c.id }}/photo" alt="" width="28" height="28">{% else %}<span class="avatar initials" aria-hidden="true">{{ c.display_name | initials }}</span>{% endif %}
       <a href="/contacts/{{ c.id }}">{{ c.display_name }}</a>{% if c.is_favorite %} <span class="star" aria-label="Favorite">★</span>{% endif %}
       {% if c.archived %} <span class="pill muted">Archived</span>{% endif %}
+      {% if in_period.get(c.id) %}
+        {% set act = in_period[c.id] %}
+        <div class="matched" data-testid="interaction"><span class="match"><span class="match-field">{{ act[0] }}:</span> {{ act[1] }}</span></div>
+      {% endif %}
       {% if why %}
         <div class="matched" data-testid="meaning-why"><span class="match"><span class="match-field">{{ why[0] }}:</span> {{ why[1] }}</span></div>
       {% elif matched or fuzzy %}
@@ -56,12 +66,13 @@
     <td>{{ c.title or "" }}</td>
     <td>{% if c.manager %}<a href="/contacts/{{ c.manager.id }}">{{ c.manager.display_name }}</a>{% endif %}</td>
     <td>{% if email %}<a href="mailto:{{ email }}">{{ email }}</a>{% endif %}</td>
+    <td class="nowrap" data-testid="last-contact-cell">{% set lc = last_contact.get(c.id) %}{% if lc %}<time datetime="{{ lc.isoformat() }}">{{ lc.strftime("%b") }} {{ lc.day }}{% if lc.year != today_year %}, {{ lc.year }}{% endif %}</time>{% endif %}</td>
   </tr>
 {%- endmacro %}
 
 {% macro meaning_rows() -%}
   <tbody class="meaning" data-testid="meaning-results">
-    <tr class="section-row"><th scope="rowgroup" colspan="8">{{ "Best matches by meaning" if meaning_first else "Also related, by meaning" }} <span class="muted small">— found from notes, projects and activity, not exact words</span></th></tr>
+    <tr class="section-row"><th scope="rowgroup" colspan="9">{{ "Best matches by meaning" if meaning_first else "Also related, by meaning" }} <span class="muted small">— found from notes, projects and activity, not exact words</span></th></tr>
     {% for c, label, text in meaning %}{{ result_row(c, [], False, (label, text)) }}{% endfor %}
   </tbody>
 {%- endmacro %}
@@ -82,12 +93,13 @@
         <th scope="col">Title</th>
         <th scope="col">Manager</th>
         <th scope="col">Email</th>
+        <th scope="col">{{ sort_link("last_contact", "Last contact") }}</th>
       </tr>
     </thead>
     {% if meaning and meaning_first %}{{ meaning_rows() }}{% endif %}
     {% if hits %}
     <tbody>
-      {% if meaning and meaning_first %}<tr class="section-row"><th scope="rowgroup" colspan="8">Matching some of the words</th></tr>{% endif %}
+      {% if meaning and meaning_first %}<tr class="section-row"><th scope="rowgroup" colspan="9">Matching some of the words</th></tr>{% endif %}
       {% for c, matched, fuzzy in hits %}{{ result_row(c, matched, fuzzy) }}{% endfor %}
     </tbody>
     {% endif %}
@@ -95,6 +107,8 @@
   </table>
   </div>
   <p class="muted count" data-testid="result-count">{{ hits | length }} contact{{ "" if hits | length == 1 else "s" }}{% if q %} matching “{{ q }}”{% endif %}{% if meaning %} · {{ meaning | length }} by meaning{% endif %}</p>
+{% elif time_query %}
+  <p class="empty" data-testid="no-results">No logged meetings, calls, emails or messages {{ time_query.label }}{% if time_query.terms %} matching “{{ time_query.terms | join(" ") }}”{% endif %}. Log interactions on a contact's card to find people this way.</p>
 {% elif q or filters.active %}
   <p class="empty" data-testid="no-results">No contacts match{% if q %} “{{ q }}”{% endif %}. Try fewer words, or a team, manager, company or tag.</p>
 {% else %}

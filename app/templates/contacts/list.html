@@ -42,6 +42,10 @@
       <option value="">Any list</option>
       {% for l in lists %}<option value="{{ l.id }}"{% if filters.list_id == l.id %} selected{% endif %}>{{ l.name }}</option>{% endfor %}
     </select>
+    <select name="contacted" aria-label="Last contacted" data-testid="filter-contacted">
+      <option value="">Contacted any time</option>
+      {% for n in contacted_choices %}<option value="{{ n }}"{% if contacted == n %} selected{% endif %}>Contacted in the last {{ n }} days</option>{% endfor %}
+    </select>
     <label class="check"><input type="checkbox" name="favorites" value="1"{% if filters.favorites %} checked{% endif %}> Favorites</label>
     <label class="check"><input type="checkbox" name="archived" value="1"{% if filters.include_archived %} checked{% endif %}> Archived</label>
     {% if manager %}<input type="hidden" name="manager" value="{{ manager.id }}">{% endif %}

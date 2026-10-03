@@ -100,3 +100,16 @@ def test_search_page_puts_the_meaning_match_first(people: dict[str, Any]) -> Non
     )
     assert "Best matches by meaning" in html
     assert "FDA 510(k) clearance" in html
+
+
+@pytest.mark.req("S-10")
+def test_recently_finds_people_with_logged_interactions(people: dict[str, Any]) -> None:
+    html = (
+        people["client"]
+        .get("/contacts/results", params={"q": "who have I interacted with recently"})
+        .text
+    )
+    assert "Interacted recently" in html
+    assert "Sam Lee" in html
+    assert "Nora Kim" in html
+    assert "Maya Chen" not in html  # no interactions logged

@@ -337,3 +337,4 @@ tr.row-error td { color: var(--muted); }
 .contacts tr.section-row th { text-align: left; font-weight: 600; font-size: 0.85rem; padding-top: 0.75rem; background: var(--surface); }
 .contacts tbody.meaning .match-field { font-style: italic; }
 .semantic-status { margin: 0.25rem 0; }
+.nowrap { white-space: nowrap; }
