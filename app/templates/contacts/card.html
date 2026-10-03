@@ -13,6 +13,7 @@
       <div>
       <h1>{{ c.display_name }}{% if c.is_favorite %} <span class="star" title="Favorite" aria-label="Favorite">★</span>{% endif %}</h1>
       {% if c.pronunciation %}<p class="muted">Pronounced “{{ c.pronunciation }}”</p>{% endif %}
+      {% if reminder %}<p class="kit-line kit-{{ reminder.state }}" data-testid="kit-line"><a href="#kit-h">Keep in touch: {{ reminder.describe }}</a></p>{% endif %}
       <p class="subtitle">
         <span class="pill" data-testid="contact-type">{{ c.contact_type.name }}</span>
         {% if c.archived %}<span class="pill muted" data-testid="archived-badge">Archived</span>{% endif %}
@@ -158,6 +159,39 @@
       {% endif %}
     </section>
   </div>
+
+  <section aria-labelledby="kit-h" class="kit" data-testid="keep-in-touch">
+    <h2 id="kit-h">Keep in touch</h2>
+    <form class="inline-form" method="post" action="/contacts/{{ c.id }}/keep-in-touch">{{ m.csrf() }}
+      <label for="kit-interval">How often</label>
+      <select id="kit-interval" name="interval" data-testid="kit-interval">
+        <option value="">Off</option>
+        {% for value, label in kit_intervals.items() %}<option value="{{ value }}"{% if kit_interval == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <button type="submit" data-testid="kit-save">Save</button>
+    </form>
+    {% if reminder %}
+      <p class="kit-status kit-{{ reminder.state }}" data-testid="kit-status"><strong>{{ reminder.describe }}</strong> <span class="muted">· <time datetime="{{ reminder.due.isoformat() }}">{{ reminder.due_text }}</time>{% if reminder.last_interaction %} · counted from your last interaction{% else %} · counted from the day you turned this on{% endif %}</span></p>
+      {% if reminder.snoozed_until %}
+        <form class="inline-form" method="post" action="/contacts/{{ c.id }}/keep-in-touch/unsnooze">{{ m.csrf() }}
+          <span class="small" data-testid="kit-snoozed">Snoozed until {{ reminder.snoozed_text }}.</span>
+          <button type="submit" class="link small" data-testid="kit-unsnooze">Cancel snooze</button>
+        </form>
+      {% endif %}
+      <form class="inline-form" method="post" action="/contacts/{{ c.id }}/keep-in-touch/snooze">{{ m.csrf() }}
+        <label for="kit-snooze">Snooze for</label>
+        <select id="kit-snooze" name="snooze" data-testid="kit-snooze">
+          {% for value, label in snooze_choices.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+        <label for="kit-until">or until</label>
+        <input id="kit-until" type="date" name="until" data-testid="kit-until">
+        <button type="submit" data-testid="kit-snooze-save">Snooze</button>
+      </form>
+      <p class="hint">Logging a meeting, call, email or message starts the next reminder and cancels a snooze. Notes don't count.</p>
+    {% else %}
+      <p class="muted small">Off. Choose how often to stay in touch and you'll be reminded when it's time.</p>
+    {% endif %}
+  </section>
 
   <div class="card-grid">
     <section aria-labelledby="activity-h" class="activity">

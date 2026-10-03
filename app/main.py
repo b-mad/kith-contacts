@@ -25,7 +25,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app import api, web, web_admin, web_depth, web_lists
+from app import api, web, web_admin, web_depth, web_kit, web_lists
 from app.appearance import THEME_CHOICES, current_appearance, text_on
 from app.backup import BackupFile, ensure_recent_backup
 from app.config import Settings, load_settings
@@ -234,4 +234,5 @@ def create_app(
     app.include_router(web_lists.router)
     app.include_router(web_admin.router)
     app.include_router(web_depth.router)
+    app.include_router(web_kit.router)
     return app

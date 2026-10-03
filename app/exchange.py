@@ -86,6 +86,7 @@ def contact_record(contact: Contact, *, include_photo: bool = False) -> dict[str
         "teams_url": c.teams_url,
         "pronunciation": c.pronunciation,
         "is_favorite": c.is_favorite,
+        "keep_in_touch": c.kit_interval,  # C-15
         "archived_at": _iso(c.archived_at),
         "created_at": _iso(c.created_at),
         "updated_at": _iso(c.updated_at),

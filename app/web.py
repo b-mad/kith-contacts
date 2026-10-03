@@ -35,6 +35,7 @@ from app.contacts import (
     update_contact,
 )
 from app.db import get_session
+from app.keep_in_touch import INTERVAL_LABELS, SNOOZE_CHOICES, reminder_for
 from app.lists import add_members, all_lists, find_or_create_list, remove_member
 from app.models import Activity, Contact, Tag
 from app.related import related_contacts
@@ -140,6 +141,10 @@ NOTICES = {
     "list_tagged": "Tagged the list “{name}”.",
     "reindexing": "Search by meaning is re-checking every contact in the background.",
     "appearance": "Appearance saved for this instance.",
+    "kit_saved": "Keep-in-touch reminder saved.",
+    "kit_off": "Keep-in-touch reminder turned off.",
+    "snoozed": "Reminder snoozed until {name}.",
+    "unsnoozed": "Snooze cancelled.",
 }
 
 
@@ -574,6 +579,10 @@ def contact_card(request: Request, contact_id: int, session: SessionDep) -> HTML
             "all_lists": active_lists(session),
             "roles": {m.contact_list.id: m.role_note for m in contact.memberships},
             "related": related_contacts(session, contact),
+            "reminder": reminder_for(session, contact, today=date.today()),
+            "kit_interval": contact.kit_interval,
+            "kit_intervals": INTERVAL_LABELS,
+            "snooze_choices": SNOOZE_CHOICES,
         },
     )
 

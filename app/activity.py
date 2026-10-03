@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.contacts import ContactError, ContactNotFound
 from app.models import ACTIVITY_KINDS, Activity, Contact
 from app.search import refresh_search
+from app.timephrase import INTERACTION_KINDS
 
 MAX_SUMMARY = 2000
 KIND_LABELS = {
@@ -62,6 +63,8 @@ def add_activity(
     contact = session.get(Contact, contact_id)
     if contact is not None:
         session.expire(contact, ["activities"])
+        if kind in INTERACTION_KINDS:
+            contact.kit_snoozed_until = None  # C-16: logging an interaction clears a snooze
     if refresh:
         refresh_search(session, [contact_id])
     return activity

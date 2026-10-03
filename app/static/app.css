@@ -449,3 +449,12 @@ body.env-production .seg label:has(input:focus-visible) { outline-color: var(--f
     transition-duration: 0.01ms !important; scroll-behavior: auto !important;
   }
 }
+
+/* Phase 7: keep-in-touch reminders (C-15, C-16, ADR-0016) */
+.kit { margin: 0.5rem 0 0.75rem; }
+.kit .inline-form select, .kit .inline-form input[type="date"] { width: auto; flex: 0 0 auto; }
+.kit-status { margin: 0.4rem 0; }
+.kit-status.kit-overdue strong, .kit-status.kit-today strong { color: var(--warning); }
+.kit-line { margin: 0.1rem 0 0.2rem; font-size: 0.9rem; font-weight: 600; }
+.kit-line a { color: var(--muted); }
+.kit-line.kit-overdue a, .kit-line.kit-today a { color: var(--warning); }

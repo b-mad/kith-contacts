@@ -3,7 +3,8 @@
 Migration 0001 created the Phase 1 tables; 0002 adds tags, lists and the
 search vector (Phase 2); 0003 photos (Phase 3); 0004 custom fields, activities,
 saved searches, list tags, duplicate dismissals and merge snapshots (Phase 4);
-0005 search by meaning (Phase 5); 0006 per-instance app settings (Phase 6).
+0005 search by meaning (Phase 5); 0006 per-instance app settings (Phase 6);
+0007 keep-in-touch reminders (Phase 7).
 """
 
 from __future__ import annotations
@@ -126,6 +127,9 @@ class Contact(Base):
     __tablename__ = "contact"
     __table_args__ = (
         CheckConstraint("manager_id <> id", name="not_own_manager"),
+        CheckConstraint(
+            "kit_interval IN ('2w', '1m', '3m', '6m', '1y')", name="kit_interval_known"
+        ),
         Index("ix_contact_search_vector", "search_vector", postgresql_using="gin"),
         Index(
             "ix_contact_display_name_trgm",
@@ -163,6 +167,10 @@ class Contact(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    # Keep-in-touch reminders (C-15, C-16, ADR-0016). The due date is computed, never stored.
+    kit_interval: Mapped[str | None] = mapped_column(String(3))  # None = off
+    kit_started_on: Mapped[date | None] = mapped_column(Date)
+    kit_snoozed_until: Mapped[date | None] = mapped_column(Date)
 
     # S-01: weighted full-text document, maintained by app.search.refresh_search.
     search_vector: Mapped[str | None] = deferred(mapped_column(TSVECTOR))
