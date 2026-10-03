@@ -394,6 +394,13 @@ def test_canary_no_private_value_reaches_any_page_or_api(
         "/api/contacts/lookup?q=zqx",
         "/api/tags?q=zqx",
         "/api/search/meaning?q=talked+about+her+move",
+        # Every filter, so joins that alias a table (related tags joins tag twice) run too.
+        "/?tag=informatics",
+        "/contacts/results?tag=informatics&q=maria",
+        f"/?list={s.public_list}",
+        "/?team=Data+Platform&company=Northwind+Health&favorites=1&due=1&contacted=30",
+        "/api/search?tag=informatics",
+        "/lists?tag=informatics",
     ]
     checked = 0
     for route in _get_routes(app_client.app):
@@ -813,3 +820,17 @@ def test_meaning_text_is_quoted_only_from_shown_sources() -> None:
     assert not quotable("profile", on)  # can name private tags or lists
     assert quotable("notes", Presenting(replace(DEFAULT, hidden=frozenset())))
     assert not quotable("works_on", Presenting(replace(DEFAULT, view="names")))
+
+
+@pytest.mark.req("P-02", "T-05")
+def test_tag_filter_with_related_tags_works_while_presenting(
+    client: TestClient, db_session: Session
+) -> None:
+    """Regression: related tags join the tag table twice; the private filter must follow."""
+    seed(db_session)
+    fresh(db_session)
+    present(client)
+    page = client.get("/?tag=informatics")
+    assert page.status_code == 200
+    assert "Maria Lopez" in page.text
+    assert "zqxcanarytag" not in page.text  # the private tag is not offered as "often together"

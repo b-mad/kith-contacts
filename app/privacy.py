@@ -261,37 +261,44 @@ def _withhold_private_records(state: ORMExecuteState) -> None:
     ):
         return
     options = [
-        with_loader_criteria(Contact, Contact.is_private.is_(False), include_aliases=True),
-        with_loader_criteria(Tag, Tag.is_private.is_(False), include_aliases=True),
-        with_loader_criteria(ContactList, ContactList.is_private.is_(False), include_aliases=True),
+        # Lambdas, so the criteria follow aliased tables too (e.g. a tag table joined twice).
+        with_loader_criteria(Contact, lambda c: c.is_private.is_(False), include_aliases=True),
+        with_loader_criteria(Tag, lambda t: t.is_private.is_(False), include_aliases=True),
+        with_loader_criteria(
+            ContactList, lambda cl: cl.is_private.is_(False), include_aliases=True
+        ),
     ]
     if p.hides("fields"):
-        names = list(p.settings.fields) or [""]
+        names = tuple(p.settings.fields) or ("",)
         options.append(
             with_loader_criteria(
                 CustomField,
-                CustomField.is_private.is_(False) & func.lower(CustomField.name).not_in(names),
+                lambda f: f.is_private.is_(False) & func.lower(f.name).not_in(names),
                 include_aliases=True,
             )
         )
     if p.hides("personal") and p.settings.labels:
-        labels = list(p.settings.labels)
+        labels = tuple(p.settings.labels)
         options.append(
             with_loader_criteria(
                 ContactEmail,
-                func.lower(func.coalesce(ContactEmail.label, "")).not_in(labels),
+                lambda e: func.lower(func.coalesce(e.label, "")).not_in(labels),
                 include_aliases=True,
             )
         )
         options.append(
             with_loader_criteria(
                 ContactPhone,
-                func.lower(func.coalesce(ContactPhone.label, "")).not_in(labels),
+                lambda ph: func.lower(func.coalesce(ph.label, "")).not_in(labels),
                 include_aliases=True,
             )
         )
     if p.hides("photo"):
-        options.append(with_loader_criteria(ContactPhoto, ContactPhoto.contact_id.is_(None)))
+        options.append(
+            with_loader_criteria(
+                ContactPhoto, lambda ph: ph.contact_id.is_(None), include_aliases=True
+            )
+        )
     state.statement = state.statement.options(*options)
 
 
