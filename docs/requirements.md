@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.9 |
+| Version | 1.9.1 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-03 |
@@ -174,7 +174,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | I-06 | Nightly `pg_dump` per production instance with 14-day retention to a local folder (`BACKUP_DIR`); restore command per instance. | Must | 3 |
 | I-07 | Copy a production database into dev (optionally anonymized) to reproduce issues. | Should | 3 |
 | I-08 | Contact types are configurable per instance from the settings page. | Should | 3 |
-| I-09 | Move or copy a contact between instances via export/import (vCard or JSON). | Could | 4 |
+| I-09 | Move or copy a contact between instances via export/import (vCard or JSON). JSON keeps extra fields, activity, lists, photo, the keep-in-touch cadence and snooze, and private flags. | Could | 4 |
 
 **Standard instance set**
 
@@ -271,8 +271,8 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, T-03–T-04, C-09, M-05, D-01–D-04, N-06, I-06–I-08 | 1–2 weeks |
 | 4 — Depth ✅ | Power-user features | C-11–C-13, S-07, T-05, L-05 (list tags), I-09 | 1–2 weeks |
 | 5 — Smart | Semantic search, recent interactions and directory sync | S-08–S-10, D-05 | 2+ weeks |
-| 6 — Look and feel | Theme modes, three palettes, accessibility pass, layout refresh, command palette | A-01–A-06, N-09, S-12 | 8–10 days |
-| 7 — Relationships and privacy | Keep-in-touch reminders and presenting mode | C-15–C-17, S-11, P-01–P-07 | ~8 days |
+| 6 — Look and feel ✅ | Theme modes, three palettes, accessibility pass, layout refresh, command palette | A-01–A-06, N-09, S-12 | 8–10 days |
+| 7 — Relationships and privacy ✅ | Keep-in-touch reminders and presenting mode | C-15–C-17, S-11, P-01–P-07 | ~8 days |
 
 ### Phase 0 — Foundation
 
@@ -366,6 +366,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.9.1 | 2026-10-03 | Phases 6 and 7 delivered. Clarified I-09: a JSON copy also carries the keep-in-touch cadence and snooze (C-15, C-16) and private flags (P-03). No requirement added or removed. | 0016, 0017 |
 | 1.9 | 2026-10-03 | S-12 command palette added to Phase 6; S-02 highlights matched words; S-11 adds Undo on Reconnect and an overdue marker in results; N-09 adds `?`, Ctrl/⌘ + K and 40/44 px controls. | 0017 |
 | 1.8 | 2026-10-03 | Phase 7 added: keep-in-touch reminders (C-15–C-17, S-11) and presenting mode (P-01–P-07). Data model gains kit_* and is_private columns. | 0016 |
 | 1.7 | 2026-10-03 | Phase 6 added: theme modes and palettes (A-01–A-06); N-09 reworded to WCAG 2.2 Level AA. Data model gains app_setting. | 0015 |
