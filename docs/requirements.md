@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.8 |
+| Version | 1.9 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-03 |
@@ -110,7 +110,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | ID | Requirement | Priority | Phase |
 | --- | --- | --- | --- |
 | S-01 | One search box matches across name, email, company, title, team, manager name, "works on", notes, tags and list names — and, from Phase 4, custom field values and activity summaries (ADR-0012). | Must | 2 |
-| S-02 | Results rank by relevance and show the matching context (e.g. "team: Data Platform · manager: Maria Lopez"). | Must | 2 |
+| S-02 | Results rank by relevance and show the matching context (e.g. "team: Data Platform · manager: Maria Lopez"), with the matched words highlighted (ADR-0017). | Must | 2 |
 | S-03 | Prefix and typo-tolerant matching ("lab res", "Mria"). | Must | 2 |
 | S-04 | Filters: contact type, company, team, manager, tag, list; combinable. | Must | 2 |
 | S-05 | Results update as you type (< 200 ms). | Must | 2 |
@@ -119,7 +119,8 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | S-08 | Natural-language or semantic search ("the person who helped with the FDA submission"), using a local model; results show the text that matched (ADR-0013). | Could | 5 |
 | S-09 | Filter by recent interaction (contacted in the last 7, 30, 90 or 365 days, from the activity log; notes don't count) and sort by last contact; results show the last contact date (ADR-0014). | Should | 5 |
 | S-10 | Time phrases in the search box ("recently", "last week", "in September", "since June 1", "yesterday") limit results to people with an interaction in that period, newest first, showing that interaction; "met", "called", "emailed", "messaged" narrow the kind (ADR-0014). | Could | 5 |
-| S-11 | **Reconnect** page and a "Due to reconnect" filter: overdue contacts first (most overdue at the top), then those due within 7 days; the count shows in the navigation (ADR-0016). | Should | 7 |
+| S-11 | **Reconnect** page and a "Due to reconnect" filter: overdue contacts first (most overdue at the top), then those due within 7 days; the count shows in the navigation; Log and Snooze offer Undo; search results mark overdue contacts, not by color alone (ADR-0016, ADR-0017). | Should | 7 |
+| S-12 | Command palette (Ctrl/⌘ + K): jump to a person, list, tag or saved search, or run a common action (add a contact, Reconnect, Present, theme); presenting mode applies (ADR-0017). | Should | 6 |
 
 ### Tags
 
@@ -219,7 +220,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | N-06 | Durability | Nightly `pg_dump` per production instance, 14-day retention, stored in a local folder outside Docker volumes; restore tested in CI. |
 | N-07 | Clipboard | Copy uses the browser Clipboard API (works on `localhost` as a secure context); a fallback shows the text to copy manually. |
 | N-08 | Email hand-off | `mailto:` links stay under ~2,000 characters; above that the app falls back to Copy emails and says why. |
-| N-09 | Usability | Keyboard-first: `/` focuses search, arrow keys move, space selects, `c` copies emails. Readable at 200% zoom; meets WCAG 2.2 Level AA, including contrast in every theme (A-04), visible focus and 24 × 24 px minimum targets (ADR-0015). |
+| N-09 | Usability | Keyboard-first: `/` focuses search, arrow keys move, space selects, `c` copies emails, Ctrl/⌘ + K opens the command palette and `?` lists every shortcut. Readable at 200% zoom; meets WCAG 2.2 Level AA, including contrast in every theme (A-04), visible focus and 24 × 24 px minimum targets; buttons and fields are at least 40 px tall (44 px at phone width) (ADR-0015, ADR-0017). |
 | N-10 | Maintainability | Typed Python (type hints checked by mypy, Pydantic models), versioned migrations, ≥ 80% test coverage overall and on search and list logic. |
 | N-11 | Portability | Full export to open formats (CSV, JSON, vCard) per instance so data is never locked in. |
 
@@ -270,7 +271,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, T-03–T-04, C-09, M-05, D-01–D-04, N-06, I-06–I-08 | 1–2 weeks |
 | 4 — Depth ✅ | Power-user features | C-11–C-13, S-07, T-05, L-05 (list tags), I-09 | 1–2 weeks |
 | 5 — Smart | Semantic search, recent interactions and directory sync | S-08–S-10, D-05 | 2+ weeks |
-| 6 — Look and feel | Theme modes, three palettes, accessibility pass, optional layout refresh | A-01–A-06, N-09 | 6–8 days |
+| 6 — Look and feel | Theme modes, three palettes, accessibility pass, layout refresh, command palette | A-01–A-06, N-09, S-12 | 8–10 days |
 | 7 — Relationships and privacy | Keep-in-touch reminders and presenting mode | C-15–C-17, S-11, P-01–P-07 | ~8 days |
 
 ### Phase 0 — Foundation
@@ -329,7 +330,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 - `app/static/tokens.css` with every color as a token, written once per palette with `light-dark()`; `app.css` uses tokens only; contrast fixes for the dark primary button, field borders, `color-scheme`, dark tag tints (ADR-0015).
 - `app_setting` table; Settings › Appearance (theme, palette, density); header theme switch that works without JavaScript; `<html data-theme data-palette data-density>` rendered by the server.
 - Sage and Clay palettes; vendored Atkinson Hyperlegible Next; reduced motion and increased contrast; instance header stripe and chip (I-03).
-- Optional last step: list + preview pane and filter chips.
+- Layout refresh: card list + preview pane, filter chips, highlighted matches; command palette (Ctrl/⌘ + K) and `?` shortcut list (ADR-0017).
 
 **Done when:** with the OS in dark mode, System renders dark and Light renders light with no flash on reload, even with JavaScript off; business-prod and personal-prod keep different palettes across a backup and restore; the contrast test and axe-core pass for all six palette-and-mode pairs.
 
@@ -365,6 +366,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.9 | 2026-10-03 | S-12 command palette added to Phase 6; S-02 highlights matched words; S-11 adds Undo on Reconnect and an overdue marker in results; N-09 adds `?`, Ctrl/⌘ + K and 40/44 px controls. | 0017 |
 | 1.8 | 2026-10-03 | Phase 7 added: keep-in-touch reminders (C-15–C-17, S-11) and presenting mode (P-01–P-07). Data model gains kit_* and is_private columns. | 0016 |
 | 1.7 | 2026-10-03 | Phase 6 added: theme modes and palettes (A-01–A-06); N-09 reworded to WCAG 2.2 Level AA. Data model gains app_setting. | 0015 |
 | 1.6 | 2026-10-03 | S-09 (recent-interaction filter, last-contact sort) and S-10 (time phrases in search) added after "who have I interacted with recently" found no one. | 0014 |
