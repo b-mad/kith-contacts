@@ -45,6 +45,7 @@ from app.migrate import upgrade_to_head
 from app.models import Contact, ContactPhoto, Tag
 from app.org import build_org
 from app.photos import remove_photo, set_photo
+from app.privacy import forget_privacy
 from app.schemas import AppearanceIn
 from app.search import active_lists
 from app.semantic import index_counts, mark_all_stale
@@ -202,6 +203,7 @@ async def restore_backup(request: Request, name: str) -> Response:
         restore(settings, item.path)
         upgrade_to_head(settings)
         forget_appearance(request.app.state)  # the restored database has its own choice
+        forget_privacy(request.app.state)
     except BackupError as exc:
         return RedirectResponse(
             with_notice("/settings", "", error=str(exc)[:300]), status.HTTP_303_SEE_OTHER

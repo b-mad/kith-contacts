@@ -2,6 +2,7 @@
 {% import "_macros.html" as m with context %}
 {% block title %}{{ cl.name }}{% endblock %}
 {% block content %}
+{% set pv = presenting() %}
 <div class="page-head">
   <div>
     <h1 data-testid="list-title">{{ cl.name }}{% if cl.status == "archived" %} <span class="pill muted">Archived</span>{% endif %}</h1>
@@ -77,10 +78,12 @@
           <td><span class="pill">{{ c.contact_type.name }}</span></td>
           <td>{{ c.company or "" }}</td>
           <td>
+            {% if not (pv and pv.names_only) %}
             <form class="role-form" method="post" action="/lists/{{ cl.id }}/members/{{ c.id }}/role">{{ m.csrf() }}
               <input name="role_note" value="{{ r.role_note }}" placeholder="Add role…" aria-label="Role for {{ c.display_name }}" maxlength="200">
               <button type="submit" class="link small">Save</button>
             </form>
+            {% endif %}
           </td>
           <td>{% if r.email %}<a href="mailto:{{ r.email }}">{{ r.email }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
           <td>{% if r.phone %}<a href="tel:{{ r.phone }}">{{ r.phone | phone }}</a>{% endif %}</td>

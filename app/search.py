@@ -35,6 +35,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Activity, Contact, ContactList, ListMember, Tag, contact_tag
+from app.privacy import Presenting, presenting
 from app.timephrase import INTERACTION_KINDS, TimeQuery, parse_time_query
 
 FUZZY_THRESHOLD = 0.3
@@ -164,7 +165,9 @@ class SearchFilters:
         if self.list_id is not None:
             stmt = stmt.where(
                 Contact.id.in_(
-                    select(ListMember.contact_id).where(ListMember.list_id == self.list_id)
+                    select(ListMember.contact_id)
+                    .join(ContactList, ContactList.id == ListMember.list_id)  # private lists: P-02
+                    .where(ListMember.list_id == self.list_id)
                 )
             )
         if self.favorites:
@@ -211,6 +214,7 @@ class SearchHit:
     matched: list[tuple[str, str]] = field(default_factory=list)
     fuzzy: bool = False
     mode: MatchMode = "list"  # all words / some words / typo match / no query
+    hidden: list[str] = field(default_factory=list)  # P-04: matched where it can't be quoted
 
 
 def _with_details(stmt: Select[tuple[Contact]]) -> Select[tuple[Contact]]:
@@ -333,8 +337,11 @@ def search(
                 hits[contact.id] = SearchHit(contact, float(score) * 0.01, fuzzy=True, mode="fuzzy")
 
     results = list(hits.values())
+    p = presenting()
     for hit in results:
         hit.matched = matched_fields(hit.contact, terms)
+        if p is not None and not hit.fuzzy:
+            hit.hidden = hidden_matches(hit.contact, terms, hit.matched, p, every=hit.mode == "all")
     return results
 
 
@@ -344,21 +351,66 @@ _SNIPPET = 60
 
 
 def _field_values(contact: Contact) -> list[tuple[str, str]]:
+    """Context a match can quote; while presenting, only what may be shown (P-04)."""
+    p = presenting()
+    if p is not None and p.names_only:
+        return [("company", contact.company)] if contact.company else []
+    manager = contact.manager
     values: list[tuple[str, str | None]] = [
         ("team", contact.team),
-        ("manager", contact.manager.display_name if contact.manager else None),
+        ("manager", manager.display_name if manager and not _private(manager, p) else None),
         ("company", contact.company),
         ("title", contact.title),
         ("department", contact.department),
         ("works on", contact.works_on),
-        *[("tag", t.name) for t in contact.tags],
-        *[("list", m.contact_list.name) for m in contact.memberships],
-        *[("email", e.email) for e in contact.emails],
-        ("location", contact.location),
-        ("notes", contact.notes),
+        *[("tag", t.name) for t in contact.tags if not _private(t, p)],
+        *[
+            ("list", m.contact_list.name)
+            for m in contact.memberships
+            if m.contact_list is not None and not _private(m.contact_list, p)
+        ],
+        *[("email", e.email) for e in contact.emails if p is None or not p.personal(e.label)],
+        ("location", None if p and p.hides("location") else contact.location),
+        ("notes", None if p and p.hides("notes") else contact.notes),
         ("aka", " ".join(filter(None, [contact.first_name, contact.last_name, contact.nickname]))),
     ]
     return [(label, v) for label, v in values if v]
+
+
+def _private(item: Contact | Tag | ContactList, p: Presenting | None) -> bool:
+    return p is not None and item.is_private
+
+
+def hidden_matches(
+    contact: Contact,
+    terms: Sequence[str],
+    shown: Sequence[tuple[str, str]],
+    p: Presenting,
+    *,
+    every: bool = True,
+) -> list[str]:
+    """P-04: where a match was found that presenting can't quote, e.g. ["notes"].
+
+    ``every``: the contact matched all the words (else some). Notes and location are
+    named; anything else (activity, private tags or lists,
+    personal emails, private extra fields) is "a hidden detail".
+    """
+    if not p.placeholders:
+        return []
+    name_words = [w.lower() for w in _WORD.findall(contact.display_name)]
+    pending = [t for t in terms if not any(w.startswith(t) for w in name_words)]
+    for _, value in shown:
+        words = [w.lower() for w in _WORD.findall(value)]
+        pending = [t for t in pending if not any(w.startswith(t) for w in words)]
+    if not pending or (not every and len(pending) < len(terms)):
+        return []  # "some words" matches: one visible match explains the result
+    named: list[str] = []
+    for label, private in (("notes", contact.notes), ("location", contact.location)):
+        if private and p.hides(label):
+            words = [w.lower() for w in _WORD.findall(private)]
+            if any(any(w.startswith(t) for w in words) for t in pending):
+                named.append(label)
+    return named or ["a hidden detail"]
 
 
 def _snippet(value: str, term: str) -> str:

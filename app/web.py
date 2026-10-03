@@ -38,6 +38,7 @@ from app.db import get_session
 from app.keep_in_touch import DUE_SOON_DAYS, INTERVAL_LABELS, SNOOZE_CHOICES, reminder_for
 from app.lists import add_members, all_lists, find_or_create_list, remove_member
 from app.models import Activity, Contact, Tag
+from app.privacy import hidden_counts, presenting, shown_summary, shows_dates, unfiltered
 from app.related import related_contacts
 from app.saved_searches import clean_query, list_saved_searches
 from app.schemas import ContactCreate, ContactUpdate
@@ -148,6 +149,9 @@ NOTICES = {
     "kit_bulk": "Keep in touch set for {n} contact(s).",
     "kit_bulk_off": "Keep in touch turned off for {n} contact(s).",
     "logged": "Logged. The next reminder for {name} starts from today.",
+    "privacy": "Privacy and presenting settings saved.",
+    "private_on": "Marked private: hidden while presenting.",
+    "private_off": "No longer private.",
 }
 
 
@@ -176,9 +180,13 @@ def selected_ids(form: FormData) -> list[int]:
 
 def _interaction(activity: Activity) -> tuple[str, str]:
     """("Message · Oct 2", "Sent the Q4 schedule") for a result row (S-10)."""
+    kind = activity.kind.capitalize()
+    summary = _clip(shown_summary(activity.summary), 140)  # P-02
+    if not shows_dates():
+        return kind, summary
     d = activity.occurred_on
     when = f"{d.strftime('%b')} {d.day}" + ("" if d.year == date.today().year else f", {d.year}")
-    return f"{activity.kind.capitalize()} · {when}", _clip(activity.summary, 140)
+    return f"{kind} · {when}", summary
 
 
 def _clip(text: str, limit: int = 180) -> str:
@@ -203,6 +211,15 @@ def _meaning(
         keyword_hits=len(exact),
     )
     return meaning, bool(meaning) and not all_words
+
+
+def _private_count(session: Session, words: str, filters: SearchFilters) -> int:
+    """P-04: how many private contacts this search leaves out while presenting."""
+    p = presenting()
+    if p is None or not p.placeholders:
+        return 0
+    with Session(bind=session.get_bind()) as other, unfiltered():  # never rendered
+        return sum(1 for h in search(other, words, filters) if h.contact.is_private)
 
 
 def _search_context(request: Request, session: Session) -> dict[str, Any]:
@@ -236,7 +253,11 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         shown = {m.contact.id for m in meaning}
         hits = [h for h in hits if h.contact.id not in shown]
     listed = [h.contact.id for h in hits] + [m.contact.id for m in meaning]
-    last_contact = {cid: a.occurred_on for cid, a in last_interactions(session, listed).items()}
+    last_contact = (
+        {cid: a.occurred_on for cid, a in last_interactions(session, listed).items()}
+        if shows_dates()
+        else {}
+    )
     in_period = (
         last_interactions(session, listed, period_filters) if period_filters.has_period else {}
     )
@@ -253,7 +274,8 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         "q": q,
         "filters": filters,
         "sort": sort,
-        "hits": [(to_out(h.contact), h.matched, h.fuzzy) for h in hits],
+        "hits": [(to_out(h.contact), h.matched, h.fuzzy, h.hidden) for h in hits],
+        "private_count": _private_count(session, words, period_filters),
         "last_contact": last_contact,
         "in_period": {cid: _interaction(a) for cid, a in in_period.items()},
         "contacted": contacted,
@@ -582,12 +604,14 @@ def contact_card(request: Request, contact_id: int, session: SessionDep) -> HTML
             "notice": notice_text(request),
             "all_tags": [t.name for t in tag_counts(session)],
             "all_lists": active_lists(session),
-            "roles": {m.contact_list.id: m.role_note for m in contact.memberships},
+            "roles": {m.list_id: m.role_note for m in contact.memberships},
             "related": related_contacts(session, contact),
             "reminder": reminder_for(session, contact, today=date.today()),
             "kit_interval": contact.kit_interval,
             "kit_intervals": INTERVAL_LABELS,
             "snooze_choices": SNOOZE_CHOICES,
+            "hidden": hidden_counts(session, contact, presenting()),  # P-02 placeholders
+            "is_private": contact.is_private,
         },
     )
 

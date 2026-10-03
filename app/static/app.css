@@ -499,3 +499,37 @@ body.env-production .nav-count { background: var(--accent-fill); color: var(--on
   .reconnect-row .when { align-items: flex-start; }
   .log-form { left: 0; right: auto; min-width: 0; flex-wrap: wrap; }
 }
+
+/* Phase 7: presenting mode (P-01 to P-07, ADR-0016) */
+.present-form { margin: 0; }
+.present-toggle {
+  display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2rem; padding: 0.15rem 0.7rem;
+  background: transparent; color: inherit; border: 2px solid currentColor; border-radius: 999px;
+  font-weight: 600; cursor: pointer;
+}
+.present-toggle kbd { font: inherit; font-size: 0.75rem; opacity: 0.85; }
+.present-toggle[aria-pressed="true"] { background: var(--warning-soft); color: var(--fg); border-color: var(--warning); }
+body:not(.env-production) .present-toggle { color: var(--instance-on); }
+body:not(.env-production) .present-toggle[aria-pressed="true"] { color: var(--fg); }
+.presenting-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem;
+  padding: 0.45rem 1rem; background: var(--warning-soft); color: var(--fg);
+  border-bottom: 3px solid var(--warning);
+}
+.presenting-bar p { margin: 0; }
+.presenting-bar form { margin: 0; }
+.redacted { color: var(--muted); font-style: italic; font-size: 0.9rem; }
+.redacted::before { content: "◌ "; font-style: normal; }
+.match.redacted { font-style: italic; }
+.presenting-notice { max-width: 40rem; }
+.locked { display: grid; justify-items: center; gap: 0.5rem; padding-top: 18vh; text-align: center; }
+.locked h1 { margin: 0; }
+.lock-icon { width: 3rem; height: 3rem; fill: none; stroke: var(--muted); stroke-width: 1.6; }
+.category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.4rem 1.5rem; }
+.private-items { display: grid; gap: 0.25rem; margin: 0 0 0.75rem; }
+.private-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+.private-item-name { flex: 1 1 auto; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.private-item form { flex: 0 0 auto; margin: 0; }
+.switch-button { min-width: 5.5rem; min-height: 1.75rem; border-radius: 999px; }
+.switch-button[aria-pressed="true"] { background: var(--accent-fill); color: var(--on-accent); border-color: var(--accent-fill); }
+body:not(.env-production) .present-toggle:not([aria-pressed="true"]):hover { background: rgb(0 0 0 / 0.15); }

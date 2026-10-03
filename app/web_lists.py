@@ -23,6 +23,7 @@ from app.lists import (
     update_list,
 )
 from app.models import ContactList
+from app.privacy import presenting
 from app.tags import tag_counts
 from app.web import CsrfChecked, SessionDep, _render, notice_text, with_notice
 
@@ -93,14 +94,18 @@ async def create_list_form(request: Request, session: SessionDep) -> Response:
 
 def _member_rows(contact_list: ContactList) -> list[dict[str, Any]]:
     rows = []
-    for member in sorted(contact_list.members, key=lambda m: m.contact.display_name.lower()):
+    p = presenting()
+    # contact is None for a private contact withheld while presenting (P-02).
+    members = [m for m in contact_list.members if m.contact is not None]
+    for member in sorted(members, key=lambda m: m.contact.display_name.lower()):
         contact = member.contact
+        reachable = p is None or not p.names_only
         rows.append(
             {
                 "contact": contact,
-                "role_note": member.role_note or "",
-                "email": primary_email(contact),
-                "phone": contact.phones[0].number if contact.phones else None,
+                "role_note": (member.role_note or "") if reachable else "",
+                "email": primary_email(contact) if reachable else None,
+                "phone": contact.phones[0].number if contact.phones and reachable else None,
                 "archived": contact.archived_at is not None,
             }
         )

@@ -1,0 +1,31 @@
+<!doctype html>
+{% set ap = appearance() %}
+<html lang="en" data-theme="{{ ap.theme }}" data-palette="{{ ap.palette }}" data-density="{{ ap.density }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Locked while presenting · {{ instance.instance_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('instance_css') }}">
+  <script src="{{ url_for('static', path='js/app.js') }}" defer></script>
+</head>
+{# P-07: this instance shows nothing while presenting — no navigation, counts or names. #}
+<body class="env-{{ instance.app_env }} is-presenting">
+  <header class="instance-bar" data-testid="instance-bar">
+    <span class="brand">Contacts</span>
+    <span class="instance-name" data-testid="instance-name">{{ instance.instance_name }}</span>
+  </header>
+  <main class="locked" data-testid="locked">
+    <svg class="lock-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+    <h1>Locked while presenting</h1>
+    <p class="muted">{{ instance.instance_name }} shows nothing while you present.</p>
+    <form method="post" action="/presenting" data-present-form>
+      <input type="hidden" name="{{ csrf_field }}" value="{{ request.state.csrf_token }}">
+      <input type="hidden" name="on" value="0">
+      <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+      <button type="submit" class="primary" data-testid="stop-presenting">Stop presenting <kbd>⇧P</kbd></button>
+    </form>
+  </main>
+</body>
+</html>

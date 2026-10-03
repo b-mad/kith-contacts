@@ -51,6 +51,13 @@
   </form>
 </section>
 
+<section class="panel" aria-labelledby="privacy-h" data-testid="privacy">
+  <h2 id="privacy-h">Privacy and presenting</h2>
+  <p class="muted small">Choose what stays hidden while you share your screen, mark tags, lists, fields and contacts private, and decide what {{ instance.instance_name }} shows while presenting.</p>
+  {% if presenting() %}<p class="small">Stop presenting to change these settings.</p>
+  {% else %}<p><a class="button" href="/settings/privacy" data-testid="privacy-link">Privacy and presenting settings</a></p>{% endif %}
+</section>
+
 <section class="panel" aria-labelledby="semantic-h" data-testid="semantic">
   <h2 id="semantic-h">Search by meaning</h2>
   {% if semantic.ready %}

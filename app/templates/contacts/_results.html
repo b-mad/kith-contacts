@@ -1,5 +1,6 @@
 {# Results table — rendered in the page and fetched alone while typing (S-05). #}
 {% import "_macros.html" as m with context %}
+{% set pv = presenting() %}
 {% set chips = [] %}
 {% if manager %}{% set _ = chips.append(("manager", "Reports to " ~ manager.display_name)) %}{% endif %}
 {% if filters.tag %}{% set _ = chips.append(("tag", "Tag: " ~ filters.tag)) %}{% endif %}
@@ -40,7 +41,7 @@
   </details>
 {% endif %}
 
-{% macro result_row(c, matched, fuzzy, why=None) -%}
+{% macro result_row(c, matched, fuzzy, why=None, hidden=[]) -%}
   {% set email = c.emails[0].email if c.emails else "" %}
   <tr data-contact-id="{{ c.id }}" data-email="{{ email }}" data-name="{{ c.display_name }}" data-testid="{{ 'meaning-row' if why else 'result-row' }}"{% if c.archived %} class="archived"{% endif %}>
     <td class="select-col"><input type="checkbox" class="select-contact" value="{{ c.id }}" aria-label="Select {{ c.display_name }}"></td>
@@ -50,14 +51,17 @@
       {% if c.archived %} <span class="pill muted">Archived</span>{% endif %}
       {% if in_period.get(c.id) %}
         {% set act = in_period[c.id] %}
-        <div class="matched" data-testid="interaction"><span class="match"><span class="match-field">{{ act[0] }}:</span> {{ act[1] }}</span></div>
+        <div class="matched" data-testid="interaction"><span class="match"><span class="match-field">{{ act[0] }}{% if act[1] %}:{% endif %}</span> {% if act[1] %}{{ act[1] }}{% elif pv and pv.placeholders %}<span class="redacted">details hidden while presenting</span>{% endif %}</span></div>
       {% endif %}
-      {% if why %}
+      {% if why and why[1] %}
         <div class="matched" data-testid="meaning-why"><span class="match"><span class="match-field">{{ why[0] }}:</span> {{ why[1] }}</span></div>
-      {% elif matched or fuzzy %}
+      {% elif why %}{# P-04: presenting never quotes text that may be private #}
+        {% if pv and pv.placeholders %}<div class="matched" data-testid="meaning-why"><span class="match redacted">Matched in {{ why[0] }} · hidden while presenting</span></div>{% endif %}
+      {% elif matched or fuzzy or hidden %}
         <div class="matched" data-testid="matched">
           {% if fuzzy %}<span class="muted">similar name</span>{% endif %}
           {% for field, value in matched[:3] %}<span class="match"><span class="match-field">{{ field }}:</span> {{ value }}</span>{% endfor %}
+          {% for label in hidden %}<span class="match redacted" data-testid="hidden-match">Matched in {{ label }} · hidden while presenting</span>{% endfor %}
         </div>
       {% endif %}
     </td>
@@ -101,17 +105,17 @@
     {% if hits %}
     <tbody>
       {% if meaning and meaning_first %}<tr class="section-row"><th scope="rowgroup" colspan="9">Matching some of the words</th></tr>{% endif %}
-      {% for c, matched, fuzzy in hits %}{{ result_row(c, matched, fuzzy) }}{% endfor %}
+      {% for c, matched, fuzzy, hidden in hits %}{{ result_row(c, matched, fuzzy, hidden=hidden) }}{% endfor %}
     </tbody>
     {% endif %}
     {% if meaning and not meaning_first %}{{ meaning_rows() }}{% endif %}
   </table>
   </div>
-  <p class="muted count" data-testid="result-count">{{ hits | length }} contact{{ "" if hits | length == 1 else "s" }}{% if q %} matching “{{ q }}”{% endif %}{% if meaning %} · {{ meaning | length }} by meaning{% endif %}</p>
+  <p class="muted count" data-testid="result-count">{{ hits | length }} contact{{ "" if hits | length == 1 else "s" }}{% if q %} matching “{{ q }}”{% endif %}{% if meaning %} · {{ meaning | length }} by meaning{% endif %}{% if private_count %} · <span data-testid="private-count">{{ private_count }} private contact{{ "" if private_count == 1 else "s" }} hidden while presenting</span>{% endif %}</p>
 {% elif time_query %}
   <p class="empty" data-testid="no-results">No logged meetings, calls, emails or messages {{ time_query.label }}{% if time_query.terms %} matching “{{ time_query.terms | join(" ") }}”{% endif %}. Log interactions on a contact's card to find people this way.</p>
 {% elif q or filters.active %}
-  <p class="empty" data-testid="no-results">No contacts match{% if q %} “{{ q }}”{% endif %}. Try fewer words, or a team, manager, company or tag.</p>
+  <p class="empty" data-testid="no-results">No contacts match{% if q %} “{{ q }}”{% endif %}. Try fewer words, or a team, manager, company or tag.{% if private_count %} <span data-testid="private-count">{{ private_count }} private contact{{ "" if private_count == 1 else "s" }} hidden while presenting.</span>{% endif %}</p>
 {% else %}
   <p class="empty" data-testid="empty-state">No contacts yet.</p>
 {% endif %}

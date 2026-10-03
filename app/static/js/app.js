@@ -14,6 +14,7 @@ const store = {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
+  initPresenting();
   initThemeSwitch();
   initLogPrompt();
   initSearch();
@@ -166,8 +167,13 @@ function initSelection() {
       skipped: people.filter((p) => !p.email).map((p) => p.name),
     };
   };
+  // P-06: while presenting only work addresses reach the page; say how many were left out.
+  const presentingNow = document.body.classList.contains("is-presenting");
   const skippedNote = (skipped) =>
-    skipped.length ? ` · ${skipped.length} skipped (no email): ${skipped.join(", ")}` : "";
+    !skipped.length ? ""
+      : presentingNow ? ` · ${skipped.length} left out (no work address): ${skipped.join(", ")}`
+      : ` · ${skipped.length} skipped (no email): ${skipped.join(", ")}`;
+  const nobody = presentingNow ? "Nobody selected has a work email address" : "Nobody selected has an email address";
 
   // ---- copy emails (M-02, ADR-0009)
   const CLIENTS = { outlook: { sep: "; ", label: "Outlook" }, gmail: { sep: ", ", label: "Gmail" } };
@@ -177,7 +183,7 @@ function initSelection() {
     const { emails, skipped } = recipients();
     closeMenus();
     if (!emails.length) {
-      say(`Nobody selected has an email address${skippedNote(skipped)}`);
+      say(`${nobody}${skippedNote(skipped)}`);
       return;
     }
     const client = CLIENTS[clientKey];
@@ -222,7 +228,7 @@ function initSelection() {
       const { emails, skipped } = recipients();
       closeMenus();
       if (!emails.length) {
-        say(`Nobody selected has an email address${skippedNote(skipped)}`);
+        say(`${nobody}${skippedNote(skipped)}`);
         return;
       }
       const field = ($('input[name="compose_field"]:checked', bar) || { value: "to" }).value;
@@ -459,5 +465,19 @@ function initLogPrompt() {
   });
   $("[data-log-prompt-dismiss]", form).addEventListener("click", () => {
     form.hidden = true;
+  });
+}
+
+// ------------------------------------------------------------------ presenting mode (P-01)
+
+function initPresenting() {
+  // ⇧P anywhere outside a text field turns presenting on or off (the header form does the work).
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "P" || !e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+    const form = $("[data-present-form]");
+    if (!form) return;
+    e.preventDefault();
+    form.requestSubmit();
   });
 }

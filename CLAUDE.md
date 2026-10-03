@@ -54,6 +54,10 @@ requirements, and do not silently deviate from an ADR.
   real-model checks are marked `@pytest.mark.model` and run with `make test-model`.
   Anything that copies data for others to see (exports, anonymized copies) must not
   include `semantic_chunk` text or vectors.
+- Presenting mode (ADR-0016): anything that shows contact data must go through
+  `contacts.to_out` (which redacts) or check `app.privacy.presenting()`. A new field on
+  `ContactOut` must be classified in `app/privacy.py`; a new page is covered automatically
+  by the canary test in `tests/test_presenting.py`, which must keep passing.
 - Browser-only behavior (clipboard, compose links, live search) is tested with
   Playwright in `tests/e2e/`; run `make e2e`.
 - Type everything; `mypy --strict` must pass. Prefer small pure functions that
@@ -116,6 +120,10 @@ delete a failing test to get a green run unless the requirement was withdrawn.
 | `app/semantic.py` | Search by meaning: chunks, indexing, in-memory vectors, ranking (ADR-0013) |
 | `scripts/semantic.py` | `make model` (verified download) and `make reindex` |
 | `app/timephrase.py` | Time phrases in the search box ("recently", "last week") → period filter (S-10, ADR-0014) |
+| `app/appearance.py` | Theme, palette and density per instance in `app_setting`; contrast helpers (A-01 to A-06, ADR-0015) |
+| `app/keep_in_touch.py`, `app/web_kit.py` | Keep-in-touch cadence, due dates, snooze; Reconnect page (C-15 to C-17, S-11, ADR-0016) |
+| `app/privacy.py` | Presenting mode: session-level filtering of private records, allowlist redaction of contacts, blocked pages (P-01 to P-07, ADR-0016) |
+| `app/web_privacy.py` | `POST /presenting`, Settings › Privacy and presenting, private flags |
 | `app/api.py` | JSON API (`/api/...`); writes require `application/json` |
 | `app/web.py` | Server-rendered pages and forms; POSTs need the CSRF token |
 | `app/static/js/app.js` | Vanilla JS: live search, selection + action bar (copy/compose for Outlook or Gmail), pickers, form rows |

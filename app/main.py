@@ -25,7 +25,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app import api, web, web_admin, web_depth, web_kit, web_lists
+from app import api, web, web_admin, web_depth, web_kit, web_lists, web_privacy
 from app.appearance import THEME_CHOICES, current_appearance, text_on
 from app.backup import BackupFile, ensure_recent_backup
 from app.config import Settings, load_settings
@@ -35,6 +35,16 @@ from app.embedder import Embedder
 from app.keep_in_touch import INTERVAL_LABELS, count_due
 from app.links import display_phone, slack_handle_display
 from app.migrate import current_revision, ensure_contact_types, upgrade_to_head
+from app.privacy import (
+    COOKIE,
+    PRESENTING,
+    Presenting,
+    current_privacy,
+    is_blocked,
+    is_presenting,
+    is_unlocked,
+    presenting,
+)
 from app.saved_searches import describe_query
 from app.semantic import SemanticService, mark_changed
 
@@ -196,7 +206,42 @@ def create_app(
     app.state.templates.env.globals["theme_choices"] = THEME_CHOICES
     app.state.templates.env.globals["kit_intervals"] = INTERVAL_LABELS
     app.state.templates.env.globals["reconnect_count"] = lambda: _reconnect_count(app)
+    app.state.privacy = None  # loaded on first request (P-03)
+    app.state.templates.env.globals["presenting"] = presenting
     app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
+
+    # Registered before security_and_csrf, so it runs inside it (CSRF token already set).
+    @app.middleware("http")
+    async def presenting_mode(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """P-01 to P-07: while presenting, every query and template sees the presentable view."""
+        privacy = await asyncio.to_thread(current_privacy, app.state)
+        if not is_presenting(request.cookies, privacy):
+            return await call_next(request)
+        path = request.url.path
+        token = PRESENTING.set(
+            Presenting(privacy, filter_queries=request.method in {"GET", "HEAD"})
+        )
+        try:
+            if privacy.view == "locked" and not is_unlocked(path):
+                response = _unavailable(request, "privacy/locked.html", path)
+            elif is_blocked(path):
+                response = _unavailable(request, "privacy/unavailable.html", path)
+            else:
+                response = await call_next(request)
+        finally:
+            PRESENTING.reset(token)
+        if COOKIE not in request.cookies:  # P-07: this instance starts presenting
+            web_privacy.set_presenting_cookie(response, True, privacy)
+        return response
+
+    def _unavailable(request: Request, template: str, path: str) -> Response:
+        accept = request.headers.get("accept", "")
+        if path.startswith("/api/") or ("json" in accept and "html" not in accept):
+            return JSONResponse({"detail": "Not available while presenting"}, status_code=403)
+        templates: Jinja2Templates = app.state.templates
+        return templates.TemplateResponse(request, template, {}, status_code=403)
 
     @app.middleware("http")
     async def security_and_csrf(
@@ -247,4 +292,5 @@ def create_app(
     app.include_router(web_admin.router)
     app.include_router(web_depth.router)
     app.include_router(web_kit.router)
+    app.include_router(web_privacy.router)
     return app

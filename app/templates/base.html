@@ -1,5 +1,6 @@
 <!doctype html>
 {% set ap = appearance() %}
+{% set pv = presenting() %}
 <html lang="en" data-theme="{{ ap.theme }}" data-palette="{{ ap.palette }}" data-density="{{ ap.density }}">
 <head>
   <meta charset="utf-8">
@@ -10,7 +11,7 @@
   <link rel="stylesheet" href="{{ url_for('instance_css') }}">
   <script src="{{ url_for('static', path='js/app.js') }}" defer></script>
 </head>
-<body class="env-{{ instance.app_env }}">
+<body class="env-{{ instance.app_env }}{% if pv %} is-presenting{% endif %}">
   <header class="instance-bar" data-testid="instance-bar">
     <a class="brand" href="/">Contacts</a>
     <span class="instance-name" data-testid="instance-name">{{ instance.instance_name }}</span>
@@ -36,11 +37,29 @@
         <noscript><button type="submit" class="seg-apply">Apply</button></noscript>
       </form>
       <a class="bar-link" href="/contacts/new" data-testid="nav-add">+ Add contact</a>
+      {# P-01: a plain form so it works without JavaScript; app.js adds ⇧P. #}
+      <form class="present-form" method="post" action="/presenting" data-present-form>
+        <input type="hidden" name="{{ csrf_field }}" value="{{ request.state.csrf_token }}">
+        <input type="hidden" name="on" value="{{ '0' if pv else '1' }}">
+        <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+        <button type="submit" class="present-toggle" aria-pressed="{{ 'true' if pv else 'false' }}" aria-keyshortcuts="Shift+P" title="Hide private details while you share your screen (⇧P)" data-testid="present-toggle">Present <kbd>⇧P</kbd></button>
+      </form>
       {% if not instance.is_production %}
         <span class="env-badge" data-testid="env-badge">{{ instance.app_env | upper }}</span>
       {% endif %}
     </nav>
   </header>
+  {% if pv %}
+  <div class="presenting-bar" role="status" data-testid="presenting-bar">
+    <p><strong>Presenting</strong> — {% if pv.names_only %}names and companies only{% else %}private details are hidden{% endif %} on every instance in this browser.</p>
+    <form method="post" action="/presenting">
+      <input type="hidden" name="{{ csrf_field }}" value="{{ request.state.csrf_token }}">
+      <input type="hidden" name="on" value="0">
+      <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+      <button type="submit" data-testid="stop-presenting">Stop presenting</button>
+    </form>
+  </div>
+  {% endif %}
   <main>
     {% if notice %}<p class="flash" role="status" data-testid="flash">{{ notice }}</p>{% endif %}
     {% block content %}{% endblock %}

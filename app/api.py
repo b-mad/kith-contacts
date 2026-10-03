@@ -25,6 +25,7 @@ from app.contacts import (
     update_contact,
 )
 from app.db import get_session
+from app.privacy import shown_summary, shows_dates
 from app.schemas import ContactCreate, ContactOut, ContactRef, ContactTypeOut, ContactUpdate
 from app.search import SearchFilters, apply_time_query, last_interactions, search
 from app.search import SortKey as SearchSort
@@ -133,8 +134,9 @@ def search_contacts(
     sort: SearchSort = "last_contact" if time_query and not words else "relevance"
     hits = search(session, words, filters, sort=sort)
     ids = [h.contact.id for h in hits]
-    last = last_interactions(session, ids)
-    in_period = last_interactions(session, ids, filters) if filters.has_period else {}
+    dates = shows_dates()  # P-02: presenting may hide last-contact dates
+    last = last_interactions(session, ids) if dates else {}
+    in_period = last_interactions(session, ids, filters) if filters.has_period and dates else {}
     return [
         SearchResult(
             contact=to_out(hit.contact),
@@ -142,7 +144,11 @@ def search_contacts(
             fuzzy=hit.fuzzy,
             last_contact=last[hit.contact.id].occurred_on if hit.contact.id in last else None,
             interaction=(
-                InteractionOut.model_validate(in_period[hit.contact.id], from_attributes=True)
+                InteractionOut(
+                    kind=in_period[hit.contact.id].kind,
+                    occurred_on=in_period[hit.contact.id].occurred_on,
+                    summary=shown_summary(in_period[hit.contact.id].summary),
+                )
                 if hit.contact.id in in_period
                 else None
             ),

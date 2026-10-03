@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.contacts import ContactError, ContactNotFound
 from app.models import SavedSearch
+from app.privacy import presenting, private_refs
 
 SAVED_PARAMS = (
     "q", "type", "company", "team", "manager", "tag", "list", "favorites", "archived", "contacted",
@@ -45,7 +46,24 @@ def _find(session: Session, name: str) -> SavedSearch | None:
 
 
 def list_saved_searches(session: Session) -> Sequence[SavedSearch]:
-    return session.scalars(select(SavedSearch).order_by(func.lower(SavedSearch.name))).all()
+    rows = session.scalars(select(SavedSearch).order_by(func.lower(SavedSearch.name))).all()
+    if presenting() is None:
+        return rows
+    tags, lists, contacts = private_refs(session)  # P-02: a saved search can name them
+    return [s for s in rows if not _mentions(s.query, tags, lists, contacts)]
+
+
+def _mentions(query: str, tags: set[str], lists: set[int], contacts: set[int]) -> bool:
+    values = dict(parse_qsl(query))
+    return (
+        values.get("tag", "").lower() in tags
+        or _id(values.get("list")) in lists
+        or _id(values.get("manager")) in contacts
+    )
+
+
+def _id(value: str | None) -> int | None:
+    return int(value) if value and value.isdigit() else None
 
 
 def get_saved_search(session: Session, search_id: int) -> SavedSearch:

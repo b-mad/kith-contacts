@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.config import Settings
 from app.embedder import Embedder, ModelUnavailable, Vectors, load_embedder
 from app.models import Contact, ListMember, SemanticChunk, SemanticDoc
+from app.privacy import Presenting, presenting
 from app.search import SearchFilters, _with_details, query_terms
 
 log = logging.getLogger(__name__)
@@ -485,6 +486,19 @@ class MeaningHit:
         return SOURCE_LABELS.get(self.source, self.source)
 
 
+# Which "why" text presenting may quote (P-04): profile text can name private tags or lists.
+_SOURCE_CATEGORY = {"works_on": None, "notes": "notes", "activity": "activity", "fields": "fields"}
+
+
+def quotable(source: str, p: Presenting | None) -> bool:
+    if p is None:
+        return True
+    if p.names_only or source not in _SOURCE_CATEGORY:
+        return False
+    category = _SOURCE_CATEGORY[source]
+    return category is None or not p.hides(category)
+
+
 def search_by_meaning(
     session: Session,
     service: SemanticService,
@@ -521,8 +535,15 @@ def search_by_meaning(
             _with_details(select(Contact)).where(Contact.id.in_([m.contact_id for m in chosen]))
         )
     }
+    p = presenting()
     return [
-        MeaningHit(contacts[m.contact_id], m.score, m.source, m.text)
+        # P-04: while presenting, only "works on" text is quoted; the rest may be private.
+        MeaningHit(
+            contacts[m.contact_id],
+            m.score,
+            m.source,
+            m.text if quotable(m.source, p) else "",
+        )
         for m in chosen
         if m.contact_id in contacts
     ]

@@ -4,7 +4,7 @@ Migration 0001 created the Phase 1 tables; 0002 adds tags, lists and the
 search vector (Phase 2); 0003 photos (Phase 3); 0004 custom fields, activities,
 saved searches, list tags, duplicate dismissals and merge snapshots (Phase 4);
 0005 search by meaning (Phase 5); 0006 per-instance app settings (Phase 6);
-0007 keep-in-touch reminders (Phase 7).
+0007 keep-in-touch reminders (Phase 7); 0008 private flags for presenting mode (Phase 7).
 """
 
 from __future__ import annotations
@@ -80,6 +80,7 @@ class Tag(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(50))
     color: Mapped[str | None] = mapped_column(String(7))
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # P-03
 
     contacts: Mapped[list[Contact]] = relationship(secondary=contact_tag, back_populates="tags")
 
@@ -97,6 +98,7 @@ class ContactList(Base):
     name: Mapped[str] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(10), default="active", server_default="active")
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # P-03
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     members: Mapped[list[ListMember]] = relationship(
@@ -171,6 +173,8 @@ class Contact(Base):
     kit_interval: Mapped[str | None] = mapped_column(String(3))  # None = off
     kit_started_on: Mapped[date | None] = mapped_column(Date)
     kit_snoozed_until: Mapped[date | None] = mapped_column(Date)
+    # P-03: a private contact is left out of everything while presenting (ADR-0016).
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     # S-01: weighted full-text document, maintained by app.search.refresh_search.
     search_vector: Mapped[str | None] = deferred(mapped_column(TSVECTOR))
@@ -273,6 +277,7 @@ class CustomField(Base):
     contact_id: Mapped[int] = mapped_column(ForeignKey("contact.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String(50))
     value: Mapped[str] = mapped_column(String(500))
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # P-03
     sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 

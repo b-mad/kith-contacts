@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Privacy and presenting{% endblock %}
+{% block content %}
+<p class="small"><a href="/settings">← Settings</a></p>
+<h1>Privacy and presenting</h1>
+<p class="muted">Presenting mode keeps private details off the screen while you share it. Hidden details are never sent to the browser, so they can't be copied, zoomed or found with the browser's search. Turn it on with <strong>Present</strong> in the header or <kbd>⇧P</kbd> anywhere outside a text field.</p>
+
+<form method="post" action="/settings/privacy" class="privacy-form" data-testid="privacy-form">{{ m.csrf() }}
+  <section class="panel" aria-labelledby="onoff-h">
+    <h2 id="onoff-h">Turning it on and off</h2>
+    <p class="hint">Presenting covers every instance open in this browser, so switching tabs in a meeting stays safe.</p>
+    <fieldset class="choice-group">
+      <legend>Turn presenting off</legend>
+      {% for value, label, hint in off_choices %}
+        <label class="choice"><input type="radio" name="off" value="{{ value }}"{% if s.off == value %} checked{% endif %} data-testid="privacy-off-{{ value }}"> <span><strong>{{ label }}</strong>{% if hint %} <span class="muted">— {{ hint }}</span>{% endif %}</span></label>
+      {% endfor %}
+    </fieldset>
+    <label class="choice"><input type="checkbox" name="start" value="1"{% if s.start %} checked{% endif %} data-testid="privacy-start"> <span>Start every visit to <strong>{{ instance.instance_name }}</strong> already presenting</span></label>
+  </section>
+
+  <section class="panel" aria-labelledby="hidden-h">
+    <h2 id="hidden-h">Hidden while presenting</h2>
+    <fieldset class="choice-group category-grid">
+      <legend class="visually-hidden">Details to hide</legend>
+      {% for value, label, hint in category_choices %}
+        <label class="choice"><input type="checkbox" name="hidden" value="{{ value }}"{% if value in s.hidden %} checked{% endif %} data-testid="privacy-hide-{{ value }}"> <span><strong>{{ label }}</strong><br><span class="muted small">{{ hint }}</span></span></label>
+      {% endfor %}
+    </fieldset>
+    <div class="field">
+      <label for="labels">Email and phone labels treated as personal</label>
+      <input id="labels" name="labels" value="{{ s.labels | join(', ') }}" maxlength="500" data-testid="privacy-labels">
+      <p class="hint">Separate with commas, e.g. personal, home, mobile. Addresses and numbers with these labels are hidden.</p>
+    </div>
+    <fieldset class="choice-group">
+      <legend>How hidden items look</legend>
+      {% for value, label, hint in look_choices %}
+        <label class="choice"><input type="radio" name="look" value="{{ value }}"{% if s.look == value %} checked{% endif %} data-testid="privacy-look-{{ value }}"> <span>{{ label }}</span></label>
+      {% endfor %}
+    </fieldset>
+  </section>
+
+  <section class="panel" aria-labelledby="view-h">
+    <h2 id="view-h">While presenting, {{ instance.instance_name }} shows</h2>
+    <fieldset class="choice-group">
+      <legend class="visually-hidden">What this instance shows while presenting</legend>
+      {% for value, label, hint in view_choices %}
+        <label class="choice"><input type="radio" name="view" value="{{ value }}"{% if s.view == value %} checked{% endif %} data-testid="privacy-view-{{ value }}"> <span><strong>{{ label }}</strong> <span class="muted">— {{ hint }}</span></span></label>
+      {% endfor %}
+    </fieldset>
+  </section>
+
+  <p><button type="submit" class="primary" data-testid="privacy-save">Save privacy settings</button></p>
+</form>
+
+<section class="panel" aria-labelledby="items-h" data-testid="private-items">
+  <h2 id="items-h">Private tags, lists, fields and contacts</h2>
+  <p class="muted small">Private items vanish while presenting. A private contact is left out of results entirely; mark one private from its card.</p>
+
+  {% macro item_row(kind, key, name, note, private) -%}
+    <li class="private-item">
+      <span class="pill">{{ kind | capitalize }}</span>
+      <span class="private-item-name">{{ name }} <span class="muted small">· {{ note }}</span></span>
+      <form method="post" action="/settings/privacy/item">{{ m.csrf() }}
+        <input type="hidden" name="kind" value="{{ kind }}">
+        <input type="hidden" name="key" value="{{ key }}">
+        <input type="hidden" name="private" value="{{ '0' if private else '1' }}">
+        <button type="submit" class="switch-button" aria-pressed="{{ 'true' if private else 'false' }}" aria-label="Private: {{ name }}" data-testid="private-{{ kind }}-{{ key }}">{{ "Private" if private else "Visible" }}</button>
+      </form>
+    </li>
+  {%- endmacro %}
+
+  <h3>Tags</h3>
+  {% if tags %}<ul class="plain private-items">{% for t, n in tags %}{{ item_row("tag", t.id, t.name, n ~ " contact" ~ ("" if n == 1 else "s"), t.is_private) }}{% endfor %}</ul>
+  {% else %}<p class="muted small">No tags yet.</p>{% endif %}
+
+  <h3>Lists</h3>
+  {% if lists %}<ul class="plain private-items">{% for cl, n in lists %}{{ item_row("list", cl.id, cl.name, n ~ " member" ~ ("" if n == 1 else "s"), cl.is_private) }}{% endfor %}</ul>
+  {% else %}<p class="muted small">No active lists.</p>{% endif %}
+
+  <h3>Extra fields</h3>
+  {% if fields %}<ul class="plain private-items">{% for name, n, private in fields %}{{ item_row("field", name, name, "on " ~ n ~ " contact" ~ ("" if n == 1 else "s"), private) }}{% endfor %}</ul>
+  <p class="hint">A private field name stays private for contacts you add it to later.</p>
+  {% else %}<p class="muted small">No extra fields yet.</p>{% endif %}
+
+  <h3>Contacts</h3>
+  {% if private_contacts %}<ul class="plain private-items">{% for c in private_contacts %}{{ item_row("contact", c.id, c.display_name, c.company or "private contact", True) }}{% endfor %}</ul>
+  {% else %}<p class="muted small">No private contacts.</p>{% endif %}
+</section>
+{% endblock %}

@@ -609,3 +609,60 @@ def test_reconnect_count_page_and_log_prompt(base_url: str) -> None:
         ).to_have_count(0)
         expect(page.get_by_test_id("reconnect-count")).to_have_count(0)
         browser.close()
+
+
+@pytest.mark.req("P-01", "P-02", "P-06")
+def test_shift_p_presents_and_hides_private_details(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        context = browser.new_context()
+        context.grant_permissions(["clipboard-read", "clipboard-write"], origin=base_url)
+        page = context.new_page()
+        types = page.request.get(base_url + "/api/contact-types").json()
+        employee = next(t["id"] for t in types if t["name"] == "Employee")
+        for name, emails in (
+            ("Pia Presenter", [{"email": "pia@work.example", "label": "work"}]),
+            ("Pete Personal", [{"email": "pete@home.example", "label": "personal"}]),
+        ):
+            page.request.post(
+                base_url + "/api/contacts",
+                data={
+                    "display_name": name,
+                    "contact_type_id": employee,
+                    "team": "Presenting Team",
+                    "notes": "Secret memory cue",
+                    "emails": emails,
+                },
+            )
+
+        page.goto(base_url + "/?team=Presenting+Team")
+        expect(page.get_by_test_id("present-toggle")).to_have_attribute("aria-pressed", "false")
+        page.get_by_test_id("search-input").press("Shift+P")  # typing: not a shortcut
+        expect(page.get_by_test_id("presenting-bar")).to_have_count(0)
+        page.locator("h1, body").first.click()
+        page.keyboard.press("Shift+P")
+        expect(page.get_by_test_id("presenting-bar")).to_be_visible()
+        expect(page.get_by_test_id("present-toggle")).to_have_attribute("aria-pressed", "true")
+        expect(page.locator("body")).not_to_contain_text("pete@home.example")
+
+        page.get_by_test_id("select-all").check()
+        page.get_by_test_id("copy-emails").click()  # one address: copied straight away
+        expect(page.get_by_test_id("action-status")).to_contain_text(
+            "Copied 1 address · 1 left out (no work address): Pete Personal"
+        )
+        assert page.evaluate("navigator.clipboard.readText()") == "pia@work.example"
+
+        page.get_by_role("link", name="Pia Presenter").click()
+        expect(page.get_by_test_id("hidden-notes")).to_be_visible()
+        expect(page.locator("body")).not_to_contain_text("Secret memory cue")
+
+        # The cookie covers every page of every instance in this browser until turned off.
+        page.goto(base_url + "/lists")
+        expect(page.get_by_test_id("presenting-bar")).to_be_visible()
+        page.get_by_test_id("stop-presenting").click()
+        expect(page.get_by_test_id("presenting-bar")).to_have_count(0)
+        browser.close()

@@ -19,6 +19,7 @@ from app.models import (
     CustomField,
     ListMember,
 )
+from app.privacy import presenting, redact
 from app.schemas import (
     ContactCreate,
     ContactLinks,
@@ -405,36 +406,42 @@ def to_out(contact: Contact, *, detail: bool = False) -> ContactOut:
             "activities": contact.activities,
             "last_contact": last_contact(contact),
         }
-    return ContactOut.model_validate(
-        {
-            **{
-                f: getattr(contact, f)
-                for f in _SCALAR_FIELDS
-                if f not in {"manager_id", "contact_type_id"}
-            },
-            "id": contact.id,
-            "contact_type": contact.contact_type,
-            "manager": contact.manager,
-            "reports": sorted(
-                (r for r in contact.reports if r.archived_at is None),
-                key=lambda r: r.display_name.lower(),
-            ),
-            "emails": sorted(contact.emails, key=lambda e: (not e.is_primary, e.id or 0)),
-            "phones": contact.phones,
-            "tags": contact.tags,
-            "lists": [
+    data: dict[str, Any] = {
+        **{
+            f: getattr(contact, f)
+            for f in _SCALAR_FIELDS
+            if f not in {"manager_id", "contact_type_id"}
+        },
+        "id": contact.id,
+        "contact_type": contact.contact_type,
+        "manager": contact.manager,
+        "reports": sorted(
+            (r for r in contact.reports if r.archived_at is None),
+            key=lambda r: r.display_name.lower(),
+        ),
+        "emails": sorted(contact.emails, key=lambda e: (not e.is_primary, e.id or 0)),
+        "phones": contact.phones,
+        "tags": contact.tags,
+        "lists": sorted(
+            (
                 m.contact_list
-                for m in sorted(contact.memberships, key=lambda m: m.contact_list.name.lower())
-                if m.contact_list.status == "active"
-            ],
-            "links": contact_links(contact),
-            "archived": contact.archived_at is not None,
-            "has_photo": contact.photo is not None,
-            "created_at": contact.created_at,
-            "updated_at": contact.updated_at,
-            **extra,
-        }
-    )
+                for m in contact.memberships
+                # None: a private list withheld while presenting (app.privacy)
+                if m.contact_list is not None and m.contact_list.status == "active"
+            ),
+            key=lambda cl: cl.name.lower(),
+        ),
+        "links": contact_links(contact),
+        "archived": contact.archived_at is not None,
+        "has_photo": contact.photo is not None,
+        "created_at": contact.created_at,
+        "updated_at": contact.updated_at,
+        **extra,
+    }
+    p = presenting()
+    if p is not None:
+        data = redact(data, p)  # P-02: only the public fields leave the server
+    return ContactOut.model_validate(data)
 
 
 __all__ = [

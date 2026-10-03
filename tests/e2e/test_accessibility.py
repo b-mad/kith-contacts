@@ -41,6 +41,7 @@ PAGES = [
     "/duplicates",
     "/saved-searches",
     "/reconnect",
+    "/settings/privacy",
 ]
 TOKEN = re.compile(r'name="csrf_token" value="([^"]+)"')
 
@@ -189,7 +190,29 @@ def test_every_page_passes_axe_in_every_palette_and_mode(prod_url: str, dev_url:
                 _set(page, dev_url, theme=theme, palette="harbor")
                 page.goto(dev_url + "/")
                 failures += [f"dev/{theme} /: {v}" for v in _violations(page)]
+            # Presenting mode (P-01 to P-07): the bar, placeholders, blocked page and lock screen.
+            page.goto(dev_url + "/settings/privacy")
+            match = TOKEN.search(page.content())
+            assert match
+            locked = page.request.post(
+                dev_url + "/settings/privacy",
+                form={"csrf_token": match.group(1), "hidden": "notes", "view": "locked"},
+            )
+            assert locked.ok, locked.text()
+            page.context.add_cookies([{"name": "cm_presenting", "value": "1", "url": prod_url}])
+            for palette in ("harbor", "sage", "clay"):
+                for theme in ("light", "dark"):
+                    _set(page, prod_url, theme=theme, palette=palette)
+                    for path in ("/", "/?q=summit", f"/contacts/{contact_id}", "/import"):
+                        page.goto(prod_url + path)
+                        failures += [
+                            f"presenting {palette}/{theme} {path}: {v}" for v in _violations(page)
+                        ]
+            page.goto(dev_url + "/")
+            assert page.get_by_test_id("locked").count() == 1
+            failures += [f"locked: {v}" for v in _violations(page)]
         finally:
+            page.context.clear_cookies()
             _set(page, prod_url, theme="system", palette="harbor")
             browser.close()
     assert not failures, "\n".join(failures)

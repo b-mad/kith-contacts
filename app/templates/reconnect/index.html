@@ -18,7 +18,7 @@
         <div class="who">
           <a href="/contacts/{{ c.id }}" class="reconnect-name">{{ c.display_name }}</a> <span class="pill">{{ rem.label }}</span>
           {% if c.title or c.company %}<p class="muted small">{{ c.title or "" }}{% if c.title and c.company %} · {% endif %}{{ c.company or "" }}</p>{% endif %}
-          <p class="small">{% if r.last %}<span class="muted">Last:</span> {{ r.last[0] }} — {{ r.last[1] }}{% else %}<span class="muted">Nothing logged yet.</span>{% endif %}</p>
+          <p class="small">{% if r.last %}<span class="muted">Last:</span> {{ r.last[0] }}{% if r.last[1] %} — {{ r.last[1] }}{% elif presenting() and presenting().placeholders %} — <span class="redacted">details hidden while presenting</span>{% endif %}{% else %}<span class="muted">Nothing logged yet.</span>{% endif %}</p>
         </div>
         <div class="when">
           <p class="kit-status kit-{{ rem.state }}" data-testid="reconnect-status"><strong>{{ rem.describe }}</strong> <span class="muted small">· <time datetime="{{ rem.due.isoformat() }}">{{ rem.due_text }}</time></span></p>
