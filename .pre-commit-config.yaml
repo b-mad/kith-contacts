@@ -36,6 +36,7 @@ repos:
         files: ^instances/(?!example\.env$).*\.env$
       - id: conventional-commit
         name: conventional commit message
-        entry: python3 -c "import re,sys; m=open(sys.argv[1]).read(); sys.exit(0 if re.match(r'^(feat|fix|docs|test|refactor|perf|build|ci|chore|revert)(\([\w-]+\))?!?:\s.+', m) or m.startswith(('Merge','Revert')) else 'Commit message must follow Conventional Commits, e.g. feat(contacts): add manager picker [C-07]')"
+        entry: |-
+          python3 -c "import re,sys; m=open(sys.argv[1]).read(); sys.exit(0 if re.match(r'^(feat|fix|docs|test|refactor|perf|build|ci|chore|revert)(\([\w-]+\))?!?:\s.+', m) or m.startswith(('Merge','Revert')) else 'Commit message must follow Conventional Commits, e.g. feat(contacts): add manager picker [C-07]')"
         language: system
         stages: [commit-msg]
