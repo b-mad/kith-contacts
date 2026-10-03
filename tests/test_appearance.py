@@ -18,10 +18,12 @@ from app.appearance import (
     DEFAULT,
     Appearance,
     Palette,
+    contrast_ratio,
     current_appearance,
     forget_appearance,
     load_appearance,
     save_appearance,
+    text_on,
 )
 from app.config import Settings
 from app.db import get_session
@@ -237,3 +239,32 @@ def test_an_unknown_default_palette_is_a_configuration_error(database_url: str) 
 def test_settings_and_appearance_accept_the_same_palettes() -> None:
     field = Settings.model_fields["default_palette"]
     assert get_args(field.annotation) == get_args(Palette)
+
+
+@pytest.mark.req("I-03")
+@pytest.mark.parametrize(
+    ("color", "text"),
+    [
+        ("#1f6feb", "#ffffff"),  # business-prod blue
+        ("#8250df", "#ffffff"),  # personal-prod purple
+        ("#bf3989", "#ffffff"),
+        ("#2da44e", "#141c26"),  # mid green: dark text reads better
+        ("#f2c94c", "#141c26"),  # yellow
+    ],
+)
+def test_instance_band_text_is_whichever_color_reads_better(color: str, text: str) -> None:
+    assert text_on(color) == text
+
+
+def test_contrast_ratio_matches_wcag_reference_values() -> None:
+    assert contrast_ratio("#000000", "#ffffff") == pytest.approx(21.0)
+    assert contrast_ratio("#ffffff", "#ffffff") == pytest.approx(1.0)
+
+
+@pytest.mark.req("I-03")
+def test_instance_stylesheet_sets_a_readable_band_text_color(database_url: str) -> None:
+    app = create_app(make_settings(database_url, instance_color="#f2c94c"), run_migrations=False)
+    with TestClient(app) as test_client:
+        css = test_client.get("/instance.css").text
+    assert "--instance-color: #f2c94c;" in css
+    assert "--instance-on: #141c26;" in css

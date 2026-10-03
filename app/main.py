@@ -26,7 +26,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app import api, web, web_admin, web_depth, web_lists
-from app.appearance import THEME_CHOICES, current_appearance
+from app.appearance import THEME_CHOICES, current_appearance, text_on
 from app.backup import BackupFile, ensure_recent_backup
 from app.config import Settings, load_settings
 from app.contacts import ContactError, ContactNotFound
@@ -224,7 +224,8 @@ def create_app(
     @app.get("/instance.css", name="instance_css", include_in_schema=False)
     def instance_css() -> Response:
         """Per-instance colors (I-03), served as a stylesheet so the CSP needs no inline styles."""
-        css = f":root {{ --instance-color: {settings.instance_color}; }}\n"
+        color = settings.instance_color
+        css = f":root {{ --instance-color: {color}; --instance-on: {text_on(color)}; }}\n"
         return Response(css, media_type="text/css", headers={"Cache-Control": "no-cache"})
 
     app.include_router(api.router)

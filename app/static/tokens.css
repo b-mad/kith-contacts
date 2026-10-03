@@ -69,6 +69,16 @@
 .preview-light { color-scheme: light; }
 .preview-dark { color-scheme: dark; }
 
+/* A-06: increased contrast from the operating system: hairlines take the field-border strength
+   (3:1 or more) and muted text becomes full-strength text. */
+@media (prefers-contrast: more) {
+  :root,
+  [data-palette] {
+    --border: var(--border-strong);
+    --muted: var(--fg);
+  }
+}
+
 /* ------------------------------------------------------------------ Shared by every palette */
 :root {
   --danger: light-dark(#b42318, #ff8f85);

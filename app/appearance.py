@@ -130,3 +130,26 @@ def current_appearance(state: State) -> Appearance:
 def forget_appearance(state: State) -> None:
     """Drop the cached choice, e.g. after a backup restore replaced the database."""
     state.appearance = None
+
+
+def _luminance(hex_color: str) -> float:
+    channels = [int(hex_color[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+    linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def contrast_ratio(a: str, b: str) -> float:
+    """WCAG 2.x contrast ratio between two ``#rrggbb`` colors."""
+    hi, lo = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+INSTANCE_TEXT_LIGHT: Final = "#ffffff"
+INSTANCE_TEXT_DARK: Final = "#141c26"
+
+
+def text_on(background: str) -> str:
+    """Text color for the instance band (I-03): white or near-black, whichever reads better."""
+    light = contrast_ratio(INSTANCE_TEXT_LIGHT, background)
+    dark = contrast_ratio(INSTANCE_TEXT_DARK, background)
+    return INSTANCE_TEXT_LIGHT if light >= dark else INSTANCE_TEXT_DARK

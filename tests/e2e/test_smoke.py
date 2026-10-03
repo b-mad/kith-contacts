@@ -8,6 +8,7 @@ import socket
 import threading
 import time
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 import uvicorn
@@ -527,4 +528,29 @@ def test_palette_and_density_are_chosen_in_settings(base_url: str) -> None:
         page.get_by_test_id("settings-density-comfortable").check()
         page.get_by_test_id("appearance-save").click()
         expect(html).to_have_attribute("data-palette", "harbor")
+        browser.close()
+
+
+@pytest.mark.req("A-06")
+def test_increased_contrast_and_reduced_motion_follow_the_system(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    def transition(page: Any) -> str:
+        return str(page.evaluate("getComputedStyle(document.body).transitionDuration"))
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        normal = browser.new_page(color_scheme="light")
+        normal.goto(base_url + "/settings")
+        expect(normal.locator(".panel").first).to_have_css("border-top-color", "rgb(211, 219, 228)")
+        assert transition(normal) == "0s"
+
+        more = browser.new_page(color_scheme="light", contrast="more", reduced_motion="reduce")
+        more.goto(base_url + "/settings")
+        # Hairlines take the field-border strength; muted text becomes full-strength text.
+        expect(more.locator(".panel").first).to_have_css("border-top-color", "rgb(125, 139, 155)")
+        expect(more.locator("p.muted").first).to_have_css("color", "rgb(20, 28, 38)")
+        assert transition(more) != "0s"  # the reduced-motion rule is in force
         browser.close()

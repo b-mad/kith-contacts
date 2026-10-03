@@ -1,6 +1,37 @@
 /* Colors come from tokens.css (ADR-0015); this file must not contain color literals. */
+/* Atkinson Hyperlegible Next, designed for low-vision legibility; bundled (N-04), SIL Open Font
+   License (fonts/OFL.txt), ADR-0015. Variable weight 200-800. */
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: italic;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/atkinson-hyperlegible-next-latin-wght-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   accent-color: var(--accent-fill); /* checkboxes and radios follow the palette */
 }
 
@@ -277,7 +308,11 @@ details.restore summary, td details summary { cursor: pointer; color: var(--acce
 .org-tree li { margin: 0.3rem 0; }
 .org-person { display: inline-flex; gap: 0.3rem; align-items: baseline; flex-wrap: wrap; }
 .org-person.focus a:first-child { font-weight: 700; }
-.org-focus { text-decoration: none; }
+.org-focus {
+  display: inline-flex; align-items: center; min-width: 1.5rem; min-height: 1.5rem; padding: 0 0.35rem;
+  border-radius: 6px; text-decoration: none;
+}
+.org-focus:hover { background: var(--surface-2); }
 .org-tree details > summary { cursor: pointer; margin-left: 0.25rem; }
 .org-chain { margin-bottom: 0.75rem; }
 
@@ -370,3 +405,47 @@ tr.row-error td { color: var(--muted); }
 [data-density="compact"] .avatar { width: 22px; height: 22px; }
 [data-density="compact"] .timeline li { padding: 0.15rem 0; }
 [data-density="compact"] .card { padding: 0.6rem 0.9rem; }
+
+/* Phase 6: accessibility pass (A-06, N-09, I-03, ADR-0015) */
+
+/* WCAG 2.5.8: targets at least 24 x 24 px. */
+.tag-remove {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.5rem; min-height: 1.5rem; border-radius: 999px;
+}
+.tag-remove:hover { background: var(--surface-2); color: var(--fg); }
+button.link { min-height: 1.5rem; }
+.chip { min-height: 1.5rem; }
+input[type="checkbox"], input[type="radio"] { width: 1.125rem; height: 1.125rem; }
+
+/* Focus stays visible on the instance-colored band of non-production instances. */
+body:not(.env-production) .instance-bar :focus-visible { outline-color: var(--instance-on); }
+
+/* Production header: themed bar, instance-color stripe and name chip. Non-production keeps the
+   full striped band above, so the two still look clearly different (I-03). */
+body.env-production .instance-bar {
+  background: var(--surface); color: var(--fg);
+  border-top: 4px solid var(--instance-color); border-bottom: 1px solid var(--border);
+}
+body.env-production .instance-bar .brand,
+body.env-production .bar-nav a,
+body.env-production .bar-link { color: var(--fg); }
+body.env-production .instance-name {
+  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.05rem 0.6rem 0.05rem 0.5rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-size: 0.85rem;
+}
+body.env-production .instance-name::before {
+  content: ""; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--instance-color);
+}
+body.env-production .seg { color: var(--fg); border-color: var(--border-strong); }
+body.env-production .seg label:hover { background: var(--surface-2); }
+body.env-production .seg label:has(input:checked) { background: var(--accent-soft); color: var(--accent); }
+body.env-production .seg label:has(input:focus-visible) { outline-color: var(--focus); }
+
+/* A-06: honor the operating system's reduce-motion setting. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+  }
+}

@@ -78,7 +78,7 @@ def test_instance_color_served_as_stylesheet(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/css")
-    assert response.text == ":root { --instance-color: #bf3989; }\n"
+    assert response.text == ":root { --instance-color: #bf3989; --instance-on: #ffffff; }\n"
 
 
 def test_templates_use_no_inline_styles_blocked_by_csp() -> None:
