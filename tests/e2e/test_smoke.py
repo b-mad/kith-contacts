@@ -732,7 +732,12 @@ def test_preview_pane_chips_and_keyboard(base_url: str) -> None:
         # Filters are chips; a chosen one is filled and the results follow.
         page.keyboard.press("Escape")
         page.get_by_test_id("filter-team").select_option("Preview Team")
-        expect(page.get_by_test_id("filter-chips")).to_contain_text("Team: Preview Team")
+        expect(
+            page.get_by_test_id("clear-team")
+        ).to_be_visible()  # a filled chip with a remove button
+        page.get_by_test_id("clear-team").click()
+        expect(page.get_by_test_id("clear-team")).to_be_hidden()
+        expect(page.get_by_test_id("filter-team")).to_have_value("")
         page.get_by_test_id("more-filters").locator("summary").click()
         expect(page.get_by_test_id("filter-contacted")).to_be_visible()
         page.keyboard.press("Escape")  # the popover closes
@@ -747,4 +752,74 @@ def test_preview_pane_chips_and_keyboard(base_url: str) -> None:
         expect(page.get_by_test_id("preview-pane")).to_be_hidden()
         page.get_by_role("link", name="Pax Preview").click()
         expect(page).to_have_url(re.compile(r"/contacts/\d+$"))
+        browser.close()
+
+
+@pytest.mark.req("S-12", "N-09", "S-11")
+def test_command_palette_shortcut_list_and_undo(base_url: str) -> None:
+    from datetime import date, timedelta
+
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        types = page.request.get(base_url + "/api/contact-types").json()
+        employee = next(t["id"] for t in types if t["name"] == "Employee")
+        quill = page.request.post(
+            base_url + "/api/contacts",
+            data={
+                "display_name": "Quilla Palette",
+                "contact_type_id": employee,
+                "title": "Curator",
+            },
+        ).json()
+
+        # Ctrl+K from anywhere: type, arrow, Enter.
+        page.goto(base_url + "/lists")
+        page.keyboard.press("Control+k")
+        palette = page.get_by_test_id("palette")
+        expect(palette).to_be_visible()
+        expect(palette).to_contain_text("Go to Reconnect")  # actions before typing
+        page.get_by_test_id("palette-input").press_sequentially("quilla", delay=20)
+        expect(palette.locator(".palette-item").first).to_contain_text("Quilla Palette")
+        page.keyboard.press("Enter")
+        expect(page).to_have_url(re.compile(rf"/contacts/{quill['id']}$"))
+
+        # Actions: the theme, without leaving the page.
+        page.keyboard.press("Control+k")
+        page.get_by_test_id("palette-input").fill("theme dark")
+        expect(palette.locator(".palette-item").first).to_contain_text("Theme: Dark")
+        page.keyboard.press("Enter")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+
+        # ? lists every shortcut; Esc closes it.
+        page.locator("h1").click()
+        page.keyboard.press("?")
+        expect(page.get_by_test_id("shortcuts")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(page.get_by_test_id("shortcuts")).to_be_hidden()
+
+        # Snooze on Reconnect, then Undo puts the row back.
+        page.goto(base_url + f"/contacts/{quill['id']}")
+        page.get_by_test_id("kit-interval").select_option("2w")
+        page.get_by_test_id("kit-save").click()
+        page.locator("#act-kind").select_option("call")
+        page.locator("#act-date").fill((date.today() - timedelta(days=30)).isoformat())
+        page.locator("#act-summary").fill("Catch-up")
+        page.get_by_test_id("activity-add").click()
+        page.goto(base_url + "/reconnect")
+        row = page.get_by_test_id("reconnect-row").filter(has_text="Quilla Palette")
+        row.get_by_test_id("reconnect-snooze").click()
+        expect(
+            page.get_by_test_id("reconnect-row").filter(has_text="Quilla Palette")
+        ).to_have_count(0)
+        page.get_by_test_id("undo").click()
+        expect(page.get_by_test_id("flash")).to_contain_text("Undone")
+        expect(
+            page.get_by_test_id("reconnect-row").filter(has_text="Quilla Palette")
+        ).to_have_count(1)
+        page.request.post(base_url + "/settings/appearance", form={"theme": "system"})
         browser.close()

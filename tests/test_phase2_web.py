@@ -97,7 +97,8 @@ def test_filter_chips_and_manager_filter(client: TestClient, team: dict[str, Any
     maria_id = team["maria"]["id"]
     html = client.get(f"/?manager={maria_id}&company=Acme+Health").text
     assert "Reports to Maria Lopez" in html
-    assert "Company: Acme Health" in html
+    assert 'data-testid="clear-company">' in html  # the filled Company chip can be removed
+    assert 'data-testid="clear-type" hidden>' in html  # an unused chip has nothing to remove
     assert "Dev Patel" in html
     assert html.count('data-testid="result-row"') == 1  # only Dev reports to Maria
     assert 'href="/?company=Acme+Health"' in html  # removing the manager chip keeps company

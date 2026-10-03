@@ -7,6 +7,9 @@
 </div>
 <p class="muted">People you asked to stay in touch with, most overdue first. Logging a meeting, call, email or message starts the next reminder; notes don't count.</p>
 
+{% if total > shown %}
+<p class="notice-more" data-testid="reconnect-more">Showing the {{ shown }} most overdue of {{ total }} people due. <a href="/?due=1">See everyone due to reconnect</a>.</p>
+{% endif %}
 {% set groups = [("overdue-h", "Overdue", overdue), ("week-h", "Due this week", this_week)] %}
 {% for heading_id, heading, rows in groups if rows %}
 <section class="panel reconnect" aria-labelledby="{{ heading_id }}" data-testid="{{ heading_id }}">

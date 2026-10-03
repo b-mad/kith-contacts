@@ -190,6 +190,17 @@ def test_every_page_passes_axe_in_every_palette_and_mode(prod_url: str, dev_url:
                     page.locator("[data-preview-link]").first.click()
                     page.wait_for_selector("[data-testid=preview]")
                     failures += [f"{palette}/{theme} preview: {v}" for v in _violations(page)]
+                    # The command palette with results, and the shortcut list (S-12, N-09).
+                    page.keyboard.press("Control+k")
+                    page.get_by_test_id("palette-input").fill("ada")
+                    page.wait_for_selector(".palette-item >> text=Ada Lovelace")
+                    failures += [f"{palette}/{theme} palette: {v}" for v in _violations(page)]
+                    page.keyboard.press("Escape")
+                    page.locator("h1").first.click()
+                    page.keyboard.press("?")
+                    page.wait_for_selector("[data-testid=shortcuts][open]")
+                    failures += [f"{palette}/{theme} shortcuts: {v}" for v in _violations(page)]
+                    page.keyboard.press("Escape")
             # The development header (striped instance band) in both modes.
             for theme in ("light", "dark"):
                 _set(page, dev_url, theme=theme, palette="harbor")

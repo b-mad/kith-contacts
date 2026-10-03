@@ -15,6 +15,9 @@ const store = {
 
 document.addEventListener("DOMContentLoaded", () => {
   initPresenting();
+  initPalette();
+  initShortcuts();
+  initFilterChips();
   initThemeSwitch();
   initLogPrompt();
   initSearch();
@@ -513,7 +516,7 @@ function initPreview() {
   wide.addEventListener("change", enable);
 
   const mark = () => {
-    $$("tr[data-contact-id]", results).forEach((row) => {
+    $$("[data-contact-id]", results).forEach((row) => {
       const on = row.dataset.contactId === current;
       row.classList.toggle("previewing", on);
       const link = $("[data-preview-link]", row);
@@ -592,4 +595,204 @@ function initPreview() {
       }
     });
   }
+}
+
+// ------------------------------------------------------------------ filter chips (S-04, ADR-0017)
+
+// A chosen filter chip shows a ×; it clears the filter. Without JavaScript the × submits
+// clear=<filter> and the server drops that filter.
+function initFilterChips() {
+  $$("[data-chip]").forEach((chip) => {
+    const select = $("select", chip);
+    const clear = $("[data-chip-clear]", chip);
+    if (!select || !clear) return;
+    const sync = () => {
+      const on = select.value !== "";
+      chip.classList.toggle("on", on);
+      clear.hidden = !on;
+    };
+    select.addEventListener("change", sync);
+    clear.addEventListener("click", (e) => {
+      e.preventDefault();
+      select.value = "";
+      sync();
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      select.focus();
+    });
+  });
+}
+
+// ------------------------------------------------------------------ shortcuts (N-09) and palette (S-12)
+
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const typingIn = (target) =>
+  Boolean(target.closest && target.closest("input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable]"));
+
+function initShortcuts() {
+  const dialog = $("[data-shortcuts]");
+  if (!dialog) return;
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey || typingIn(e.target)) return;
+    if (document.querySelector("dialog[open]")) return;
+    e.preventDefault();
+    dialog.showModal();
+  });
+}
+
+function initPalette() {
+  const dialog = $("[data-cmdk]");
+  if (!dialog) return;
+  const input = $("[data-palette-input]", dialog);
+  const list = $("[data-palette-list]", dialog);
+  const actions = $$("[data-palette-actions] li", dialog).map((li) => ({
+    label: li.textContent.trim(),
+    html: li.innerHTML,
+    words: `${li.textContent} ${li.dataset.words || ""}`.toLowerCase(),
+    href: li.dataset.href,
+    action: li.dataset.action,
+  }));
+  if (isMac) $$("[data-palette-key]").forEach((k) => { k.textContent = "⌘ K"; });
+
+  let items = [];
+  let active = 0;
+  let generation = 0;
+  let timer = null;
+
+  const esc = (text) => String(text).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+  const render = () => {
+    list.innerHTML = "";
+    let group = null;
+    items.forEach((item, i) => {
+      if (item.group !== group) {
+        group = item.group;
+        const head = document.createElement("li");
+        head.className = "palette-group";
+        head.setAttribute("role", "presentation");
+        head.textContent = group;
+        list.appendChild(head);
+      }
+      const li = document.createElement("li");
+      li.id = `palette-item-${i}`;
+      li.className = "palette-item";
+      li.setAttribute("role", "option");
+      li.setAttribute("aria-selected", i === active ? "true" : "false");
+      li.dataset.index = String(i);
+      li.innerHTML = item.html || `<span>${esc(item.label)}</span>${item.sub ? ` <span class="muted small">${esc(item.sub)}</span>` : ""}`;
+      list.appendChild(li);
+    });
+    if (!items.length) {
+      const none = document.createElement("li");
+      none.className = "palette-empty muted";
+      none.setAttribute("role", "presentation");
+      none.textContent = "Nothing found.";
+      list.appendChild(none);
+    }
+    input.setAttribute("aria-activedescendant", items.length ? `palette-item-${active}` : "");
+    const current = $(`#palette-item-${active}`, list);
+    if (current) current.scrollIntoView({ block: "nearest" });
+  };
+
+  const matchActions = (q) => {
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    return actions
+      .filter((a) => words.every((w) => a.words.includes(w)))
+      .map((a) => ({ ...a, group: "Actions" }));
+  };
+
+  const update = async () => {
+    const q = input.value.trim();
+    const mine = ++generation;
+    let found = [];
+    if (q) {
+      try {
+        const response = await fetch(`/palette?q=${encodeURIComponent(q)}`, { headers: { Accept: "application/json" } });
+        if (response.ok) {
+          const data = await response.json();
+          found = [
+            ...data.people.map((p) => ({ label: p.name, sub: p.sub, href: p.url, group: "People" })),
+            ...data.lists.map((l) => ({ label: l.name, href: l.url, group: "Lists" })),
+            ...data.tags.map((t) => ({ label: t.name, sub: `${t.count} ${t.count === 1 ? "person" : "people"}`, href: t.url, group: "Tags" })),
+            ...data.saved.map((s) => ({ label: s.name, href: s.url, group: "Saved searches" })),
+          ];
+        }
+      } catch { /* offline: actions only */ }
+    }
+    if (mine !== generation) return;
+    items = [
+      ...found,
+      ...matchActions(q),
+      ...(q ? [{ label: `Search contacts for “${q}”`, href: `/?q=${encodeURIComponent(q)}`, group: "Search" }] : []),
+    ];
+    active = 0;
+    render();
+  };
+
+  const run = (item) => {
+    if (!item) return;
+    dialog.close();
+    if (item.href) {
+      window.location.assign(item.href);
+    } else if (item.action === "present") {
+      const form = $("[data-present-form]");
+      if (form) form.requestSubmit();
+    } else if (item.action && item.action.startsWith("theme-")) {
+      const radio = $(`[data-theme-switch] input[value="${item.action.slice(6)}"]`);
+      if (radio) radio.click();
+    } else if (item.action === "shortcuts") {
+      const help = $("[data-shortcuts]");
+      if (help) help.showModal();
+    }
+  };
+
+  const open = () => {
+    if (dialog.open) return;
+    $$("dialog[open]").forEach((d) => d.close());
+    input.value = "";
+    items = matchActions("");
+    active = 0;
+    render();
+    dialog.showModal();
+    input.focus();
+  };
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key.toLowerCase() === "k" && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+      e.preventDefault();
+      if (dialog.open) dialog.close();
+      else open();
+    }
+  });
+  $$("[data-palette-open]").forEach((link) =>
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      open();
+    }),
+  );
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(update, 90);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!items.length) return;
+      active = (active + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length;
+      render();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      run(items[active]);
+    }
+  });
+  list.addEventListener("mousemove", (e) => {
+    const li = e.target.closest("[data-index]");
+    if (li && Number(li.dataset.index) !== active) {
+      active = Number(li.dataset.index);
+      render();
+    }
+  });
+  list.addEventListener("click", (e) => {
+    const li = e.target.closest("[data-index]");
+    if (li) run(items[Number(li.dataset.index)]);
+  });
+  dialog.addEventListener("click", (e) => { if (e.target === dialog) dialog.close(); }); // backdrop
 }

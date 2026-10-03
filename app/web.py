@@ -7,11 +7,13 @@ CSRF token (N-05, ADR-0008).
 from __future__ import annotations
 
 import secrets
+from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Annotated, Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -30,12 +32,19 @@ from app.contacts import (
     home_company,
     list_companies,
     list_contact_types,
+    lookup_contacts,
     restore_contact,
     to_out,
     update_contact,
 )
 from app.db import get_session
-from app.keep_in_touch import DUE_SOON_DAYS, INTERVAL_LABELS, SNOOZE_CHOICES, reminder_for
+from app.keep_in_touch import (
+    DUE_SOON_DAYS,
+    INTERVAL_LABELS,
+    SNOOZE_CHOICES,
+    overdue_days,
+    reminder_for,
+)
 from app.lists import add_members, all_lists, find_or_create_list, remove_member
 from app.models import Activity, Contact, Tag
 from app.privacy import hidden_counts, presenting, shown_summary, shows_dates, unfiltered
@@ -153,7 +162,48 @@ NOTICES = {
     "privacy": "Privacy and presenting settings saved.",
     "private_on": "Marked private: hidden while presenting.",
     "private_off": "No longer private.",
+    "undone": "Undone.",
 }
+
+
+# ---------------------------------------------------------------- Undo (S-11, ADR-0017)
+
+
+@dataclass(frozen=True)
+class UndoOffer:
+    """Undo for the last Log or Snooze: delete the logged activity, restore the snooze."""
+
+    contact_id: int
+    activity_id: int | None
+    previous_snooze: str  # ISO date, or "" for none
+
+
+def undo_params(
+    contact_id: int, previous: date | None, activity_id: int | None = None
+) -> dict[str, object]:
+    params: dict[str, object] = {"undo": contact_id, "ps": previous.isoformat() if previous else ""}
+    if activity_id is not None:
+        params["ua"] = activity_id
+    return params
+
+
+def undo_offer(request: Request) -> UndoOffer | None:
+    """The Undo button shown with a "logged" or "snoozed" notice, from the redirect's query."""
+    p = request.query_params
+    if p.get("notice") not in {"logged", "snoozed"}:
+        return None
+    contact_id, activity_id = _int(p.get("undo")), _int(p.get("ua"))
+    previous = p.get("ps", "")
+    if contact_id is None or (previous and _iso_date(previous) is None):
+        return None
+    return UndoOffer(contact_id, activity_id, previous)
+
+
+def _iso_date(text: str) -> date | None:
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return None
 
 
 def notice_text(request: Request) -> str | None:
@@ -235,7 +285,9 @@ def _private_count(session: Session, words: str, filters: SearchFilters) -> int:
 
 
 def _search_context(request: Request, session: Session) -> dict[str, Any]:
-    p = request.query_params
+    # A chip's remove button submits clear=<filter> (works without JavaScript): drop it.
+    cleared = set(request.query_params.getlist("clear"))
+    p = {k: v for k, v in request.query_params.items() if k not in cleared and k != "clear"}
     q = p.get("q", "").strip()[:200]
     manager_id = _int(p.get("manager"))
     list_id = _int(p.get("list"))
@@ -292,6 +344,7 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         "hits": [(to_out(h.contact), h.matched, h.fuzzy, h.hidden) for h in hits],
         "private_count": _private_count(session, words, period_filters),
         "last_contact": last_contact,
+        "overdue": overdue_days(session, listed, today=date.today()),  # S-11
         "in_period": {cid: _interaction(a) for cid, a in in_period.items()},
         "contacted": contacted,
         "contacted_choices": CONTACTED_CHOICES,
@@ -631,6 +684,50 @@ def contact_card(request: Request, contact_id: int, session: SessionDep) -> HTML
     )
 
 
+# ---------------------------------------------------------------- command palette (S-12)
+
+PALETTE_LIMIT = 6
+
+
+@router.get("/palette")
+def palette(session: SessionDep, q: str = "") -> JSONResponse:
+    """S-12: people, lists, tags and saved searches for the Ctrl/⌘ + K palette.
+
+    Reads go through the same session as every page, so presenting mode applies (P-02).
+    """
+    term = " ".join(q.split())[:100]
+    if not term:
+        return JSONResponse({"people": [], "lists": [], "tags": [], "saved": []})
+    lowered = term.lower()
+    people = []
+    for contact in lookup_contacts(session, term, limit=PALETTE_LIMIT):
+        c = to_out(contact)
+        people.append(
+            {
+                "id": c.id,
+                "name": c.display_name,
+                "sub": " · ".join(x for x in (c.title, c.company) if x),
+                "url": f"/contacts/{c.id}",
+            }
+        )
+    lists = [
+        {"id": cl.id, "name": cl.name, "url": f"/lists/{cl.id}"}
+        for cl in active_lists(session)
+        if lowered in cl.name.lower()
+    ][:PALETTE_LIMIT]
+    tags = [
+        {"name": t.name, "count": t.count, "url": f"/?tag={quote(t.name)}"}
+        for t in tag_counts(session)
+        if lowered in t.name.lower()
+    ][:PALETTE_LIMIT]
+    saved = [
+        {"name": s.name, "url": f"/?{s.query}"}
+        for s in list_saved_searches(session)
+        if lowered in s.name.lower()
+    ][:PALETTE_LIMIT]
+    return JSONResponse({"people": people, "lists": lists, "tags": tags, "saved": saved})
+
+
 @router.get("/contacts/{contact_id}/preview", response_class=HTMLResponse)
 def contact_preview(request: Request, contact_id: int, session: SessionDep) -> HTMLResponse:
     """The search page's preview pane (S-02, ADR-0015): key facts without leaving the results."""
@@ -800,10 +897,10 @@ def restore_contact_form(contact_id: int, session: SessionDep) -> Response:
 
 @router.post("/contacts/{contact_id}/activities", dependencies=CsrfChecked)
 async def add_activity_form(request: Request, contact_id: int, session: SessionDep) -> Response:
-    _load(session, contact_id)
+    before = _load(session, contact_id).kit_snoozed_until  # for Undo (S-11)
     form = await request.form()
     try:
-        add_activity(
+        activity = add_activity(
             session,
             contact_id,
             kind=str(form.get("kind", "")),
@@ -818,7 +915,12 @@ async def add_activity_form(request: Request, contact_id: int, session: SessionD
         contact = _load(session, contact_id)
         target = safe_next(form.get("next"), f"/contacts/{contact_id}")
         path, _, fragment = target.partition("#")
-        url = with_notice(path, "logged", name=contact.display_name)
+        url = with_notice(
+            path,
+            "logged",
+            name=contact.display_name,
+            **undo_params(contact_id, before, activity_id=activity.id),
+        )
         return RedirectResponse(
             url + (f"#{fragment}" if fragment else ""), status.HTTP_303_SEE_OTHER
         )
@@ -826,6 +928,27 @@ async def add_activity_form(request: Request, contact_id: int, session: SessionD
         with_notice(f"/contacts/{contact_id}", "activity_added") + "#activity-h",
         status.HTTP_303_SEE_OTHER,
     )
+
+
+@router.post("/contacts/{contact_id}/undo", dependencies=CsrfChecked)
+async def undo_last(request: Request, contact_id: int, session: SessionDep) -> Response:
+    """S-11: undo a Log (removes that activity) or a Snooze; the earlier snooze comes back."""
+    contact = _load(session, contact_id)
+    form = await request.form()
+    activity_id = _int(str(form.get("activity_id", "")))
+    previous = str(form.get("previous_snooze", ""))
+    restored = _iso_date(previous) if previous else None
+    if previous and restored is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Invalid date")
+    if activity_id is not None:
+        try:
+            delete_activity(session, contact_id, activity_id)
+        except ContactNotFound:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Activity not found") from None
+    contact.kit_snoozed_until = restored
+    session.commit()
+    target = safe_next(form.get("next"), f"/contacts/{contact_id}")
+    return RedirectResponse(with_notice(target, "undone"), status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/contacts/{contact_id}/activities/{activity_id}/delete", dependencies=CsrfChecked)

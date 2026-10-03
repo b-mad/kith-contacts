@@ -1,26 +1,17 @@
-{# Results table — rendered in the page and fetched alone while typing (S-05). #}
+{# Search results as a card list (ADR-0017) — rendered in the page and fetched alone while
+   typing (S-05). Sorting is the Sort control in the search form. #}
 {% import "_macros.html" as m with context %}
 {% set pv = presenting() %}
-{% set chips = [] %}
-{% if manager %}{% set _ = chips.append(("manager", "Reports to " ~ manager.display_name)) %}{% endif %}
-{% if filters.tag %}{% set _ = chips.append(("tag", "Tag: " ~ filters.tag)) %}{% endif %}
-{% if list_name %}{% set _ = chips.append(("list", "List: " ~ list_name)) %}{% endif %}
-{% if filters.company %}{% set _ = chips.append(("company", "Company: " ~ filters.company)) %}{% endif %}
-{% if filters.team %}{% set _ = chips.append(("team", "Team: " ~ filters.team)) %}{% endif %}
-{% if filters.favorites %}{% set _ = chips.append(("favorites", "Favorites")) %}{% endif %}
-{% if filters.due_by %}{% set _ = chips.append(("due", "Due to reconnect")) %}{% endif %}
-{% if contacted %}{% set _ = chips.append(("contacted", "Contacted in the last " ~ contacted ~ " days")) %}{% endif %}
 {% if time_query %}
   <p class="chips" data-testid="time-chip">
     <a class="chip" href="/?{{ request.url.include_query_params(q=time_query.remainder).query }}" aria-label="Remove the time limit {{ time_query.label }}">Interacted {{ time_query.label }}{% if time_query.kinds %} · {{ time_query.kinds | join(", ") }}{% endif %} <span aria-hidden="true">×</span></a>
   </p>
 {% endif %}
-{% if chips %}
+{# Filters with a chip in the form remove there (its ×); "Reports to" has no chip, so it shows here. #}
+{% if manager or filters.active %}
   <p class="chips" data-testid="filter-chips">
-    {% for key, label in chips %}
-      <a class="chip" href="/?{{ request.url.remove_query_params(key).query }}" data-remove-filter="{{ key }}" aria-label="Remove filter {{ label }}">{{ label }} <span aria-hidden="true">×</span></a>
-    {% endfor %}
-    <a class="small" href="/">Clear all</a>
+    {% if manager %}<a class="chip" href="/?{{ request.url.remove_query_params('manager').query }}" data-remove-filter="manager" aria-label="Remove filter Reports to {{ manager.display_name }}">Reports to {{ manager.display_name }} <span aria-hidden="true">×</span></a>{% endif %}
+    <a class="small" href="/{% if q %}?q={{ q | urlencode }}{% endif %}" data-testid="clear-filters">Clear all filters</a>
   </p>
 {% endif %}
 
@@ -43,73 +34,66 @@
 
 {% macro result_row(c, matched, fuzzy, why=None, hidden=[]) -%}
   {% set email = c.emails[0].email if c.emails else "" %}
-  <tr data-contact-id="{{ c.id }}" data-email="{{ email }}" data-name="{{ c.display_name }}" data-testid="{{ 'meaning-row' if why else 'result-row' }}"{% if c.archived %} class="archived"{% endif %}>
-    <td class="select-col"><input type="checkbox" class="select-contact" value="{{ c.id }}" aria-label="Select {{ c.display_name }}"></td>
-    <td class="person-cell">
-      <div class="person">
-        {% if c.has_photo %}<img class="avatar" src="/contacts/{{ c.id }}/photo" alt="" width="32" height="32">{% else %}<span class="avatar initials" aria-hidden="true">{{ c.display_name | initials }}</span>{% endif %}
-        <div class="person-text">
-          <div class="person-line">
-            <a class="person-name" href="/contacts/{{ c.id }}" data-preview-link>{{ c.display_name }}</a>{% if c.is_favorite %} <span class="star" aria-label="Favorite">★</span>{% endif %}
-            {% if c.archived %} <span class="pill muted">Archived</span>{% endif %}
-          </div>
-          {% set sub = [c.title, c.team, c.company] | select | list %}
-          {% if sub %}<div class="person-sub" data-testid="person-sub">{{ sub | join(" · ") }}</div>{% endif %}
-          {% if in_period.get(c.id) %}
-            {% set act = in_period[c.id] %}
-            <div class="matched" data-testid="interaction"><span class="match"><span class="match-field">{{ act[0] }}{% if act[1] %}:{% endif %}</span> {% if act[1] %}{{ act[1] }}{% elif pv and pv.placeholders %}<span class="redacted">details hidden while presenting</span>{% endif %}</span></div>
-          {% endif %}
-          {% if why and why[1] %}
-            <div class="matched" data-testid="meaning-why"><span class="match"><span class="match-field">{{ why[0] }}:</span> “{{ why[1] }}”</span></div>
-          {% elif why %}{# P-04: presenting never quotes text that may be private #}
-            {% if pv and pv.placeholders %}<div class="matched" data-testid="meaning-why"><span class="match redacted">Matched in {{ why[0] }} · hidden while presenting</span></div>{% endif %}
-          {% elif matched or fuzzy or hidden %}
-            <div class="matched" data-testid="matched">
-              {% if fuzzy %}<span class="muted">similar name</span>{% endif %}
-              {% for field, value in matched[:3] %}<span class="match"><span class="match-field">{{ field }}:</span> {{ value | highlight(terms) }}</span>{% endfor %}
-              {% for label in hidden %}<span class="match redacted" data-testid="hidden-match">Matched in {{ label }} · hidden while presenting</span>{% endfor %}
-            </div>
-          {% endif %}
-        </div>
+  <li class="result-card{% if c.archived %} archived{% endif %}" data-contact-id="{{ c.id }}" data-email="{{ email }}" data-name="{{ c.display_name }}" data-testid="{{ 'meaning-row' if why else 'result-row' }}">
+    <input type="checkbox" class="select-contact" value="{{ c.id }}" aria-label="Select {{ c.display_name }}">
+    {% if c.has_photo %}<img class="avatar" src="/contacts/{{ c.id }}/photo" alt="" width="36" height="36">{% else %}<span class="avatar initials" aria-hidden="true">{{ c.display_name | initials }}</span>{% endif %}
+    <div class="person-text">
+      <div class="person-line">
+        <a class="person-name" href="/contacts/{{ c.id }}" data-preview-link>{{ c.display_name }}</a>{% if c.is_favorite %} <span class="star" aria-label="Favorite">★</span>{% endif %}
+        <span class="pill">{{ c.contact_type.name }}</span>
+        {% if c.archived %}<span class="pill muted">Archived</span>{% endif %}
       </div>
-    </td>
-    <td class="type-col"><span class="pill">{{ c.contact_type.name }}</span></td>
-    <td class="nowrap last-col" data-testid="last-contact-cell">{% set lc = last_contact.get(c.id) %}{% if lc %}<time datetime="{{ lc.isoformat() }}">{{ lc.strftime("%b") }} {{ lc.day }}{% if lc.year != today_year %}, {{ lc.year }}{% endif %}</time>{% endif %}</td>
-  </tr>
+      {% set sub = [c.title, c.team, c.company] | select | list %}
+      {% if sub %}<div class="person-sub" data-testid="person-sub">{{ sub | join(" · ") }}</div>{% endif %}
+      {% if in_period.get(c.id) %}
+        {% set act = in_period[c.id] %}
+        <div class="matched" data-testid="interaction"><span class="match"><span class="match-field">{{ act[0] }}{% if act[1] %}:{% endif %}</span> {% if act[1] %}{{ act[1] }}{% elif pv and pv.placeholders %}<span class="redacted">details hidden while presenting</span>{% endif %}</span></div>
+      {% endif %}
+      {% if why and why[1] %}
+        <div class="matched" data-testid="meaning-why"><span class="match"><span class="match-field">{{ why[0] }}:</span> “{{ why[1] }}”</span></div>
+      {% elif why %}{# P-04: presenting never quotes text that may be private #}
+        {% if pv and pv.placeholders %}<div class="matched" data-testid="meaning-why"><span class="match redacted">Matched in {{ why[0] }} · hidden while presenting</span></div>{% endif %}
+      {% elif matched or fuzzy or hidden %}
+        <div class="matched" data-testid="matched">
+          {% if fuzzy %}<span class="muted">similar name</span>{% endif %}
+          {% for field, value in matched[:3] %}<span class="match"><span class="match-field">{{ field }}:</span> {{ value | highlight(terms) }}</span>{% endfor %}
+          {% for label in hidden %}<span class="match redacted" data-testid="hidden-match">Matched in {{ label }} · hidden while presenting</span>{% endfor %}
+        </div>
+      {% endif %}
+    </div>
+    <div class="result-meta" data-testid="last-contact-cell">
+      {% set lc = last_contact.get(c.id) %}
+      {% set late = overdue.get(c.id) %}
+      {% if lc or late is not none %}<span class="muted small">Last contact</span>{% endif %}
+      {% if late is not none %}{# S-11: overdue is said in words and an icon, not color alone #}
+        <span class="overdue" data-testid="overdue" title="Overdue to reconnect by {{ late }} day{{ '' if late == 1 else 's' }}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{% if lc %}<time datetime="{{ lc.isoformat() }}">{{ lc.strftime("%b") }} {{ lc.day }}{% if lc.year != today_year %}, {{ lc.year }}{% endif %}</time>{% else %}Never{% endif %}<span class="visually-hidden">, overdue to reconnect</span></span>
+      {% elif lc %}<time datetime="{{ lc.isoformat() }}">{{ lc.strftime("%b") }} {{ lc.day }}{% if lc.year != today_year %}, {{ lc.year }}{% endif %}</time>{% endif %}
+    </div>
+  </li>
 {%- endmacro %}
 
-{% macro meaning_rows() -%}
-  <tbody class="meaning" data-testid="meaning-results">
-    <tr class="section-row"><th scope="rowgroup" colspan="4">{{ "Best matches by meaning" if meaning_first else "Also related, by meaning" }} <span class="muted small">— found from notes, projects and activity, not exact words</span></th></tr>
-    {% for c, label, text in meaning %}{{ result_row(c, [], False, (label, text)) }}{% endfor %}
-  </tbody>
+{% macro meaning_section() -%}
+  <section class="result-section meaning" aria-labelledby="meaning-h" data-testid="meaning-results">
+    <h2 id="meaning-h" class="result-section-head">{{ "Best matches by meaning" if meaning_first else "Also related, by meaning" }} <span class="muted small">— found from notes, projects and activity, not exact words</span></h2>
+    <ul class="result-list">{% for c, label, text in meaning %}{{ result_row(c, [], False, (label, text)) }}{% endfor %}</ul>
+  </section>
 {%- endmacro %}
 
 {% if hits or meaning %}
-  {% macro sort_link(key, label) -%}
-    <a href="?{{ request.url.include_query_params(sort=key).query }}"{% if sort == key %} aria-current="true" class="sorted"{% endif %}>{{ label }}</a>
-  {%- endmacro %}
-  <div class="table-wrap">
-  <table class="contacts results-table" data-testid="contact-table">
-    <thead>
-      <tr>
-        <th scope="col" class="select-col"><input type="checkbox" aria-label="Select all" data-select-all data-testid="select-all"></th>
-        <th scope="col">{{ sort_link("name", "Name") }}</th>
-        <th scope="col" class="type-col">{{ sort_link("type", "Type") }}</th>
-        <th scope="col" class="last-col">{{ sort_link("last_contact", "Last contact") }}</th>
-      </tr>
-    </thead>
-    {% if meaning and meaning_first %}{{ meaning_rows() }}{% endif %}
-    {% if hits %}
-    <tbody>
-      {% if meaning and meaning_first %}<tr class="section-row"><th scope="rowgroup" colspan="4">Matching some of the words</th></tr>{% endif %}
-      {% for c, matched, fuzzy, hidden in hits %}{{ result_row(c, matched, fuzzy, hidden=hidden) }}{% endfor %}
-    </tbody>
-    {% endif %}
-    {% if meaning and not meaning_first %}{{ meaning_rows() }}{% endif %}
-  </table>
+  <div class="results-toolbar">
+    <label class="check select-all"><input type="checkbox" data-select-all data-testid="select-all"> Select all</label>
+    <p class="muted count" data-testid="result-count"><strong>{{ hits | length }} contact{{ "" if hits | length == 1 else "s" }}</strong>{% if q %} matching “{{ q }}”{% endif %}{% if meaning %} · {{ meaning | length }} by meaning{% endif %}{% if private_count %} · <span data-testid="private-count">{{ private_count }} private contact{{ "" if private_count == 1 else "s" }} hidden while presenting</span>{% endif %}</p>
   </div>
-  <p class="muted count" data-testid="result-count">{{ hits | length }} contact{{ "" if hits | length == 1 else "s" }}{% if q %} matching “{{ q }}”{% endif %}{% if meaning %} · {{ meaning | length }} by meaning{% endif %}{% if private_count %} · <span data-testid="private-count">{{ private_count }} private contact{{ "" if private_count == 1 else "s" }} hidden while presenting</span>{% endif %}</p>
+  {% if meaning and meaning_first %}{{ meaning_section() }}{% endif %}
+  {% if hits %}
+  <section class="result-section" aria-label="{{ 'Matching some of the words' if meaning and meaning_first else 'Results' }}">
+    {% if meaning and meaning_first %}<h2 class="result-section-head">Matching some of the words</h2>{% endif %}
+    <ul class="result-list" data-testid="contact-list">
+      {% for c, matched, fuzzy, hidden in hits %}{{ result_row(c, matched, fuzzy, hidden=hidden) }}{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+  {% if meaning and not meaning_first %}{{ meaning_section() }}{% endif %}
 {% elif time_query %}
   <p class="empty" data-testid="no-results">No logged meetings, calls, emails or messages {{ time_query.label }}{% if time_query.terms %} matching “{{ time_query.terms | join(" ") }}”{% endif %}. Log interactions on a contact's card to find people this way.</p>
 {% elif q or filters.active %}

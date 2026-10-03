@@ -152,7 +152,8 @@ def test_contacted_filter_sort_and_column(
 ) -> None:
     week = client.get("/contacts/results", params={"contacted": "7"}).text
     assert _rows(week) == [people["recent"]]  # notes are not interactions
-    assert "Contacted in the last 7 days" in week
+    chosen = client.get("/", params={"contacted": "7"}).text
+    assert '<option value="7" selected>Contacted in the last 7 days</option>' in chosen
     ninety = client.get("/contacts/results", params={"contacted": "90", "sort": "last_contact"})
     assert _rows(ninety.text) == [people["recent"], people["older"]]
     everyone = client.get("/contacts/results", params={"sort": "last_contact"}).text

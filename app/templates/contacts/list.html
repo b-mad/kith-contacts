@@ -23,39 +23,33 @@
          placeholder="Search by name, team, manager, project, tag, company, notes…  (press / )"
          data-testid="search-input" data-search-input>
 
-  {# S-04 filters as chips (ADR-0015 step 6): native selects, so they work by keyboard and
-     without JavaScript; a chosen filter is filled. Less-used filters sit under "More". #}
+  {# Enter in the search box submits with this (the first submit button), not a chip's ×. #}
+  <button type="submit" class="visually-hidden" tabindex="-1">Search</button>
+
+  {# S-04 filters as chips (ADR-0015, ADR-0017): native selects, so they work by keyboard and
+     without JavaScript. A chosen filter is filled and gets a × that removes it. Less-used
+     filters sit under "More filters". #}
+  {% macro chip(name, label, active) -%}
+    <span class="chip-field{% if active %} on{% endif %}" data-chip>
+      <select name="{{ name }}" class="filter-chip" aria-label="{{ label }}" data-testid="filter-{{ name }}">
+        <option value="">{{ label }}</option>{{ caller() }}
+      </select>
+      <button type="submit" name="clear" value="{{ name }}" class="chip-x" aria-label="Remove {{ label }} filter" title="Remove {{ label }} filter" data-chip-clear data-testid="clear-{{ name }}"{% if not active %} hidden{% endif %}>×</button>
+    </span>
+  {%- endmacro %}
   {% set more_on = (filters.list_id is not none) + (contacted is not none) + filters.include_archived %}
   <div class="filters" role="group" aria-label="Filters" data-testid="filters">
-    <select name="type" class="filter-chip" aria-label="Type" data-testid="filter-type">
-      <option value="">Type</option>
-      {% for t in types %}<option value="{{ t.id }}"{% if filters.type_id == t.id %} selected{% endif %}>{{ t.name }}</option>{% endfor %}
-    </select>
-    <select name="company" class="filter-chip" aria-label="Company" data-testid="filter-company">
-      <option value="">Company</option>
-      {% for c in companies %}<option{% if filters.company and filters.company|lower == c|lower %} selected{% endif %}>{{ c }}</option>{% endfor %}
-    </select>
-    <select name="team" class="filter-chip" aria-label="Team" data-testid="filter-team">
-      <option value="">Team</option>
-      {% for t in teams %}<option{% if filters.team and filters.team|lower == t|lower %} selected{% endif %}>{{ t }}</option>{% endfor %}
-    </select>
-    <select name="tag" class="filter-chip" aria-label="Tag" data-testid="filter-tag">
-      <option value="">Tag</option>
-      {% for t in tags %}<option value="{{ t.name }}"{% if filters.tag and filters.tag|lower == t.name|lower %} selected{% endif %}>{{ t.name }} ({{ t.count }})</option>{% endfor %}
-    </select>
+    {% call chip("type", "Type", filters.type_id is not none) %}{% for t in types %}<option value="{{ t.id }}"{% if filters.type_id == t.id %} selected{% endif %}>{{ t.name }}</option>{% endfor %}{% endcall %}
+    {% call chip("company", "Company", filters.company) %}{% for c in companies %}<option{% if filters.company and filters.company|lower == c|lower %} selected{% endif %}>{{ c }}</option>{% endfor %}{% endcall %}
+    {% call chip("team", "Team", filters.team) %}{% for t in teams %}<option{% if filters.team and filters.team|lower == t|lower %} selected{% endif %}>{{ t }}</option>{% endfor %}{% endcall %}
+    {% call chip("tag", "Tag", filters.tag) %}{% for t in tags %}<option value="{{ t.name }}"{% if filters.tag and filters.tag|lower == t.name|lower %} selected{% endif %}>{{ t.name }} ({{ t.count }})</option>{% endfor %}{% endcall %}
     <label class="filter-chip filter-toggle"><input type="checkbox" name="favorites" value="1"{% if filters.favorites %} checked{% endif %} data-testid="filter-favorites"> <span aria-hidden="true">★</span> Favorites</label>
     <label class="filter-chip filter-toggle"><input type="checkbox" name="due" value="1"{% if filters.due_by %} checked{% endif %} data-testid="filter-due"> Due to reconnect</label>
     <details class="more-filters" data-testid="more-filters" data-more-filters>
       <summary class="filter-chip{% if more_on %} on{% endif %}">More filters{% if more_on %} · {{ more_on }}{% endif %}</summary>
       <div class="more-panel">
-        <select name="list" class="filter-chip" aria-label="List" data-testid="filter-list">
-          <option value="">List</option>
-          {% for l in lists %}<option value="{{ l.id }}"{% if filters.list_id == l.id %} selected{% endif %}>{{ l.name }}</option>{% endfor %}
-        </select>
-        <select name="contacted" class="filter-chip" aria-label="Last contacted" data-testid="filter-contacted">
-          <option value="">Last contacted</option>
-          {% for n in contacted_choices %}<option value="{{ n }}"{% if contacted == n %} selected{% endif %}>Contacted in the last {{ n }} days</option>{% endfor %}
-        </select>
+        {% call chip("list", "List", filters.list_id is not none) %}{% for l in lists %}<option value="{{ l.id }}"{% if filters.list_id == l.id %} selected{% endif %}>{{ l.name }}</option>{% endfor %}{% endcall %}
+        {% call chip("contacted", "Last contacted", contacted is not none) %}{% for n in contacted_choices %}<option value="{{ n }}"{% if contacted == n %} selected{% endif %}>Contacted in the last {{ n }} days</option>{% endfor %}{% endcall %}
         <label class="filter-chip filter-toggle"><input type="checkbox" name="archived" value="1"{% if filters.include_archived %} checked{% endif %} data-testid="filter-archived"> Include archived</label>
       </div>
     </details>

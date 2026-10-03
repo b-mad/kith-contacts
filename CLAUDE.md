@@ -126,7 +126,7 @@ delete a failing test to get a green run unless the requirement was withdrawn.
 | `app/web_privacy.py` | `POST /presenting`, Settings › Privacy and presenting, private flags |
 | `app/api.py` | JSON API (`/api/...`); writes require `application/json` |
 | `app/web.py` | Server-rendered pages and forms; POSTs need the CSRF token |
-| `app/static/js/app.js` | Vanilla JS: live search, selection + action bar (copy/compose for Outlook or Gmail), search preview pane and keyboard moves (↑ ↓, space, c), pickers, form rows, ⇧P |
+| `app/static/js/app.js` | Vanilla JS: live search, selection + action bar (copy/compose for Outlook or Gmail), search preview pane and keyboard moves (↑ ↓, space, c), command palette (Ctrl/⌘ K, data from `GET /palette`), `?` shortcut list, filter-chip ×, pickers, form rows, ⇧P |
 | `app/migrate.py` | Runs Alembic on start-up; fails fast (I-04) |
 | `app/main.py` | FastAPI app factory, routes, templates |
 | `app/templates/` | Jinja templates (HTMX/Alpine for interactivity) |

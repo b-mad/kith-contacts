@@ -24,6 +24,8 @@
       <a href="/settings" data-testid="nav-settings">Settings</a>
     </nav>
     <nav class="bar-actions">
+      {# S-12: also Ctrl/⌘ + K anywhere; without JavaScript it is simply the search page. #}
+      <a class="palette-open" href="/" data-palette-open aria-keyshortcuts="Control+K Meta+K" data-testid="palette-open"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span class="palette-open-text">Jump to…</span> <kbd data-palette-key>Ctrl K</kbd></a>
       {# A-01, A-03: a plain form so it works without JavaScript; app.js applies it instantly. #}
       <form class="theme-switch" method="post" action="/settings/appearance" data-theme-switch data-testid="theme-switch">
         <input type="hidden" name="{{ csrf_field }}" value="{{ request.state.csrf_token }}">
@@ -61,7 +63,20 @@
   </div>
   {% endif %}
   <main>
-    {% if notice %}<p class="flash" role="status" data-testid="flash">{{ notice }}</p>{% endif %}
+    {% if notice %}
+      {% set undo = undo_offer(request) %}
+      <div class="flash" role="status" data-testid="flash"><span>{{ notice }}</span>
+        {% if undo %}{# S-11: one click puts the Log or Snooze back #}
+        <form class="undo-form" method="post" action="/contacts/{{ undo.contact_id }}/undo">
+          <input type="hidden" name="{{ csrf_field }}" value="{{ request.state.csrf_token }}">
+          {% if undo.activity_id %}<input type="hidden" name="activity_id" value="{{ undo.activity_id }}">{% endif %}
+          <input type="hidden" name="previous_snooze" value="{{ undo.previous_snooze }}">
+          <input type="hidden" name="next" value="{{ request.url.path }}">
+          <button type="submit" class="link" data-testid="undo">Undo</button>
+        </form>
+        {% endif %}
+      </div>
+    {% endif %}
     {% block content %}{% endblock %}
     {# C-17: shown by app.js after Email or Call, so the interaction can be logged in one click. #}
     <form class="log-prompt" method="post" action="/" hidden data-log-prompt data-testid="log-prompt">
@@ -74,5 +89,49 @@
       <button type="button" data-log-prompt-dismiss>Not now</button>
     </form>
   </main>
+
+  {# S-12: command palette (Ctrl/⌘ + K). Results come from /palette; the actions are listed here. #}
+  <dialog class="palette" aria-labelledby="palette-title" data-cmdk data-testid="palette">
+    <h2 id="palette-title" class="visually-hidden">Jump to</h2>
+    <div class="palette-search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Jump to a person, list, tag or action…" aria-label="Jump to" data-palette-input data-testid="palette-input">
+    </div>
+    <ul id="palette-list" class="palette-list" role="listbox" aria-label="Results" data-palette-list></ul>
+    <p class="palette-hint muted small"><kbd>↑</kbd> <kbd>↓</kbd> move · <kbd>Enter</kbd> open · <kbd>Esc</kbd> close · <kbd>?</kbd> all shortcuts</p>
+    <ul hidden data-palette-actions>
+      <li data-href="/" data-words="contacts people search home">Go to Contacts</li>
+      <li data-href="/reconnect" data-words="reconnect keep in touch due overdue reminders">Go to Reconnect</li>
+      <li data-href="/lists" data-words="lists projects">Go to Lists</li>
+      <li data-href="/tags" data-words="tags labels">Go to Tags</li>
+      <li data-href="/org" data-words="org chart organization reports">Go to Org chart</li>
+      <li data-href="/saved-searches" data-words="saved searches">Go to Saved searches</li>
+      <li data-href="/settings" data-words="settings preferences backups">Go to Settings</li>
+      <li data-href="/contacts/new" data-words="add new create contact person">Add a contact</li>
+      {% if not pv %}<li data-href="/settings/privacy" data-words="privacy presenting private hidden">Privacy and presenting settings</li>{% endif %}
+      <li data-action="present" data-words="present presenting screen share hide private stop">{{ "Stop presenting" if pv else "Start presenting" }} <kbd>⇧P</kbd></li>
+      <li data-action="theme-system" data-words="theme system auto appearance">Theme: System</li>
+      <li data-action="theme-light" data-words="theme light appearance">Theme: Light</li>
+      <li data-action="theme-dark" data-words="theme dark night appearance">Theme: Dark</li>
+      <li data-action="shortcuts" data-words="keyboard shortcuts help keys">Keyboard shortcuts <kbd>?</kbd></li>
+    </ul>
+  </dialog>
+
+  {# N-09: every keyboard shortcut, opened with ? outside a text field. #}
+  <dialog class="shortcuts" aria-labelledby="shortcuts-title" data-shortcuts data-testid="shortcuts">
+    <h2 id="shortcuts-title">Keyboard shortcuts</h2>
+    <dl class="shortcut-list">
+      <dt><kbd data-palette-key>Ctrl K</kbd></dt><dd>Jump to a person, list, tag or action</dd>
+      <dt><kbd>/</kbd></dt><dd>Search contacts</dd>
+      <dt><kbd>↓</kbd> <kbd>↑</kbd></dt><dd>Move between people in results (and preview them)</dd>
+      <dt><kbd>Space</kbd></dt><dd>Select the person for Copy emails, Compose and other bulk actions</dd>
+      <dt><kbd>c</kbd></dt><dd>Copy the selected people's emails</dd>
+      <dt><kbd>Enter</kbd></dt><dd>Open the person (press again to open the full card)</dd>
+      <dt><kbd>⇧P</kbd></dt><dd>Start or stop presenting</dd>
+      <dt><kbd>?</kbd></dt><dd>Show this list</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Close a menu or dialog</dd>
+    </dl>
+    <form method="dialog"><button type="submit" class="primary" data-testid="shortcuts-close">Close</button></form>
+  </dialog>
 </body>
 </html>

@@ -210,6 +210,7 @@ def create_app(
     app.state.templates.env.globals["reconnect_count"] = lambda: _reconnect_count(app)
     app.state.privacy = None  # loaded on first request (P-03)
     app.state.templates.env.globals["presenting"] = presenting
+    app.state.templates.env.globals["undo_offer"] = web.undo_offer
     app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 
     # Registered before security_and_csrf, so it runs inside it (CSRF token already set).

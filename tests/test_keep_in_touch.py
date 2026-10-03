@@ -403,7 +403,7 @@ def test_due_filter_on_people_with_chip_and_saved_search(
     page = client.get("/?due=1").text
     rows = re.findall(r'data-name="([^"]+)" data-testid="result-row"', page)
     assert sorted(rows) == ["Justin Late", "Sunny Soon", "Vera Overdue"]
-    assert "Due to reconnect <span aria-hidden" in page
+    assert 'name="due" value="1" checked' in page  # the filled "Due to reconnect" chip
     assert clean_query({"due": "1", "sort": "name"}) == "due=1"
     assert describe_query("due=1") == "due to reconnect"
 
@@ -415,3 +415,140 @@ def test_email_and_call_links_offer_the_log_prompt(client: TestClient, db_sessio
     assert f'data-log-kind="email" data-log-contact="{contact.id}"' in page
     assert 'data-testid="log-prompt"' in page
     assert re.search(r'<form class="log-prompt"[^>]*hidden', page)
+
+
+# ---------------------------------------------------------------- Undo, overdue marker, speed (ADR-0017)
+
+
+@pytest.mark.req("S-11", "C-16")
+def test_undo_after_logging_removes_the_activity_and_restores_the_snooze(
+    client: TestClient, db_session: Session, due_people: dict[str, Contact]
+) -> None:
+    snowy = due_people["snoozed"]
+    before = snowy.kit_snoozed_until
+    token = _csrf(client, "/reconnect")
+    logged = client.post(
+        f"/contacts/{snowy.id}/activities",
+        data={"csrf_token": token, "kind": "call", "summary": "Quick call", "next": "/reconnect"},
+        follow_redirects=False,
+    )
+    page = client.get(logged.headers["location"]).text
+    assert 'data-testid="undo"' in page
+    activity_id = re.search(r'name="activity_id" value="(\d+)"', page)
+    assert activity_id
+    assert f'name="previous_snooze" value="{before.isoformat()}"' in page  # type: ignore[union-attr]
+    undone = client.post(
+        f"/contacts/{snowy.id}/undo",
+        data={
+            "csrf_token": token,
+            "activity_id": activity_id.group(1),
+            "previous_snooze": before.isoformat(),  # type: ignore[union-attr]
+            "next": "/reconnect",
+        },
+        follow_redirects=False,
+    )
+    assert undone.headers["location"] == "/reconnect?notice=undone"
+    db_session.expire_all()
+    assert snowy.kit_snoozed_until == before
+    assert "Quick call" not in [a.summary for a in snowy.activities]
+
+
+@pytest.mark.req("S-11", "C-16")
+def test_undo_after_snoozing_puts_the_reminder_back(
+    client: TestClient, db_session: Session, due_people: dict[str, Contact]
+) -> None:
+    justin = due_people["just"]
+    token = _csrf(client, "/reconnect")
+    snoozed = client.post(
+        f"/contacts/{justin.id}/keep-in-touch/snooze",
+        data={"csrf_token": token, "snooze": "2w", "next": "/reconnect"},
+        follow_redirects=False,
+    )
+    page = client.get(snoozed.headers["location"]).text
+    assert 'name="previous_snooze" value=""' in page
+    assert "activity_id" not in page.split('data-testid="flash"', 1)[1].split("</div>", 1)[0]
+    client.post(
+        f"/contacts/{justin.id}/undo",
+        data={"csrf_token": token, "previous_snooze": "", "next": "/reconnect"},
+    )
+    names = re.findall(r'class="reconnect-name">([^<]+)<', client.get("/reconnect").text)
+    assert "Justin Late" in names
+
+
+@pytest.mark.req("S-11")
+def test_undo_rejects_a_bad_date_or_someone_elses_activity(
+    client: TestClient, due_people: dict[str, Contact]
+) -> None:
+    vera, justin = due_people["very"], due_people["just"]
+    token = _csrf(client, "/reconnect")
+    bad = client.post(
+        f"/contacts/{vera.id}/undo", data={"csrf_token": token, "previous_snooze": "soon"}
+    )
+    assert bad.status_code == 422
+    other = justin.activities[0].id
+    wrong = client.post(
+        f"/contacts/{vera.id}/undo", data={"csrf_token": token, "activity_id": str(other)}
+    )
+    assert wrong.status_code == 404
+    assert client.post(f"/contacts/{vera.id}/undo", data={}).status_code == 403
+
+
+@pytest.mark.req("S-11")
+def test_no_undo_without_a_valid_offer(client: TestClient) -> None:
+    assert 'data-testid="undo"' not in client.get("/?notice=logged&undo=x").text
+    assert 'data-testid="undo"' not in client.get("/?notice=saved&undo=3&ps=").text
+    assert 'data-testid="undo"' not in client.get("/?notice=logged&undo=3&ps=nope").text
+
+
+@pytest.mark.req("S-11")
+def test_search_results_mark_overdue_people_in_words(
+    client: TestClient, due_people: dict[str, Contact]
+) -> None:
+    html = client.get("/contacts/results").text
+    vera = html.split('data-name="Vera Overdue"', 1)[1].split("</li>", 1)[0]
+    assert 'data-testid="overdue"' in vera
+    assert "overdue to reconnect" in vera
+    sunny = html.split('data-name="Sunny Soon"', 1)[1].split("</li>", 1)[0]
+    assert 'data-testid="overdue"' not in sunny
+
+
+@pytest.mark.req("S-11", "N-03")
+def test_reconnect_is_fast_with_ten_thousand_contacts(
+    client: TestClient, db_session: Session
+) -> None:
+    from sqlalchemy import text
+
+    type_id = _types(db_session)["Employee"]
+    db_session.execute(
+        text(
+            """
+            INSERT INTO contact (display_name, contact_type_id, kit_interval, kit_started_on)
+            SELECT 'Person ' || g, :type_id,
+                   (ARRAY['2w', '1m', '3m', '6m', '1y'])[1 + g % 5],
+                   CURRENT_DATE - (g % 400)
+            FROM generate_series(1, 10000) AS g
+            """
+        ),
+        {"type_id": type_id},
+    )
+    db_session.execute(
+        text(
+            """
+            INSERT INTO activity (contact_id, kind, summary, occurred_on)
+            SELECT id, 'call', 'Caught up', CURRENT_DATE - (id % 120)
+            FROM contact WHERE display_name LIKE 'Person %'
+            """
+        )
+    )
+    db_session.execute(text("ANALYZE contact"))
+    db_session.execute(text("ANALYZE activity"))
+    import time
+
+    start = time.perf_counter()
+    page = client.get("/reconnect")
+    elapsed = time.perf_counter() - start
+    assert page.status_code == 200
+    assert "Overdue" in page.text
+    assert "Showing the 100 most overdue of" in page.text  # thousands due: the rest via search
+    assert page.text.count('data-testid="reconnect-row"') == 100
+    assert elapsed < 1.0, f"Reconnect took {elapsed:.2f}s"

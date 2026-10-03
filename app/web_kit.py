@@ -14,6 +14,7 @@ from app.contacts import ContactError, to_out
 from app.keep_in_touch import (
     Reminder,
     clear_snooze,
+    count_due,
     due_reminders,
     next_reminder,
     set_cadence,
@@ -31,10 +32,12 @@ from app.web import (
     notice_text,
     safe_next,
     selected_ids,
+    undo_params,
     with_notice,
 )
 
 router = APIRouter(include_in_schema=False)
+RECONNECT_LIMIT = 100
 
 
 def _invalid(session: Session, exc: ContactError) -> HTTPException:
@@ -55,7 +58,9 @@ def _back(contact_id: int, notice: str, next_: object = None, **params: object) 
 def reconnect(request: Request, session: SessionDep) -> HTMLResponse:
     """S-11: who is overdue, then who is due this week."""
     today = date.today()
-    due = due_reminders(session, today=today)
+    # N-03: the page stays quick however many are due; the rest are one click away.
+    due = due_reminders(session, today=today, limit=RECONNECT_LIMIT)
+    total = count_due(session, today=today) if len(due) == RECONNECT_LIMIT else len(due)
     last = last_interactions(session, [c.id for c, _ in due])
 
     def row(contact: Contact, reminder: Reminder) -> dict[str, Any]:
@@ -76,6 +81,8 @@ def reconnect(request: Request, session: SessionDep) -> HTMLResponse:
             "overdue": overdue,
             "this_week": this_week,
             "upcoming": upcoming,
+            "shown": len(due),
+            "total": total,
             "notice": notice_text(request),
         },
     )
@@ -117,6 +124,7 @@ async def save_cadence(request: Request, contact_id: int, session: SessionDep) -
 async def snooze_reminder(request: Request, contact_id: int, session: SessionDep) -> Response:
     """C-16: move the current reminder to a later date."""
     contact = _load(session, contact_id)
+    before = contact.kit_snoozed_until  # for Undo (S-11)
     form = await request.form()
     try:
         until = snooze_until(
@@ -127,7 +135,9 @@ async def snooze_reminder(request: Request, contact_id: int, session: SessionDep
         raise _invalid(session, exc) from None
     session.commit()
     when = f"{until.strftime('%b')} {until.day}, {until.year}"
-    return _back(contact_id, "snoozed", form.get("next"), name=when)
+    return _back(
+        contact_id, "snoozed", form.get("next"), name=when, **undo_params(contact_id, before)
+    )
 
 
 @router.post("/contacts/{contact_id}/keep-in-touch/unsnooze", dependencies=CsrfChecked)

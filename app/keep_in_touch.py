@@ -228,15 +228,23 @@ def _due_by(today: date, within_days: int) -> Any:
 
 
 def due_reminders(
-    session: Session, *, today: date, within_days: int = DUE_SOON_DAYS
+    session: Session,
+    *,
+    today: date,
+    within_days: int = DUE_SOON_DAYS,
+    limit: int | None = None,
 ) -> list[tuple[Contact, Reminder]]:
     """S-11: people due within ``within_days`` (overdue included), most overdue first."""
     due = due_column()
     last = last_interaction_column()
+    from app.search import _with_details  # app.search imports this module lazily
+
     rows = session.execute(
-        select(Contact, due, last)
+        _with_details(select(Contact))  # the page renders every row: load details in bulk
+        .add_columns(due, last)
         .where(*_due_by(today, within_days))
         .order_by(due, func.lower(Contact.display_name))
+        .limit(limit)
     ).all()
     result = []
     for contact, due_on, last_on in rows:
@@ -262,3 +270,15 @@ def next_reminder(session: Session, *, today: date) -> tuple[Contact, Reminder] 
     """The soonest reminder after the due window, for an empty Reconnect page."""
     rows = due_reminders(session, today=today, within_days=MAX_SNOOZE_DAYS * 2)
     return next(((c, r) for c, r in rows if r.days > DUE_SOON_DAYS), None)
+
+
+def overdue_days(session: Session, contact_ids: Iterable[int], *, today: date) -> dict[int, int]:
+    """S-11: days overdue for each listed contact whose reminder is past due."""
+    ids = sorted(set(contact_ids))
+    if not ids:
+        return {}
+    due = due_column()
+    rows = session.execute(
+        select(Contact.id, due).where(Contact.id.in_(ids), Contact.kit_interval.is_not(None))
+    ).tuples()
+    return {cid: (today - day).days for cid, day in rows if day is not None and day < today}
