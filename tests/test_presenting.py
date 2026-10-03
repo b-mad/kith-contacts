@@ -538,6 +538,7 @@ def test_card_shows_placeholders_for_what_is_hidden(
     assert "1 private list hidden while presenting" in card
     assert "2 private fields hidden while presenting" in card
     assert "details hidden while presenting" in card  # the activity summary
+    assert 'data-testid="hidden-manager"' in card  # the private manager, not "None"
     assert 'data-testid="edit"' not in card
     assert 'data-testid="private-toggle"' not in card
     assert "Building 4" in card
@@ -834,3 +835,25 @@ def test_tag_filter_with_related_tags_works_while_presenting(
     assert page.status_code == 200
     assert "Maria Lopez" in page.text
     assert "zqxcanarytag" not in page.text  # the private tag is not offered as "often together"
+
+
+@pytest.mark.req("P-02", "L-01", "T-01")
+def test_list_and_tag_counts_leave_out_private_contacts(
+    client: TestClient, db_session: Session
+) -> None:
+    seed(db_session)
+    fresh(db_session)
+
+    def lab_rollout_count() -> str:
+        page = client.get("/lists").text
+        row = page.split("Lab rollout</a></td>", 1)[1].split("</tr>", 1)[0]
+        cells = [c.split("<", 1)[0] for c in row.split("<td>")[1:]]
+        return cells[2]
+
+    def informatics_count() -> str:
+        page = client.get("/tags").text
+        return page.split('informatics <span class="count">', 1)[1].split("<", 1)[0]
+
+    assert (lab_rollout_count(), informatics_count()) == ("2", "2")
+    present(client)
+    assert (lab_rollout_count(), informatics_count()) == ("1", "1")

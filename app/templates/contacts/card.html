@@ -77,7 +77,7 @@
         {% if c.department %}<dt>Department</dt><dd>{{ c.department }}</dd>{% endif %}
         {% if c.team %}<dt>Team</dt><dd>{{ c.team }}</dd>{% endif %}
         <dt>Manager</dt>
-        <dd data-testid="manager">{% if c.manager %}<a href="/contacts/{{ c.manager.id }}">{{ c.manager.display_name }}</a>{% if c.manager.title %} <span class="muted">· {{ c.manager.title }}</span>{% endif %}{% else %}<span class="muted">None</span>{% endif %}</dd>
+        <dd data-testid="manager">{% if c.manager %}<a href="/contacts/{{ c.manager.id }}">{{ c.manager.display_name }}</a>{% if c.manager.title %} <span class="muted">· {{ c.manager.title }}</span>{% endif %}{% elif hidden.manager %}<span class="redacted" data-testid="hidden-manager">hidden while presenting</span>{% else %}<span class="muted">None</span>{% endif %}</dd>
         <dt>Direct reports</dt>
         <dd>
           {% if c.reports %}

@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.activity import add_activity
 from app.contacts import ContactError, to_out
 from app.keep_in_touch import (
     Reminder,
@@ -22,7 +23,7 @@ from app.keep_in_touch import (
     snooze_until,
 )
 from app.models import Contact
-from app.search import last_interactions
+from app.search import last_interactions, refresh_search
 from app.web import (
     CsrfChecked,
     SessionDep,
@@ -105,6 +106,29 @@ async def keep_in_touch_selection(request: Request, session: SessionDep) -> Resp
     session.commit()
     notice = "kit_bulk" if interval else "kit_bulk_off"
     return RedirectResponse(with_notice(back, notice, n=count), status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/selection/log", dependencies=CsrfChecked)
+async def log_selection(request: Request, session: SessionDep) -> Response:
+    """C-17: after Compose for a selection, log that email (or Teams message) for each person."""
+    form = await request.form()
+    ids = selected_ids(form)
+    back = safe_next(form.get("next"))
+    kind = str(form.get("kind", ""))
+    if kind not in {"email", "message"}:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Log an email or a message")
+    summary = str(form.get("summary", "")).strip() or "Emailed"
+    known = set(session.scalars(select(Contact.id).where(Contact.id.in_(ids))))
+    try:
+        for contact_id in sorted(known):
+            add_activity(session, contact_id, kind=kind, summary=summary, refresh=False)
+    except ContactError as exc:
+        raise _invalid(session, exc) from None
+    refresh_search(session, known)
+    session.commit()
+    return RedirectResponse(
+        with_notice(back, "logged_many", n=len(known)), status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.post("/contacts/{contact_id}/keep-in-touch", dependencies=CsrfChecked)

@@ -137,7 +137,11 @@ def test_merge_moves_everything_and_keeps_a_snapshot(
     assert snap.kept_id == keep
     assert snap.merged_name == "Devendra Patel"
     assert snap.snapshot["title"] == "Staff Engineer"
-    assert snap.snapshot["custom_fields"][1] == {"name": "Birthday", "value": "May 1"}
+    assert snap.snapshot["custom_fields"][1] == {
+        "name": "Birthday",
+        "value": "May 1",
+        "private": False,
+    }
 
     # Search documents follow: the report now finds its new manager's name.
     assert keep in {h.contact.id for h in search(db_session, "fhir")}

@@ -475,6 +475,12 @@ def hidden_counts(session: Session, contact: Contact, p: Presenting | None) -> d
                 CustomField.is_private.is_(True) | func.lower(CustomField.name).in_(names),
             )
         )
+    if contact.manager_id is not None:  # a private manager is left out of the card
+        counts["manager"] = count(
+            select(func.count())
+            .select_from(Contact)
+            .where(Contact.id == contact.manager_id, Contact.is_private.is_(True))
+        )
     if p.hides("notes"):
         counts["notes"] = 1 if contact.notes else 0
     if p.hides("last_contact"):

@@ -24,7 +24,15 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.contacts import ContactError, check_manager, create_contact, resolve_company
 from app.lists import add_members, find_or_create_list
-from app.models import Contact, ContactEmail, ContactList, ContactType, ListMember, Tag
+from app.models import (
+    Contact,
+    ContactEmail,
+    ContactList,
+    ContactType,
+    CustomField,
+    ListMember,
+    Tag,
+)
 from app.schemas import ContactCreate
 from app.search import refresh_search
 from app.tags import add_tag
@@ -87,6 +95,11 @@ def contact_record(contact: Contact, *, include_photo: bool = False) -> dict[str
         "pronunciation": c.pronunciation,
         "is_favorite": c.is_favorite,
         "keep_in_touch": c.kit_interval,  # C-15
+        "keep_in_touch_started_on": c.kit_started_on.isoformat() if c.kit_started_on else None,
+        "keep_in_touch_snoozed_until": (
+            c.kit_snoozed_until.isoformat() if c.kit_snoozed_until else None
+        ),  # C-16
+        "is_private": c.is_private,  # P-03
         "archived_at": _iso(c.archived_at),
         "created_at": _iso(c.created_at),
         "updated_at": _iso(c.updated_at),
@@ -95,8 +108,18 @@ def contact_record(contact: Contact, *, include_photo: bool = False) -> dict[str
         ],
         "phones": [{"number": p.number, "label": p.label} for p in c.phones],
         "tags": [t.name for t in c.tags],
-        "lists": [{"name": m.contact_list.name, "role_note": m.role_note} for m in c.memberships],
-        "custom_fields": [{"name": f.name, "value": f.value} for f in c.custom_fields],
+        "private_tags": [t.name for t in c.tags if t.is_private],  # P-03
+        "lists": [
+            {
+                "name": m.contact_list.name,
+                "role_note": m.role_note,
+                "private": m.contact_list.is_private,
+            }
+            for m in c.memberships
+        ],
+        "custom_fields": [
+            {"name": f.name, "value": f.value, "private": f.is_private} for f in c.custom_fields
+        ],
         "activities": [
             {"kind": a.kind, "occurred_on": a.occurred_on.isoformat(), "summary": a.summary}
             for a in c.activities
@@ -121,7 +144,7 @@ def export_json(session: Session, instance_name: str) -> dict[str, Any]:
             for t in session.scalars(select(ContactType).order_by(ContactType.sort_order))
         ],
         "tags": [
-            {"name": t.name, "color": t.color}
+            {"name": t.name, "color": t.color, "private": t.is_private}
             for t in session.scalars(select(Tag).order_by(Tag.name))
         ],
         "lists": [
@@ -129,6 +152,7 @@ def export_json(session: Session, instance_name: str) -> dict[str, Any]:
                 "name": cl.name,
                 "description": cl.description,
                 "status": cl.status,
+                "private": cl.is_private,
                 "tags": [t.name for t in cl.tags],
             }
             for cl in session.scalars(
@@ -369,9 +393,22 @@ def rows_from_json(raw: str) -> list[dict[str, Any]]:
         record["is_favorite"] = c.get("is_favorite") is True
         record["_extra"] = {
             "lists": [
-                (m["name"], _text(m.get("role_note")))
+                (m["name"], _text(m.get("role_note")), m.get("private") is True)
                 for m in c.get("lists") or []
                 if isinstance(m, dict) and _text(m.get("name"))
+            ],
+            # C-15, C-16, P-03: keep-in-touch and private flags travel with the contact.
+            "kit": {
+                "interval": _text(c.get("keep_in_touch")),
+                "started_on": _text(c.get("keep_in_touch_started_on")),
+                "snoozed_until": _text(c.get("keep_in_touch_snoozed_until")),
+            },
+            "private": c.get("is_private") is True,
+            "private_tags": [t for t in c.get("private_tags") or [] if isinstance(t, str)],
+            "private_fields": [
+                f["name"]
+                for f in c.get("custom_fields") or []
+                if isinstance(f, dict) and f.get("private") is True and _text(f.get("name"))
             ],
             "activities": [a for a in c.get("activities") or [] if isinstance(a, dict)],
             "photo": c.get("photo") if isinstance(c.get("photo"), dict) else None,
@@ -413,6 +450,10 @@ class PlannedRow:
                 parts.append(f"{n} {noun if n == 1 else plural}")
         if self.extra.get("photo"):
             parts.append("photo")
+        if (self.extra.get("kit") or {}).get("interval"):
+            parts.append("keep in touch")
+        if self.extra.get("private"):
+            parts.append("private")
         if self.extra.get("archived"):
             parts.append("archived")
         return " · ".join(parts)
@@ -607,9 +648,15 @@ def _apply_extras(session: Session, extras: Sequence[tuple[int, dict[str, Any]]]
     from app.photos import set_photo
 
     memberships: dict[str, tuple[str, list[tuple[int, str | None]]]] = {}
+    private_lists: set[str] = set()
+    private_tags: set[str] = set()
     for contact_id, extra in extras:
-        for name, role in extra.get("lists") or []:
+        for name, role, private in extra.get("lists") or []:
             memberships.setdefault(name.lower(), (name, []))[1].append((contact_id, role))
+            if private:
+                private_lists.add(name.lower())
+        private_tags.update(t.lower() for t in extra.get("private_tags") or [])
+        _apply_flags(session, contact_id, extra)
         for activity in extra.get("activities") or []:
             try:
                 occurred = date.fromisoformat(str(activity.get("occurred_on", "")))
@@ -633,11 +680,17 @@ def _apply_extras(session: Session, extras: Sequence[tuple[int, dict[str, Any]]]
                 .where(Contact.id == contact_id)
                 .values(archived_at=datetime.now(UTC))
             )
+    if private_tags:  # private in the source stays private here (never the reverse)
+        session.execute(
+            update(Tag).where(func.lower(Tag.name).in_(private_tags)).values(is_private=True)
+        )
     for name, members in memberships.values():
         try:
             contact_list = find_or_create_list(session, name)
         except ContactError:
             continue
+        if name.lower() in private_lists:
+            contact_list.is_private = True
         current = {m.contact_id for m in contact_list.members}
         for contact_id, role in members:
             if contact_id not in current:
@@ -646,3 +699,33 @@ def _apply_extras(session: Session, extras: Sequence[tuple[int, dict[str, Any]]]
                 )
                 current.add(contact_id)
     session.flush()
+
+
+def _apply_flags(session: Session, contact_id: int, extra: dict[str, Any]) -> None:
+    """C-15, C-16, P-03: keep-in-touch cadence and private flags from a JSON import."""
+    from app.keep_in_touch import INTERVALS
+
+    values: dict[str, Any] = {}
+    kit = extra.get("kit") or {}
+    if kit.get("interval") in INTERVALS:
+        values["kit_interval"] = kit["interval"]
+        values["kit_started_on"] = _date(kit.get("started_on")) or date.today()
+        values["kit_snoozed_until"] = _date(kit.get("snoozed_until"))
+    if extra.get("private"):
+        values["is_private"] = True
+    if values:
+        session.execute(update(Contact).where(Contact.id == contact_id).values(**values))
+    names = [n.lower() for n in extra.get("private_fields") or []]
+    if names:
+        session.execute(
+            update(CustomField)
+            .where(CustomField.contact_id == contact_id, func.lower(CustomField.name).in_(names))
+            .values(is_private=True)
+        )
+
+
+def _date(value: object) -> date | None:
+    try:
+        return date.fromisoformat(str(value)) if value else None
+    except ValueError:
+        return None

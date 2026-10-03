@@ -224,6 +224,12 @@ def test_live_search_select_and_copy_for_outlook_or_gmail(base_url: str) -> None
         assert page.evaluate("window.__opened") == (
             "https://outlook.office.com/mail/deeplink/compose?to=quinn%40acme.example;rhea%40acme.example"
         )
+        # C-17: after Compose, one click logs the email for everyone who received it.
+        expect(page.get_by_test_id("log-prompt")).to_contain_text(
+            "Log an email with 2 people today?"
+        )
+        page.get_by_role("button", name="Not now").click()
+        expect(page.get_by_test_id("log-prompt")).to_be_hidden()
 
         # Tag the selection from the action bar (T-01 bulk).
         page.get_by_test_id("add-tag").click()

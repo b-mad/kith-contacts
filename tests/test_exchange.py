@@ -65,10 +65,12 @@ def test_json_export_is_complete(seeded: Session) -> None:
     assert exported["manager"] == "Maria Lopez"
     assert exported["type"] == "Employee"
     assert exported["tags"] == ["HL7"]
-    assert exported["lists"] == [{"name": "Q4 LIS", "role_note": "tech lead"}]
+    assert exported["lists"] == [{"name": "Q4 LIS", "role_note": "tech lead", "private": False}]
     assert exported["emails"][0]["email"].endswith(".example")
     assert {t["name"] for t in doc["contact_types"]} >= {"Employee", "Customer", "Vendor"}
-    assert doc["lists"] == [{"name": "Q4 LIS", "description": None, "status": "active", "tags": []}]
+    assert doc["lists"] == [
+        {"name": "Q4 LIS", "description": None, "status": "active", "private": False, "tags": []}
+    ]
     assert exported["custom_fields"] == []
     assert exported["activities"] == []
 

@@ -163,6 +163,7 @@ NOTICES = {
     "private_on": "Marked private: hidden while presenting.",
     "private_off": "No longer private.",
     "undone": "Undone.",
+    "logged_many": "Logged for {n} contact(s). Keep-in-touch reminders count from today.",
 }
 
 

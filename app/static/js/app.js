@@ -259,6 +259,15 @@ function initSelection() {
       else window.open(url, "_blank", "noopener,noreferrer");
       const what = button.dataset.composeIn === "teams" ? "a Teams chat with" : "a new email to";
       say(`Opening ${what} ${emails.length} ${emails.length === 1 ? "person" : "people"}${skippedNote(skipped)}`);
+      // C-17: offer to log the email (or Teams message) for everyone who received it.
+      const reached = [...selected.entries()].filter(([, p]) => p.email);
+      document.dispatchEvent(new CustomEvent("compose:opened", {
+        detail: {
+          ids: reached.map(([id]) => id),
+          names: reached.map(([, p]) => p.name),
+          kind: button.dataset.composeIn === "teams" ? "message" : "email",
+        },
+      }));
     }),
   );
 
@@ -465,10 +474,33 @@ function initLogPrompt() {
   const form = $("[data-log-prompt]");
   if (!form) return;
   const text = $("[data-log-prompt-text]", form);
+  const setPeople = (ids) => {
+    $$('input[name="contact_ids"]', form).forEach((i) => i.remove());
+    ids.forEach((id) => {
+      const hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = "contact_ids";
+      hidden.value = id;
+      form.appendChild(hidden);
+    });
+  };
+  document.addEventListener("compose:opened", (e) => {
+    const { ids, names, kind } = e.detail;
+    if (!ids.length) return;
+    const message = kind === "message";
+    setPeople(ids);
+    form.action = "/selection/log";
+    $("[data-log-prompt-kind]", form).value = kind;
+    $("[data-log-prompt-summary]", form).value = message ? "Messaged on Teams" : "Emailed";
+    const who = ids.length === 1 ? names[0] : `${ids.length} people`;
+    text.textContent = `Log ${message ? "a Teams message" : "an email"} with ${who} today?`;
+    form.hidden = false;
+  });
   document.addEventListener("click", (e) => {
     const link = e.target.closest("a[data-log-kind]");
     if (!link || !/^\d+$/.test(link.dataset.logContact || "")) return;
     const call = link.dataset.logKind === "call";
+    setPeople([]);
     form.action = `/contacts/${link.dataset.logContact}/activities`;
     $("[data-log-prompt-kind]", form).value = call ? "call" : "email";
     $("[data-log-prompt-summary]", form).value = call ? "Called" : "Emailed";

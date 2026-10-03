@@ -188,3 +188,93 @@ def test_json_rows_are_validated(client: TestClient, db_session: Session) -> Non
     assert [a["summary"] for a in got["activities"]] == ["Caught up"]
     assert got["has_photo"] is False  # bad image skipped, import still succeeded
     assert [lst["name"] for lst in got["lists"]] == ["Book club"]
+
+
+@pytest.mark.req("I-09", "C-15", "C-16", "P-03")
+def test_json_carries_keep_in_touch_and_private_flags(
+    client: TestClient, db_session: Session
+) -> None:
+    from datetime import timedelta
+
+    from app.contacts import get_contact
+    from app.exchange import export_contact_json
+    from app.keep_in_touch import set_cadence, snooze
+    from app.models import Contact, ContactList, CustomField, Tag
+
+    type_id = db_session.scalars(select(ContactType.id)).first()
+    created = client.post(
+        "/api/contacts",
+        json={
+            "display_name": "Petra Private",
+            "contact_type_id": type_id,
+            "custom_fields": [{"name": "Birthday", "value": "May 1"}],
+        },
+    ).json()
+    contact = db_session.get(Contact, created["id"])
+    assert contact is not None
+    started = date.today() - timedelta(days=20)
+    set_cadence(db_session, [contact], "3m", today=started)
+    snooze(db_session, contact, date.today() + timedelta(days=9))
+    contact.is_private = True
+    tag = add_tag(db_session, [contact.id], "hush")
+    tag.is_private = True
+    secret = create_list(db_session, "Quiet list")
+    secret.is_private = True
+    add_members(db_session, secret, [contact.id])
+    for f in contact.custom_fields:
+        f.is_private = True
+    db_session.flush()
+
+    record = export_contact_json(get_contact(db_session, contact.id), "Business")
+    exported = record["contacts"][0]
+    assert exported["keep_in_touch"] == "3m"
+    assert exported["keep_in_touch_started_on"] == started.isoformat()
+    assert exported["is_private"] is True
+    assert exported["private_tags"] == ["hush"]
+    assert exported["lists"][0]["private"] is True
+    assert exported["custom_fields"][0]["private"] is True
+
+    # The target instance has the tag and list, but public: private in the source wins.
+    tag.is_private = False
+    secret.is_private = False
+    exported["display_name"] = "Petra Copy"
+    db_session.flush()
+    planned = plan_import(db_session, rows_from_json(json.dumps(record)), int(type_id or 0))
+    assert "keep in touch" in planned[0].extras_summary
+    assert "private" in planned[0].extras_summary
+    result = run_import(db_session, planned, include_duplicates=True)
+    db_session.flush()
+    db_session.expire_all()
+    copy = db_session.get(Contact, result.created[0])
+    assert copy is not None
+    assert (copy.kit_interval, copy.kit_started_on) == ("3m", started)
+    assert copy.kit_snoozed_until == date.today() + timedelta(days=9)
+    assert copy.is_private
+    assert db_session.scalars(select(Tag.is_private).where(Tag.name == "hush")).one()
+    assert db_session.scalars(
+        select(ContactList.is_private).where(ContactList.name == "Quiet list")
+    ).one()
+    assert db_session.scalars(
+        select(CustomField.is_private).where(CustomField.contact_id == copy.id)
+    ).one()
+
+
+@pytest.mark.req("I-09", "C-15")
+def test_json_ignores_a_bad_cadence(client: TestClient, db_session: Session) -> None:
+    from app.models import Contact
+
+    type_id = int(db_session.scalars(select(ContactType.id)).first() or 0)
+    doc = {
+        "format": FORMAT,
+        "contacts": [
+            {"display_name": "Odd Cadence", "keep_in_touch": "weekly", "is_private": "yes"},
+        ],
+    }
+    result = run_import(
+        db_session, plan_import(db_session, rows_from_json(json.dumps(doc)), type_id)
+    )
+    db_session.flush()
+    copy = db_session.get(Contact, result.created[0])
+    assert copy is not None
+    assert copy.kit_interval is None
+    assert copy.is_private is False

@@ -552,3 +552,36 @@ def test_reconnect_is_fast_with_ten_thousand_contacts(
     assert "Showing the 100 most overdue of" in page.text  # thousands due: the rest via search
     assert page.text.count('data-testid="reconnect-row"') == 100
     assert elapsed < 1.0, f"Reconnect took {elapsed:.2f}s"
+
+
+@pytest.mark.req("C-17")
+def test_logging_after_bulk_compose_logs_everyone_selected(
+    client: TestClient, db_session: Session, due_people: dict[str, Contact]
+) -> None:
+    vera, justin = due_people["very"], due_people["just"]
+    token = _csrf(client, "/")
+    response = client.post(
+        "/selection/log",
+        data={
+            "csrf_token": token,
+            "contact_ids": [str(vera.id), str(justin.id), "999999"],
+            "kind": "email",
+            "summary": "Emailed",
+            "next": "/?q=x",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/?q=x&notice=logged_many&n=2"
+    db_session.expire_all()
+    for person in (vera, justin):
+        assert person.activities[0].kind == "email"
+        assert person.activities[0].occurred_on == date.today()
+    names = re.findall(r'class="reconnect-name">([^<]+)<', client.get("/reconnect").text)
+    assert "Vera Overdue" not in names
+    assert "Justin Late" not in names
+    bad = client.post(
+        "/selection/log",
+        data={"csrf_token": token, "contact_ids": [str(vera.id)], "kind": "note"},
+    )
+    assert bad.status_code == 422
