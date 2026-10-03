@@ -7,13 +7,21 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 # Forms yield Starlette's UploadFile (FastAPI's is a subclass, so isinstance needs this one).
 from starlette.datastructures import FormData, UploadFile
 
+from app.appearance import (
+    PALETTE_CHOICES,
+    THEME_CHOICES,
+    current_appearance,
+    forget_appearance,
+    save_appearance,
+)
 from app.backup import BackupError, backup, find_backup, list_backups, prune, restore
 from app.contact_types import add_type, delete_type, move_type, rename_type, types_with_counts
 from app.contacts import ContactError, ContactNotFound, list_contact_types
@@ -35,6 +43,7 @@ from app.migrate import upgrade_to_head
 from app.models import Contact, ContactPhoto, Tag
 from app.org import build_org
 from app.photos import remove_photo, set_photo
+from app.schemas import AppearanceIn
 from app.search import active_lists
 from app.semantic import index_counts, mark_all_stale
 from app.tags import (
@@ -53,6 +62,7 @@ from app.web import (
     _render,
     _settings,
     notice_text,
+    safe_next,
     with_notice,
 )
 
@@ -95,7 +105,38 @@ def settings_page(request: Request, session: SessionDep) -> HTMLResponse:
             "semantic_counts": index_counts(session, request.app.state.semantic.model_id),
             "notice": notice_text(request),
             "error": request.query_params.get("error"),
+            "chosen": current_appearance(request.app.state),
+            "theme_choices": THEME_CHOICES,
+            "palette_choices": PALETTE_CHOICES,
         },
+    )
+
+
+@router.post("/settings/appearance", dependencies=CsrfChecked)
+async def save_appearance_form(request: Request, session: SessionDep) -> Response:
+    """A-01, A-03: save the theme and/or palette for this instance (ADR-0015).
+
+    A plain form post redirects (works without JavaScript); app.js asks for JSON instead.
+    """
+    form = await request.form()
+    wants_json = "application/json" in request.headers.get("accept", "")
+    try:
+        choice = AppearanceIn.model_validate(
+            {key: str(form[key]) for key in ("theme", "palette") if key in form}
+        )
+    except ValidationError:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown theme or palette"
+        ) from None
+    saved = save_appearance(session, theme=choice.theme, palette=choice.palette)
+    session.commit()
+    request.app.state.appearance = saved
+    if wants_json:
+        return JSONResponse({"theme": saved.theme, "palette": saved.palette})
+    if form.get("next"):
+        return RedirectResponse(safe_next(form.get("next"), "/"), status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        with_notice("/settings", "appearance") + "#appearance-h", status.HTTP_303_SEE_OTHER
     )
 
 
@@ -149,6 +190,7 @@ async def restore_backup(request: Request, name: str) -> Response:
         request.app.state.engine.dispose()  # drop pooled connections to the old tables
         restore(settings, item.path)
         upgrade_to_head(settings)
+        forget_appearance(request.app.state)  # the restored database has its own choice
     except BackupError as exc:
         return RedirectResponse(
             with_notice("/settings", "", error=str(exc)[:300]), status.HTTP_303_SEE_OTHER

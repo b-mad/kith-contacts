@@ -2,7 +2,8 @@
 
 Migration 0001 created the Phase 1 tables; 0002 adds tags, lists and the
 search vector (Phase 2); 0003 photos (Phase 3); 0004 custom fields, activities,
-saved searches, list tags, duplicate dismissals and merge snapshots (Phase 4).
+saved searches, list tags, duplicate dismissals and merge snapshots (Phase 4);
+0005 search by meaning (Phase 5); 0006 per-instance app settings (Phase 6).
 """
 
 from __future__ import annotations
@@ -357,3 +358,13 @@ class SemanticChunk(Base):
     source: Mapped[str] = mapped_column(String(20))
     text: Mapped[str] = mapped_column(Text)
     vector: Mapped[bytes] = mapped_column(LargeBinary)
+
+
+class AppSetting(Base):
+    """A-03: one per-instance preference, e.g. theme = "dark" (ADR-0015)."""
+
+    __tablename__ = "app_setting"
+
+    key: Mapped[str] = mapped_column(String(50), primary_key=True)
+    value: Mapped[str] = mapped_column(String(200))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

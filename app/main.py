@@ -26,6 +26,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app import api, web, web_admin, web_depth, web_lists
+from app.appearance import THEME_CHOICES, current_appearance
 from app.backup import BackupFile, ensure_recent_backup
 from app.config import Settings, load_settings
 from app.contacts import ContactError, ContactNotFound
@@ -180,6 +181,9 @@ def create_app(
     app.state.session_factory = session_factory
     app.state.semantic = semantic
     app.state.templates = build_templates(settings)
+    app.state.appearance = None  # loaded on first render (A-03)
+    app.state.templates.env.globals["appearance"] = lambda: current_appearance(app.state)
+    app.state.templates.env.globals["theme_choices"] = THEME_CHOICES
     app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 
     @app.middleware("http")

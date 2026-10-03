@@ -139,6 +139,7 @@ NOTICES = {
     "search_renamed": "Saved search renamed.",
     "list_tagged": "Tagged the list “{name}”.",
     "reindexing": "Search by meaning is re-checking every contact in the background.",
+    "appearance": "Appearance saved for this instance.",
 }
 
 

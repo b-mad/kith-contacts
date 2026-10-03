@@ -14,6 +14,7 @@ const store = {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
+  initThemeSwitch();
   initSearch();
   initSelection();
   initFormRows();
@@ -410,4 +411,29 @@ function initPicker(root, { input, hidden, list, exclude, clear }) {
       input.focus();
     });
   }
+}
+
+// ------------------------------------------------------------------ theme switch (A-01, ADR-0015)
+
+// The header switch is an ordinary form that works without JavaScript. Here it applies the
+// choice at once and saves it in the background; if saving fails, the form posts normally.
+function initThemeSwitch() {
+  const form = $("[data-theme-switch]");
+  if (!form) return;
+  form.addEventListener("change", async (e) => {
+    const input = e.target;
+    if (!(input instanceof HTMLInputElement) || input.name !== "theme") return;
+    document.documentElement.dataset.theme = input.value;
+    try {
+      const res = await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      form.submit();
+    }
+  });
 }

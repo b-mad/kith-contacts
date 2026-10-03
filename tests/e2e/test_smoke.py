@@ -458,3 +458,41 @@ def test_live_search_by_meaning_and_select(meaning_url: str) -> None:
 
         assert errors == []
         browser.close()
+
+
+@pytest.mark.req("A-01", "A-03")
+def test_theme_follows_the_system_until_chosen_and_is_right_on_first_paint(base_url: str) -> None:
+    """System follows the OS; a choice applies at once, persists, and needs no script."""
+    from playwright.sync_api import expect, sync_playwright
+
+    dark_bg, light_bg = "rgb(13, 19, 26)", "rgb(244, 246, 249)"  # Harbor --bg
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page(color_scheme="dark")
+        page.goto(base_url)
+        body = page.locator("body")
+        expect(page.locator("html")).to_have_attribute("data-theme", "system")
+        expect(body).to_have_css("background-color", dark_bg)
+
+        with page.expect_response(lambda r: r.url.endswith("/settings/appearance")) as saved:
+            page.get_by_test_id("theme-light").check()
+        assert saved.value.ok
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        expect(body).to_have_css("background-color", light_bg)
+
+        page.reload()
+        expect(body).to_have_css("background-color", light_bg)
+        expect(page.get_by_test_id("theme-light")).to_be_checked()
+
+        # Without JavaScript the server-rendered attribute still wins over the OS (no flash).
+        no_js = browser.new_context(java_script_enabled=False, color_scheme="dark").new_page()
+        no_js.goto(base_url)
+        expect(no_js.locator("body")).to_have_css("background-color", light_bg)
+
+        # Leave the shared database as other browser tests expect it.
+        with page.expect_response(lambda r: r.url.endswith("/settings/appearance")):
+            page.get_by_test_id("theme-system").check()
+        expect(body).to_have_css("background-color", dark_bg)
+        browser.close()

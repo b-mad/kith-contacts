@@ -16,6 +16,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.appearance import Palette, Theme
+
 
 def _blank_to_none(value: object) -> object:
     if isinstance(value, str) and not value.strip():
@@ -54,6 +56,13 @@ SlackHandle = Annotated[
 
 class _Input(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+
+class AppearanceIn(_Input):
+    """A-01, A-03: a theme and/or palette from Settings or the header switch (ADR-0015)."""
+
+    theme: Theme | None = None
+    palette: Palette | None = None
 
 
 class EmailIn(_Input):
