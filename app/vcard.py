@@ -75,6 +75,9 @@ def to_vcard(contact: Contact) -> str:
         lines.append(f"NOTE:{_escape(note)}")
     if contact.tags:
         lines.append("CATEGORIES:" + ",".join(_escape(t.name) for t in contact.tags))
+    if contact.linkedin_url:  # C-18: Apple reads X-SOCIALPROFILE, Google and Outlook read URL
+        lines.append(f"X-SOCIALPROFILE;TYPE=linkedin:{contact.linkedin_url}")
+        lines.append(f"URL;TYPE=linkedin:{contact.linkedin_url}")
     stamp = (contact.updated_at or datetime.now(UTC)).astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
     lines += [f"REV:{stamp}", "END:VCARD"]
     return "\r\n".join(_fold(line) for line in lines) + "\r\n"
@@ -100,6 +103,7 @@ class ParsedCard:
     emails: list[tuple[str, str, bool]] = field(default_factory=list)  # (email, label, pref)
     phones: list[tuple[str, str]] = field(default_factory=list)  # (number, label)
     tags: list[str] = field(default_factory=list)
+    linkedin_url: str = ""  # C-18
 
 
 def _unescape(value: str) -> str:
@@ -192,6 +196,10 @@ def parse_vcards(text: str) -> list[ParsedCard]:
         elif name == "TEL" and value.strip():
             number = value.strip().removeprefix("tel:")
             card.phones.append((number, _label(params.get("TYPE", []), {"VOICE", "PREF"})))
+        elif name in {"URL", "X-SOCIALPROFILE"} and not card.linkedin_url:
+            link = _unescape(value).replace("\\:", ":").strip()
+            if "linkedin.com/in/" in link.lower():
+                card.linkedin_url = link
         elif name == "CATEGORIES":
             card.tags.extend(t.strip() for t in _split(value, ",") if t.strip())
     return cards

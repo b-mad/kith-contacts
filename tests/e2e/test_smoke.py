@@ -850,3 +850,37 @@ def test_command_palette_shortcut_list_and_undo(base_url: str) -> None:
         ).to_have_count(1)
         page.request.post(base_url + "/settings/appearance", form={"theme": "system"})
         browser.close()
+
+
+@pytest.mark.req("C-18")
+def test_linkedin_action_opens_the_profile_in_a_new_tab(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        types = page.request.get(base_url + "/api/contact-types").json()
+        employee = next(t["id"] for t in types if t["name"] == "Employee")
+        person = page.request.post(
+            base_url + "/api/contacts",
+            data={"display_name": "Lin Kedin", "contact_type_id": employee},
+        ).json()
+
+        # Paste a profile link with tracking junk into the edit form.
+        page.goto(base_url + f"/contacts/{person['id']}/edit")
+        page.get_by_label("LinkedIn profile").fill(
+            "https://www.linkedin.com/in/Lin-Kedin/?originalSubdomain=uk"
+        )
+        page.get_by_role("button", name="Save").click()
+        action = page.get_by_test_id("action-linkedin")
+        expect(action).to_have_attribute("href", "https://www.linkedin.com/in/lin-kedin")
+        expect(action).to_have_attribute("target", "_blank")
+        expect(action).to_have_attribute("rel", "noopener noreferrer")
+
+        # The search preview has it too.
+        page.goto(base_url + "/?q=kedin")
+        page.get_by_role("link", name="Lin Kedin").click()
+        expect(page.get_by_test_id("preview").get_by_test_id("action-linkedin")).to_be_visible()
+        browser.close()

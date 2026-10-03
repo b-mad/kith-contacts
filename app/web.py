@@ -450,6 +450,7 @@ def parse_contact_form(form: FormData) -> tuple[dict[str, Any], dict[str, Any]]:
         "slack_handle",
         "slack_url",
         "teams_url",
+        "linkedin_url",
         "pronunciation",
     ]
     values: dict[str, Any] = {f: str(form.get(f, "")).strip() for f in scalar}
@@ -504,6 +505,7 @@ FIELD_LABELS = {
     "slack_handle": "Slack handle",
     "slack_url": "Slack link",
     "teams_url": "Teams link",
+    "linkedin_url": "LinkedIn profile",
 }
 
 
@@ -579,6 +581,7 @@ def _values_from_contact(contact: Contact) -> dict[str, Any]:
             "slack_handle",
             "slack_url",
             "teams_url",
+            "linkedin_url",
             "pronunciation",
         ]
     }

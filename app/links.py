@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import phonenumbers
 
@@ -38,6 +38,48 @@ def mailto_url(emails: Sequence[str], cc: Sequence[str] = ()) -> str | None:
     if cc:
         url += "?cc=" + ",".join(quote(e, safe="@") for e in cc)
     return url
+
+
+LINKEDIN_PROFILE = "https://www.linkedin.com/in/{name}"
+_LINKEDIN_NAME = re.compile(r"^[\w\-%]{3,100}$", re.UNICODE)
+_LINKEDIN_HOST = re.compile(r"^(?:[a-z]{2,3}\.|www\.)?linkedin\.com$")
+
+
+def normalize_linkedin(raw: str) -> str:
+    """C-18: a profile URL or name -> ``https://www.linkedin.com/in/<name>``.
+
+    Accepts ``linkedin.com/in/maria-lopez``, ``https://uk.linkedin.com/in/maria-lopez/?x=1``
+    or just ``maria-lopez``. Raises ``ValueError`` for anything else.
+    """
+    text = raw.strip()
+    if not text:
+        raise ValueError("enter a LinkedIn profile link or name")
+    if "/" not in text and "." not in text:
+        name = text.lstrip("@")
+    else:
+        if "://" not in text:
+            text = "https://" + text
+        parts = urlsplit(text)
+        host = (parts.hostname or "").lower()
+        segments = [s for s in parts.path.split("/") if s]
+        if (
+            parts.scheme.lower() not in {"http", "https"}
+            or not _LINKEDIN_HOST.match(host)
+            or len(segments) < 2
+            or segments[0].lower() != "in"
+        ):
+            raise ValueError("must be a LinkedIn profile link like linkedin.com/in/name")
+        name = segments[1]
+    if not _LINKEDIN_NAME.match(name):
+        raise ValueError("must be a LinkedIn profile link like linkedin.com/in/name")
+    return LINKEDIN_PROFILE.format(name=name.lower())
+
+
+def linkedin_name(url: str | None) -> str | None:
+    """``https://www.linkedin.com/in/maria-lopez`` -> ``maria-lopez`` (for display)."""
+    if not url or "/in/" not in url:
+        return None
+    return url.rsplit("/in/", 1)[1].strip("/") or None
 
 
 def tel_url(number: str) -> str:

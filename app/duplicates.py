@@ -59,6 +59,7 @@ MERGE_FIELDS: tuple[tuple[str, str], ...] = (
     ("slack_handle", "Slack handle"),
     ("slack_url", "Slack link"),
     ("teams_url", "Teams link"),
+    ("linkedin_url", "LinkedIn"),
     ("pronunciation", "Pronunciation"),
 )
 # Free-text fields that are combined when both have different text.

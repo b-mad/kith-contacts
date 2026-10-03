@@ -30,5 +30,8 @@
   {% else %}<span class="action disabled" aria-disabled="true" title="No Slack handle saved">Slack</span>{% endif %}
   {% if c.links.teams %}<a class="action" href="{{ c.links.teams }}" target="_blank" rel="noopener noreferrer" data-testid="action-teams">Teams</a>
   {% else %}<span class="action disabled" aria-disabled="true" title="No work email or Teams link saved">Teams</span>{% endif %}
+  {# C-18: opens the profile on linkedin.com; the app itself never contacts LinkedIn (N-04). #}
+  {% if c.linkedin_url %}<a class="action" href="{{ c.linkedin_url }}" target="_blank" rel="noopener noreferrer" title="LinkedIn: {{ c.linkedin_url | linkedin_name }}" data-testid="action-linkedin">LinkedIn<span class="visually-hidden"> profile (opens in a new tab)</span></a>
+  {% else %}<span class="action disabled" aria-disabled="true" title="No LinkedIn profile saved" data-testid="action-linkedin-none">LinkedIn</span>{% endif %}
 </nav>
 {%- endmacro %}

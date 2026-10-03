@@ -139,6 +139,7 @@ def _seed(page: Any, base: str) -> int:
             "title": "Analyst",
             "manager_id": manager["id"],
             "notes": "Met at the analytics summit.",
+            "linkedin_url": "ada-lovelace",
             "emails": [{"email": "ada@example.com", "label": "work", "is_primary": True}],
             "phones": [{"number": "+14045550142", "label": "mobile"}],
         },

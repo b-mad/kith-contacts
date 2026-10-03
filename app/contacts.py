@@ -252,6 +252,7 @@ _SCALAR_FIELDS = (
     "slack_handle",
     "slack_url",
     "teams_url",
+    "linkedin_url",
     "pronunciation",
     "is_favorite",
 )

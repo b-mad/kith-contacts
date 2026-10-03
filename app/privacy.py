@@ -309,8 +309,8 @@ WORK_FIELDS: Final = frozenset(
     {
         "id", "display_name", "first_name", "last_name", "nickname", "contact_type", "company",
         "title", "team", "department", "location", "manager", "reports", "works_on",
-        "slack_handle", "slack_url", "teams_url", "pronunciation", "is_favorite", "emails",
-        "phones", "tags", "lists", "links", "archived", "has_photo", "custom_fields",
+        "slack_handle", "slack_url", "teams_url", "linkedin_url", "pronunciation", "is_favorite",
+        "emails", "phones", "tags", "lists", "links", "archived", "has_photo", "custom_fields",
         "activities", "last_contact", "created_at", "updated_at",
     }
 )  # fmt: skip

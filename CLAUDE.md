@@ -103,7 +103,7 @@ delete a failing test to get a green run unless the requirement was withdrawn.
 | `app/models.py` | SQLAlchemy models (data model §6) |
 | `app/schemas.py` | Pydantic input/output models and validation rules |
 | `app/contacts.py` | Contact business logic — routes stay thin and call this |
-| `app/links.py` | Pure helpers for mailto/tel/Slack/Teams links and phone format |
+| `app/links.py` | Pure helpers for mailto/tel/Slack/Teams links, LinkedIn profile normalisation (C-18) and phone format |
 | `app/search.py` | Context search, filters, match context, and `refresh_search` (ADR-0010) |
 | `app/tags.py`, `app/lists.py` | Tags (incl. related tags, T-05) and project lists (incl. list tags, L-05) |
 | `app/web_lists.py` | Pages for lists and tags |

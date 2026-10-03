@@ -131,11 +131,12 @@
   </fieldset>
 
   <fieldset>
-    <legend>Chat</legend>
+    <legend>Chat and LinkedIn</legend>
     <div class="row three">
       {{ m.text_input("Slack handle", "slack_handle", values, errors, hint="e.g. @maria") }}
       {{ m.text_input("Slack DM link", "slack_url", values, errors, type="url", hint="Copy link to profile in Slack") }}
       {{ m.text_input("Teams chat link", "teams_url", values, errors, type="url", hint="Leave blank to use their primary email") }}
+      {{ m.text_input("LinkedIn profile", "linkedin_url", values, errors, hint="Paste the profile link, or just the name after linkedin.com/in/") }}
     </div>
   </fieldset>
 

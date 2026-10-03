@@ -23,6 +23,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.contacts import ContactError, check_manager, create_contact, resolve_company
+from app.links import normalize_linkedin
 from app.lists import add_members, find_or_create_list
 from app.models import (
     Contact,
@@ -92,6 +93,7 @@ def contact_record(contact: Contact, *, include_photo: bool = False) -> dict[str
         "slack_handle": c.slack_handle,
         "slack_url": c.slack_url,
         "teams_url": c.teams_url,
+        "linkedin_url": c.linkedin_url,  # C-18
         "pronunciation": c.pronunciation,
         "is_favorite": c.is_favorite,
         "keep_in_touch": c.kit_interval,  # C-15
@@ -179,6 +181,7 @@ CSV_COLUMNS = [
     "display_name", "first_name", "last_name", "nickname", "type", "company", "title", "team",
     "department", "location", "manager", "primary_email", "emails", "phones", "slack_handle",
     "slack_url", "teams_url", "works_on", "notes", "tags", "lists", "favorite", "archived",
+    "linkedin",
 ]  # fmt: skip
 
 _FORMULA = re.compile(r"^[=@\t\r]|^[+-](?!\d)")
@@ -223,6 +226,7 @@ def export_csv(session: Session) -> str:
                     "; ".join(m.contact_list.name for m in c.memberships),
                     "yes" if c.is_favorite else "",
                     "yes" if c.archived_at else "",
+                    c.linkedin_url,
                 )
             ]
         )
@@ -256,6 +260,9 @@ FIELDS: dict[str, tuple[str, ...]] = {
     "tags": ("tags", "categories", "labels", "groupmembership"),
     "type": ("type", "contacttype", "relationship", "category"),
     "slack_handle": ("slack", "slackhandle", "slackusername"),
+    # C-18: LinkedIn's own Connections.csv calls the profile link "URL".
+    "linkedin_url": ("linkedin", "linkedinurl", "linkedinprofile", "linkedinprofileurl",
+                     "profileurl", "url"),
 }  # fmt: skip
 
 FIELD_LABELS = {
@@ -264,7 +271,7 @@ FIELD_LABELS = {
     "phone": "Phone", "phone2": "Phone 2", "phone3": "Phone 3", "company": "Company",
     "title": "Title", "department": "Department", "team": "Team", "location": "Location",
     "manager": "Manager (name)", "works_on": "Works on", "notes": "Notes", "tags": "Tags",
-    "type": "Type", "slack_handle": "Slack handle",
+    "type": "Type", "slack_handle": "Slack handle", "linkedin_url": "LinkedIn profile",
 }  # fmt: skip
 
 
@@ -293,6 +300,7 @@ def read_csv(data: bytes) -> tuple[list[str], list[list[str]]]:
         text = data.decode("utf-8-sig")
     except UnicodeDecodeError:
         text = data.decode("cp1252", errors="replace")
+    text = _skip_preamble(text)
     try:
         dialect: Any = csv.Sniffer().sniff(text[:4096], delimiters=",;\t")
     except csv.Error:
@@ -304,6 +312,17 @@ def read_csv(data: bytes) -> tuple[list[str], list[list[str]]]:
     if len(body) > MAX_IMPORT_ROWS:
         raise ContactError(f"At most {MAX_IMPORT_ROWS} rows can be imported at once", "file")
     return [h.strip() for h in headers], body
+
+
+def _skip_preamble(text: str) -> str:
+    """LinkedIn's Connections.csv starts with a "Notes:" paragraph before the header row."""
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip().lower().rstrip(":") != "notes":
+        return text
+    for index, line in enumerate(lines):
+        if line.lower().startswith("first name,"):
+            return "".join(lines[index:])
+    return text
 
 
 def rows_from_csv(body: Sequence[Sequence[str]], mapping: dict[int, str]) -> list[dict[str, str]]:
@@ -332,6 +351,7 @@ def rows_from_vcards(cards: Sequence[ParsedCard]) -> list[dict[str, Any]]:
                 "title": card.title,
                 "notes": card.notes,
                 "tags": "; ".join(card.tags),
+                "linkedin_url": card.linkedin_url,
             }.items()
             if v
         }
@@ -370,7 +390,7 @@ def rows_from_json(raw: str) -> list[dict[str, Any]]:
             for key in (
                 "display_name", "first_name", "last_name", "nickname", "type", "company",
                 "title", "team", "department", "location", "manager", "works_on", "notes",
-                "slack_handle", "slack_url", "teams_url", "pronunciation",
+                "slack_handle", "slack_url", "teams_url", "pronunciation", "linkedin_url",
             )
             if (value := _text(c.get(key)))
         }  # fmt: skip
@@ -535,6 +555,9 @@ def plan_import(
                 data["emails"].append(
                     {"email": email.strip(), "label": label or None, "is_primary": primary}
                 )
+        if record.get("linkedin_url"):  # C-18: not a LinkedIn profile -> left out, not an error
+            with contextlib.suppress(ValueError):
+                data["linkedin_url"] = normalize_linkedin(str(record["linkedin_url"]))
         if record.get("is_favorite") is True:
             data["is_favorite"] = True
         if record.get("_custom_fields"):

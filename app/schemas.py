@@ -17,6 +17,7 @@ from pydantic import (
 )
 
 from app.appearance import Density, Palette, Theme
+from app.links import normalize_linkedin
 
 
 def _blank_to_none(value: object) -> object:
@@ -30,6 +31,10 @@ def _https_only(value: str | None) -> str | None:
     if value is not None and not value.lower().startswith("https://"):
         raise ValueError("must be an https:// link")
     return value
+
+
+def _linkedin(value: str | None) -> str | None:
+    return normalize_linkedin(value) if value is not None else None
 
 
 def _strip_at(value: str | None) -> str | None:
@@ -46,6 +51,11 @@ HttpsUrl = Annotated[
     Annotated[str, StringConstraints(max_length=500)] | None,
     _Blank,
     AfterValidator(_https_only),
+]
+LinkedInUrl = Annotated[
+    Annotated[str, StringConstraints(max_length=300)] | None,
+    _Blank,
+    AfterValidator(_linkedin),
 ]
 SlackHandle = Annotated[
     Annotated[str, StringConstraints(max_length=100, pattern=r"^@?[\w.\-]+$")] | None,
@@ -125,6 +135,7 @@ class ContactFields(_Input):
     slack_handle: SlackHandle = None
     slack_url: HttpsUrl = None
     teams_url: HttpsUrl = None
+    linkedin_url: LinkedInUrl = None  # C-18
     pronunciation: Text200 = None
     is_favorite: bool = False
 
@@ -247,6 +258,7 @@ class ContactOut(_Output):
     slack_handle: str | None
     slack_url: str | None
     teams_url: str | None
+    linkedin_url: str | None = None  # C-18
     pronunciation: str | None
     is_favorite: bool
     emails: list[EmailOut]

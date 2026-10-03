@@ -33,7 +33,7 @@ from app.contacts import ContactError, ContactNotFound
 from app.db import create_db_engine, make_session_factory
 from app.embedder import Embedder
 from app.keep_in_touch import INTERVAL_LABELS, count_due
-from app.links import display_phone, slack_handle_display
+from app.links import display_phone, linkedin_name, slack_handle_display
 from app.migrate import current_revision, ensure_contact_types, upgrade_to_head
 from app.privacy import (
     COOKIE,
@@ -147,6 +147,7 @@ def build_templates(settings: Settings) -> Jinja2Templates:
     templates.env.filters["initials"] = initials
     templates.env.filters["search_summary"] = describe_query
     templates.env.filters["highlight"] = highlight
+    templates.env.filters["linkedin_name"] = linkedin_name
     return templates
 
 

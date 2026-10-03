@@ -628,8 +628,8 @@ mark { background: var(--warning-soft); color: var(--fg); font-weight: 600; bord
 .preview-name { margin: 0; font-size: 1.35rem; line-height: 1.25; text-transform: none; letter-spacing: 0; color: var(--fg); }
 .preview-who { min-width: 0; }
 .preview-who p { margin: 0.1rem 0 0; }
-.preview .actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; margin: 0; }
-.preview .action { display: flex; align-items: center; justify-content: center; min-height: 2.5rem; padding: 0.3rem 0.25rem; }
+.preview .actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(4rem, 1fr)); gap: 0.4rem; margin: 0; }
+.preview .action { display: flex; align-items: center; justify-content: center; min-height: 2.5rem; padding: 0.3rem 0.2rem; font-size: 0.875rem; }
 .preview .kit-line { margin: 0; }
 .preview-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.3rem 1rem; margin: 0; }
 .preview-facts dt { color: var(--muted); }

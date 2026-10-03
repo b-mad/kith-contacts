@@ -162,6 +162,7 @@ class Contact(Base):
     slack_handle: Mapped[str | None] = mapped_column(String(100))
     slack_url: Mapped[str | None] = mapped_column(String(500))
     teams_url: Mapped[str | None] = mapped_column(String(500))
+    linkedin_url: Mapped[str | None] = mapped_column(String(300))  # C-18, migration 0009
     pronunciation: Mapped[str | None] = mapped_column(String(200))
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
