@@ -1,0 +1,61 @@
+/* Design tokens (ADR-0015). The only file in app/static that may contain color literals.
+ *
+ * Every color is written once as light-dark(<light>, <dark>). The browser picks the side
+ * from `color-scheme`: "light dark" follows the operating system (theme = System),
+ * "light" or "dark" forces one (A-01). tests/test_contrast.py checks every pair against
+ * WCAG 2.2 AA in both modes (A-04).
+ */
+
+:root { color-scheme: light dark; }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+/* ------------------------------------------------------------------ Harbor (default) */
+:root,
+:root[data-palette="harbor"] {
+  --bg: light-dark(#f4f6f9, #0d131a);
+  --surface: light-dark(#ffffff, #141c25);
+  --surface-2: light-dark(#eaeff5, #1b2531);
+  --border: light-dark(#d3dbe4, #2a3644);
+  --border-strong: light-dark(#7d8b9b, #66778b);
+  --fg: light-dark(#141c26, #e3e9f0);
+  --muted: light-dark(#4f5d6d, #9eacbc);
+  --accent: light-dark(#0b5cad, #72b4ff);
+  --accent-fill: light-dark(#0b5cad, #72b4ff);
+  --accent-fill-hover: light-dark(#094c90, #9ccbff);
+  --on-accent: light-dark(#ffffff, #05203d);
+  --accent-soft: light-dark(#e1ecf9, #15304e);
+  --focus: light-dark(#0b5cad, #8fc4ff);
+}
+
+/* ------------------------------------------------------------------ Shared by every palette */
+:root {
+  --danger: light-dark(#b42318, #ff8f85);
+  --danger-soft: light-dark(#fde8e6, #3b1715);
+  --success: light-dark(#17753a, #5fd38a);
+  --success-soft: light-dark(#e1f4e6, #11301d);
+  --warning: light-dark(#7a5200, #e8b84d);
+  --warning-soft: light-dark(#fdf1d3, #33270c);
+  --shadow-color: light-dark(rgb(16 24 40 / 0.15), rgb(0 0 0 / 0.5));
+
+  /* Tag colors (T-04): background and border. Text on them is --fg. */
+  --t-red: light-dark(#fde8e6, #3a1a18);
+  --t-red-b: light-dark(#e8857c, #a5453c);
+  --t-orange: light-dark(#fdeedd, #3a2614);
+  --t-orange-b: light-dark(#e29a5a, #b06a2c);
+  --t-yellow: light-dark(#fbf3cf, #362d0f);
+  --t-yellow-b: light-dark(#c9a227, #a88a2a);
+  --t-green: light-dark(#e1f4e6, #14301e);
+  --t-green-b: light-dark(#6cbf85, #3f9a5c);
+  --t-teal: light-dark(#dcf3f0, #0f302c);
+  --t-teal-b: light-dark(#4fb3a6, #3a988b);
+  --t-blue: light-dark(#e1edfb, #142a45);
+  --t-blue-b: light-dark(#6ea4e6, #4a80c4);
+  --t-purple: light-dark(#f1e8fb, #2a1d40);
+  --t-purple-b: light-dark(#a985dd, #8a6bc4);
+  --t-gray: light-dark(#eceff2, #252b31);
+  --t-gray-b: light-dark(#a3adb8, #6b7580);
+
+  /* Text on the instance color band (I-03). instance_css overrides it per instance. */
+  --instance-on: #ffffff;
+}
