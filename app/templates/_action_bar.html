@@ -54,6 +54,20 @@
     </form>
   </div>
 
+  <div class="menu-wrap">
+    <button type="button" data-open-menu="kit-menu" data-testid="kit-bulk">Keep in touch ▾</button>
+    <form class="menu" id="kit-menu" method="post" action="/selection/keep-in-touch" hidden data-selection-form data-testid="kit-menu">
+      {{ m.csrf() }}
+      <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+      <label for="sel-kit">How often</label>
+      <select id="sel-kit" name="interval" data-testid="kit-bulk-interval">
+        <option value="">Off</option>
+        {% for value, label in kit_intervals.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="primary" data-testid="kit-bulk-submit">Set</button>
+    </form>
+  </div>
+
   <button type="button" class="link" data-clear-selection>Clear</button>
   <p class="action-status" data-action-status role="status" aria-live="polite" data-testid="action-status"></p>
   <div class="copy-fallback" data-copy-fallback hidden>

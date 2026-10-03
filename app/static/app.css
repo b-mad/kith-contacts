@@ -458,3 +458,44 @@ body.env-production .seg label:has(input:focus-visible) { outline-color: var(--f
 .kit-line { margin: 0.1rem 0 0.2rem; font-size: 0.9rem; font-weight: 600; }
 .kit-line a { color: var(--muted); }
 .kit-line.kit-overdue a, .kit-line.kit-today a { color: var(--warning); }
+
+/* Phase 7: Reconnect page, nav count and log prompt (S-11, C-17) */
+.nav-count {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 1.3rem; height: 1.3rem;
+  padding: 0 0.35rem; margin-left: 0.2rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700;
+  background: var(--instance-on); color: var(--instance-color);
+}
+body.env-production .nav-count { background: var(--accent-fill); color: var(--on-accent); }
+.reconnect h2 { margin-top: 0.75rem; }
+.reconnect-list { list-style: none; margin: 0; padding: 0; }
+.reconnect-row {
+  display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; justify-content: space-between;
+  padding: 0.75rem 0; border-top: 1px solid var(--border);
+}
+.reconnect-row:first-child { border-top: 0; }
+.reconnect-row .who { flex: 1 1 20rem; min-width: 0; }
+.reconnect-row .who p { margin: 0.1rem 0; }
+.reconnect-name { font-weight: 700; }
+.reconnect-row .when { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: flex-start; justify-content: flex-end; }
+.row-actions form { margin: 0; }
+.log-details { position: relative; }
+.log-details summary { list-style: none; }
+.log-details summary::-webkit-details-marker { display: none; }
+.log-form {
+  position: absolute; right: 0; top: calc(100% + 0.3rem); z-index: 30; display: flex; gap: 0.4rem;
+  padding: 0.6rem; min-width: 22rem; background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: 8px; box-shadow: 0 6px 18px var(--shadow-color);
+}
+.log-form select { width: auto; flex: 0 0 auto; }
+.log-prompt {
+  position: sticky; bottom: 1rem; z-index: 25; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  margin-top: 1rem; padding: 0.6rem 0.8rem; border-radius: 10px; background: var(--surface);
+  border: 1px solid var(--accent); box-shadow: 0 -4px 18px var(--shadow-color);
+}
+.log-prompt[hidden] { display: none; }
+.log-prompt p { margin: 0; flex: 1 1 14rem; font-weight: 600; }
+@media (max-width: 40rem) {
+  .reconnect-row .when { align-items: flex-start; }
+  .log-form { left: 0; right: auto; min-width: 0; flex-wrap: wrap; }
+}

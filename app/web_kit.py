@@ -3,14 +3,36 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.contacts import ContactError
-from app.keep_in_touch import clear_snooze, set_cadence, snooze, snooze_until
-from app.web import CsrfChecked, SessionDep, _load, with_notice
+from app.contacts import ContactError, to_out
+from app.keep_in_touch import (
+    Reminder,
+    clear_snooze,
+    due_reminders,
+    next_reminder,
+    set_cadence,
+    snooze,
+    snooze_until,
+)
+from app.models import Contact
+from app.search import last_interactions
+from app.web import (
+    CsrfChecked,
+    SessionDep,
+    _interaction,
+    _load,
+    _render,
+    notice_text,
+    safe_next,
+    selected_ids,
+    with_notice,
+)
 
 router = APIRouter(include_in_schema=False)
 
@@ -20,9 +42,62 @@ def _invalid(session: Session, exc: ContactError) -> HTTPException:
     return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message)
 
 
-def _back(contact_id: int, notice: str, **params: object) -> Response:
+def _back(contact_id: int, notice: str, next_: object = None, **params: object) -> Response:
+    """Back to the card's Keep in touch section, or to ``next`` (e.g. the Reconnect page)."""
+    if next_:
+        target = safe_next(next_, "/reconnect")
+        return RedirectResponse(with_notice(target, notice, **params), status.HTTP_303_SEE_OTHER)
     url = with_notice(f"/contacts/{contact_id}", notice, **params) + "#kit-h"
     return RedirectResponse(url, status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/reconnect", response_class=HTMLResponse)
+def reconnect(request: Request, session: SessionDep) -> HTMLResponse:
+    """S-11: who is overdue, then who is due this week."""
+    today = date.today()
+    due = due_reminders(session, today=today)
+    last = last_interactions(session, [c.id for c, _ in due])
+
+    def row(contact: Contact, reminder: Reminder) -> dict[str, Any]:
+        found = last.get(contact.id)
+        return {
+            "c": to_out(contact),
+            "reminder": reminder,
+            "last": _interaction(found) if found else None,
+        }
+
+    overdue = [row(c, r) for c, r in due if r.days < 0]
+    this_week = [row(c, r) for c, r in due if r.days >= 0]
+    upcoming = next_reminder(session, today=today) if not due else None
+    return _render(
+        request,
+        "reconnect/index.html",
+        {
+            "overdue": overdue,
+            "this_week": this_week,
+            "upcoming": upcoming,
+            "notice": notice_text(request),
+        },
+    )
+
+
+@router.post("/selection/keep-in-touch", dependencies=CsrfChecked)
+async def keep_in_touch_selection(request: Request, session: SessionDep) -> Response:
+    """C-15: set (or turn off) a cadence for every selected contact."""
+    form = await request.form()
+    ids = selected_ids(form)
+    back = safe_next(form.get("next"))
+    if not ids:
+        return RedirectResponse(back, status.HTTP_303_SEE_OTHER)
+    interval = str(form.get("interval", "")).strip() or None
+    contacts = session.scalars(select(Contact).where(Contact.id.in_(ids))).all()
+    try:
+        count = set_cadence(session, contacts, interval, today=date.today())
+    except ContactError as exc:
+        raise _invalid(session, exc) from None
+    session.commit()
+    notice = "kit_bulk" if interval else "kit_bulk_off"
+    return RedirectResponse(with_notice(back, notice, n=count), status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/contacts/{contact_id}/keep-in-touch", dependencies=CsrfChecked)
@@ -51,7 +126,8 @@ async def snooze_reminder(request: Request, contact_id: int, session: SessionDep
     except ContactError as exc:
         raise _invalid(session, exc) from None
     session.commit()
-    return _back(contact_id, "snoozed", name=f"{until.strftime('%b')} {until.day}, {until.year}")
+    when = f"{until.strftime('%b')} {until.day}, {until.year}"
+    return _back(contact_id, "snoozed", form.get("next"), name=when)
 
 
 @router.post("/contacts/{contact_id}/keep-in-touch/unsnooze", dependencies=CsrfChecked)

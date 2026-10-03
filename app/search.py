@@ -126,6 +126,8 @@ class SearchFilters:
     active_from: date | None = None
     active_to: date | None = None
     kinds: tuple[str, ...] = ()
+    # S-11: people whose keep-in-touch reminder is due on or before this date.
+    due_by: date | None = None
 
     @property
     def has_period(self) -> bool:
@@ -167,6 +169,10 @@ class SearchFilters:
             )
         if self.favorites:
             stmt = stmt.where(Contact.is_favorite.is_(True))
+        if self.due_by is not None:
+            from app.keep_in_touch import due_column  # app.contacts imports this module
+
+            stmt = stmt.where(due_column() <= self.due_by)
         if self.has_period:
             stmt = stmt.where(
                 select(Activity.id)
@@ -187,6 +193,7 @@ class SearchFilters:
                 self.list_id is not None,
                 self.favorites,
                 self.has_period,
+                self.due_by is not None,
             )
         )
 

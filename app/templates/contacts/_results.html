@@ -7,6 +7,7 @@
 {% if filters.company %}{% set _ = chips.append(("company", "Company: " ~ filters.company)) %}{% endif %}
 {% if filters.team %}{% set _ = chips.append(("team", "Team: " ~ filters.team)) %}{% endif %}
 {% if filters.favorites %}{% set _ = chips.append(("favorites", "Favorites")) %}{% endif %}
+{% if filters.due_by %}{% set _ = chips.append(("due", "Due to reconnect")) %}{% endif %}
 {% if contacted %}{% set _ = chips.append(("contacted", "Contacted in the last " ~ contacted ~ " days")) %}{% endif %}
 {% if time_query %}
   <p class="chips" data-testid="time-chip">

@@ -15,6 +15,7 @@ const store = {
 
 document.addEventListener("DOMContentLoaded", () => {
   initThemeSwitch();
+  initLogPrompt();
   initSearch();
   initSelection();
   initFormRows();
@@ -435,5 +436,28 @@ function initThemeSwitch() {
     } catch {
       form.submit();
     }
+  });
+}
+
+// ------------------------------------------------------------------ log prompt (C-17, ADR-0016)
+
+// After Email or Call opens the mail or phone app, offer to log the interaction in one click,
+// so keep-in-touch reminders count from it. Without JavaScript the prompt simply never shows.
+function initLogPrompt() {
+  const form = $("[data-log-prompt]");
+  if (!form) return;
+  const text = $("[data-log-prompt-text]", form);
+  document.addEventListener("click", (e) => {
+    const link = e.target.closest("a[data-log-kind]");
+    if (!link || !/^\d+$/.test(link.dataset.logContact || "")) return;
+    const call = link.dataset.logKind === "call";
+    form.action = `/contacts/${link.dataset.logContact}/activities`;
+    $("[data-log-prompt-kind]", form).value = call ? "call" : "email";
+    $("[data-log-prompt-summary]", form).value = call ? "Called" : "Emailed";
+    text.textContent = `Log ${call ? "a call" : "an email"} with ${link.dataset.logName} today?`;
+    form.hidden = false;
+  });
+  $("[data-log-prompt-dismiss]", form).addEventListener("click", () => {
+    form.hidden = true;
   });
 }

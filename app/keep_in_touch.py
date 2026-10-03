@@ -217,3 +217,48 @@ def snooze(session: Session, contact: Contact, until: date) -> None:
 def clear_snooze(session: Session, contact: Contact) -> None:
     contact.kit_snoozed_until = None
     session.flush()
+
+
+def _due_by(today: date, within_days: int) -> Any:
+    return [
+        Contact.kit_interval.is_not(None),
+        Contact.archived_at.is_(None),
+        due_column() <= today + timedelta(days=within_days),
+    ]
+
+
+def due_reminders(
+    session: Session, *, today: date, within_days: int = DUE_SOON_DAYS
+) -> list[tuple[Contact, Reminder]]:
+    """S-11: people due within ``within_days`` (overdue included), most overdue first."""
+    due = due_column()
+    last = last_interaction_column()
+    rows = session.execute(
+        select(Contact, due, last)
+        .where(*_due_by(today, within_days))
+        .order_by(due, func.lower(Contact.display_name))
+    ).all()
+    result = []
+    for contact, due_on, last_on in rows:
+        if contact.kit_interval is None:  # pragma: no cover - excluded by the query
+            continue
+        reminder = Reminder(contact.kit_interval, due_on, today, last_on, contact.kit_snoozed_until)
+        result.append((contact, reminder))
+    return result
+
+
+def count_due(session: Session, *, today: date, within_days: int = DUE_SOON_DAYS) -> int:
+    """S-11: the number shown beside Reconnect in the navigation."""
+    count: int = (
+        session.scalar(
+            select(func.count()).select_from(Contact).where(*_due_by(today, within_days))
+        )
+        or 0
+    )
+    return count
+
+
+def next_reminder(session: Session, *, today: date) -> tuple[Contact, Reminder] | None:
+    """The soonest reminder after the due window, for an empty Reconnect page."""
+    rows = due_reminders(session, today=today, within_days=MAX_SNOOZE_DAYS * 2)
+    return next(((c, r) for c, r in rows if r.days > DUE_SOON_DAYS), None)

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Reconnect{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Reconnect</h1>
+</div>
+<p class="muted">People you asked to stay in touch with, most overdue first. Logging a meeting, call, email or message starts the next reminder; notes don't count.</p>
+
+{% set groups = [("overdue-h", "Overdue", overdue), ("week-h", "Due this week", this_week)] %}
+{% for heading_id, heading, rows in groups if rows %}
+<section class="panel reconnect" aria-labelledby="{{ heading_id }}" data-testid="{{ heading_id }}">
+  <h2 id="{{ heading_id }}">{{ heading }} <span class="muted">· {{ rows | length }}</span></h2>
+  <ul class="reconnect-list">
+    {% for r in rows %}
+      {% set c = r.c %}{% set rem = r.reminder %}
+      <li class="reconnect-row" data-testid="reconnect-row" data-contact-id="{{ c.id }}">
+        <div class="who">
+          <a href="/contacts/{{ c.id }}" class="reconnect-name">{{ c.display_name }}</a> <span class="pill">{{ rem.label }}</span>
+          {% if c.title or c.company %}<p class="muted small">{{ c.title or "" }}{% if c.title and c.company %} · {% endif %}{{ c.company or "" }}</p>{% endif %}
+          <p class="small">{% if r.last %}<span class="muted">Last:</span> {{ r.last[0] }} — {{ r.last[1] }}{% else %}<span class="muted">Nothing logged yet.</span>{% endif %}</p>
+        </div>
+        <div class="when">
+          <p class="kit-status kit-{{ rem.state }}" data-testid="reconnect-status"><strong>{{ rem.describe }}</strong> <span class="muted small">· <time datetime="{{ rem.due.isoformat() }}">{{ rem.due_text }}</time></span></p>
+          <div class="row-actions">
+            {% if c.links.mailto %}<a class="button" href="{{ c.links.mailto }}" data-log-kind="email" data-log-contact="{{ c.id }}" data-log-name="{{ c.display_name }}">Email</a>{% endif %}
+            {% if c.links.tel %}<a class="button" href="{{ c.links.tel }}" data-log-kind="call" data-log-contact="{{ c.id }}" data-log-name="{{ c.display_name }}">Call</a>{% endif %}
+            <details class="log-details">
+              <summary class="button" data-testid="reconnect-log">Log…</summary>
+              <form method="post" action="/contacts/{{ c.id }}/activities" class="log-form">{{ m.csrf() }}
+                <input type="hidden" name="next" value="/reconnect">
+                <label for="kind-{{ c.id }}" class="visually-hidden">Kind</label>
+                <select id="kind-{{ c.id }}" name="kind">
+                  <option value="call">Call</option><option value="meeting">Meeting</option>
+                  <option value="email">Email</option><option value="message">Message</option>
+                </select>
+                <label for="summary-{{ c.id }}" class="visually-hidden">What happened with {{ c.display_name }}</label>
+                <input id="summary-{{ c.id }}" name="summary" required maxlength="2000" placeholder="What happened?" data-testid="reconnect-summary">
+                <button type="submit" class="primary" data-testid="reconnect-log-save">Log</button>
+              </form>
+            </details>
+            <form method="post" action="/contacts/{{ c.id }}/keep-in-touch/snooze" class="inline">{{ m.csrf() }}
+              <input type="hidden" name="snooze" value="2w">
+              <input type="hidden" name="next" value="/reconnect">
+              <button type="submit" aria-label="Snooze {{ c.display_name }} for 2 weeks" data-testid="reconnect-snooze">Snooze 2 weeks</button>
+            </form>
+          </div>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+
+{% if not overdue and not this_week %}
+  <p class="empty" data-testid="reconnect-empty">Nobody is due this week.{% if upcoming %} Next up: <a href="/contacts/{{ upcoming[0].id }}">{{ upcoming[0].display_name }}</a>, {{ upcoming[1].due_text }}.{% endif %}</p>
+  <p class="muted small">Set how often to keep in touch on a contact's card, or select people in a search or list and choose <strong>Keep in touch</strong>.</p>
+{% endif %}
+{% endblock %}

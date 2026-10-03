@@ -15,6 +15,8 @@
     <a class="brand" href="/">Contacts</a>
     <span class="instance-name" data-testid="instance-name">{{ instance.instance_name }}</span>
     <nav class="bar-nav" aria-label="Main">
+      {% set due_n = reconnect_count() %}
+      <a href="/reconnect" data-testid="nav-reconnect">Reconnect{% if due_n %} <span class="nav-count" data-testid="reconnect-count">{{ due_n }}<span class="visually-hidden"> due</span></span>{% endif %}</a>
       <a href="/lists" data-testid="nav-lists">Lists</a>
       <a href="/tags" data-testid="nav-tags">Tags</a>
       <a href="/org" data-testid="nav-org">Org</a>
@@ -42,6 +44,16 @@
   <main>
     {% if notice %}<p class="flash" role="status" data-testid="flash">{{ notice }}</p>{% endif %}
     {% block content %}{% endblock %}
+    {# C-17: shown by app.js after Email or Call, so the interaction can be logged in one click. #}
+    <form class="log-prompt" method="post" action="/" hidden data-log-prompt data-testid="log-prompt">
+      <input type="hidden" name="{{ csrf_field }}" value="{{ request.state.csrf_token }}">
+      <input type="hidden" name="kind" value="" data-log-prompt-kind>
+      <input type="hidden" name="summary" value="" data-log-prompt-summary>
+      <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+      <p role="status" data-log-prompt-text></p>
+      <button type="submit" class="primary" data-testid="log-prompt-yes">Log it</button>
+      <button type="button" data-log-prompt-dismiss>Not now</button>
+    </form>
   </main>
 </body>
 </html>

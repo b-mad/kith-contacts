@@ -13,6 +13,7 @@ import threading
 import time
 import uuid
 from collections.abc import Iterator
+from datetime import date, timedelta
 from typing import Any
 
 import psycopg
@@ -39,6 +40,7 @@ PAGES = [
     "/import",
     "/duplicates",
     "/saved-searches",
+    "/reconnect",
 ]
 TOKEN = re.compile(r'name="csrf_token" value="([^"]+)"')
 
@@ -143,8 +145,22 @@ def _seed(page: Any, base: str) -> int:
     page.goto(base + f"/contacts/{ada['id']}")
     match = TOKEN.search(page.content())
     assert match
+    token = match.group(1)
     page.request.post(
-        base + f"/contacts/{ada['id']}/tags", form={"csrf_token": match.group(1), "tag": "HL7"}
+        base + f"/contacts/{ada['id']}/tags", form={"csrf_token": token, "tag": "HL7"}
+    )
+    # Due on the Reconnect page: every 2 weeks, last call 30 days ago (S-11).
+    page.request.post(
+        base + f"/contacts/{ada['id']}/keep-in-touch", form={"csrf_token": token, "interval": "2w"}
+    )
+    page.request.post(
+        base + f"/contacts/{ada['id']}/activities",
+        form={
+            "csrf_token": token,
+            "kind": "call",
+            "summary": "Quarterly check-in",
+            "occurred_on": (date.today() - timedelta(days=30)).isoformat(),
+        },
     )
     return int(ada["id"])
 

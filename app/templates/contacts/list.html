@@ -47,6 +47,7 @@
       {% for n in contacted_choices %}<option value="{{ n }}"{% if contacted == n %} selected{% endif %}>Contacted in the last {{ n }} days</option>{% endfor %}
     </select>
     <label class="check"><input type="checkbox" name="favorites" value="1"{% if filters.favorites %} checked{% endif %}> Favorites</label>
+    <label class="check"><input type="checkbox" name="due" value="1"{% if filters.due_by %} checked{% endif %} data-testid="filter-due"> Due to reconnect</label>
     <label class="check"><input type="checkbox" name="archived" value="1"{% if filters.include_archived %} checked{% endif %}> Archived</label>
     {% if manager %}<input type="hidden" name="manager" value="{{ manager.id }}">{% endif %}
     {% if sort not in ("relevance", "name") %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}

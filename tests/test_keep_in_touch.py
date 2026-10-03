@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -16,14 +16,17 @@ from app.contacts import ContactError
 from app.keep_in_touch import (
     Reminder,
     add_interval,
+    count_due,
     due_column,
     due_date,
+    due_reminders,
     reminder_for,
     set_cadence,
     snooze,
     snooze_until,
 )
 from app.models import Contact, ContactType
+from app.saved_searches import clean_query, describe_query
 
 TODAY = date(2026, 10, 3)
 TOKEN = re.compile(r'name="csrf_token" value="([^"]+)"')
@@ -251,3 +254,164 @@ def test_full_export_includes_the_cadence(client: TestClient, db_session: Sessio
     db_session.flush()
     records = client.get("/export/contacts.json").json()["contacts"]
     assert next(r for r in records if r["display_name"] == "Exported")["keep_in_touch"] == "6m"
+
+
+# ---------------------------------------------------------------- Reconnect (S-11, C-17)
+
+
+def _person(
+    client: TestClient,
+    session: Session,
+    name: str,
+    interval: str | None,
+    *,
+    called_days_ago: int | None = None,
+    email: str | None = None,
+) -> Contact:
+    body: dict[str, Any] = {"display_name": name, "contact_type_id": _types(session)["Employee"]}
+    if email:
+        body["emails"] = [{"email": email, "label": "work", "is_primary": True}]
+    res = client.post("/api/contacts", json=body)
+    assert res.status_code == 201, res.text
+    contact = session.get(Contact, int(res.json()["id"]))
+    assert contact is not None
+    today = date.today()
+    if interval:
+        set_cadence(session, [contact], interval, today=today - timedelta(days=400))
+    if called_days_ago is not None:
+        add_activity(
+            session,
+            contact.id,
+            kind="call",
+            summary="Caught up on the rollout",
+            occurred_on=today - timedelta(days=called_days_ago),
+        )
+    session.flush()
+    return contact
+
+
+@pytest.fixture
+def due_people(client: TestClient, db_session: Session) -> dict[str, Contact]:
+    people = {
+        # monthly, last call 70 days ago -> overdue by about 40 days
+        "very": _person(
+            client, db_session, "Vera Overdue", "1m", called_days_ago=70, email="v@x.io"
+        ),
+        # every 2 weeks, last call 15 days ago -> overdue by 1 day
+        "just": _person(client, db_session, "Justin Late", "2w", called_days_ago=15),
+        # every 2 weeks, last call 10 days ago -> due in 4 days
+        "soon": _person(client, db_session, "Sunny Soon", "2w", called_days_ago=10),
+        # monthly, last call 5 days ago -> not due for weeks
+        "later": _person(client, db_session, "Larry Later", "1m", called_days_ago=5),
+        "off": _person(client, db_session, "Olive Off", None, called_days_ago=300),
+        "archived": _person(client, db_session, "Archie Archived", "1m", called_days_ago=90),
+        "snoozed": _person(client, db_session, "Snow Snoozed", "1m", called_days_ago=90),
+    }
+    people["archived"].archived_at = datetime.now(UTC)
+    snooze(db_session, people["snoozed"], date.today() + timedelta(days=20))
+    db_session.flush()
+    return people
+
+
+@pytest.mark.req("S-11")
+def test_due_list_is_most_overdue_first_and_skips_off_archived_snoozed_and_later(
+    db_session: Session, due_people: dict[str, Contact]
+) -> None:
+    rows = due_reminders(db_session, today=date.today())
+    assert [c.display_name for c, _ in rows] == ["Vera Overdue", "Justin Late", "Sunny Soon"]
+    assert [r.state for _, r in rows] == ["overdue", "overdue", "soon"]
+    assert rows[1][1].describe == "Overdue by 1 day"
+    assert rows[2][1].describe == "Due in 4 days"
+    assert count_due(db_session, today=date.today()) == 3
+
+
+@pytest.mark.req("S-11")
+def test_reconnect_page_groups_people_and_offers_actions(
+    client: TestClient, due_people: dict[str, Contact]
+) -> None:
+    page = client.get("/reconnect").text
+    assert 'id="overdue-h">Overdue <span class="muted">· 2</span>' in page
+    assert 'id="week-h">Due this week <span class="muted">· 1</span>' in page
+    names = re.findall(r'class="reconnect-name">([^<]+)<', page)
+    assert names == ["Vera Overdue", "Justin Late", "Sunny Soon"]
+    assert "Last:</span> Call ·" in page
+    assert 'href="mailto:v@x.io" data-log-kind="email"' in page
+    assert 'aria-label="Snooze Justin Late for 2 weeks"' in page
+
+
+@pytest.mark.req("S-11")
+def test_reconnect_page_when_nobody_is_due_names_the_next_one(
+    client: TestClient, db_session: Session
+) -> None:
+    _person(client, db_session, "Larry Later", "1m", called_days_ago=5)
+    page = client.get("/reconnect").text
+    assert 'data-testid="reconnect-empty"' in page
+    assert "Next up:" in page
+    assert "Larry Later" in page
+
+
+@pytest.mark.req("S-11", "C-16")
+def test_logging_or_snoozing_from_reconnect_returns_there_and_clears_the_row(
+    client: TestClient, due_people: dict[str, Contact]
+) -> None:
+    vera, justin = due_people["very"], due_people["just"]
+    token = _csrf(client, "/reconnect")
+    logged = client.post(
+        f"/contacts/{vera.id}/activities",
+        data={"csrf_token": token, "kind": "call", "summary": "Checked in", "next": "/reconnect"},
+        follow_redirects=False,
+    )
+    assert logged.status_code == 303
+    assert logged.headers["location"].startswith("/reconnect?notice=logged")
+    snoozed = client.post(
+        f"/contacts/{justin.id}/keep-in-touch/snooze",
+        data={"csrf_token": token, "snooze": "2w", "next": "/reconnect"},
+        follow_redirects=False,
+    )
+    assert snoozed.headers["location"].startswith("/reconnect?notice=snoozed")
+    names = re.findall(r'class="reconnect-name">([^<]+)<', client.get("/reconnect").text)
+    assert names == ["Sunny Soon"]
+
+
+@pytest.mark.req("C-15")
+def test_bulk_keep_in_touch_sets_and_clears_the_cadence(
+    client: TestClient, db_session: Session
+) -> None:
+    a = _person(client, db_session, "Bulk A", None)
+    b = _person(client, db_session, "Bulk B", None)
+    token = _csrf(client, "/")
+    data = {"csrf_token": token, "interval": "3m", "next": "/?q=Bulk", "contact_ids": [a.id, b.id]}
+    response = client.post("/selection/keep-in-touch", data=data, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/?q=Bulk&notice=kit_bulk&n=2")
+    assert (a.kit_interval, b.kit_interval) == ("3m", "3m")
+    off = {**data, "interval": ""}
+    assert (
+        "notice=kit_bulk_off"
+        in client.post("/selection/keep-in-touch", data=off, follow_redirects=False).headers[
+            "location"
+        ]
+    )
+    assert (a.kit_interval, b.kit_interval) == (None, None)
+    assert 'data-testid="kit-menu"' in client.get("/").text
+
+
+@pytest.mark.req("S-11")
+def test_due_filter_on_people_with_chip_and_saved_search(
+    client: TestClient, due_people: dict[str, Contact]
+) -> None:
+    page = client.get("/?due=1").text
+    rows = re.findall(r'data-name="([^"]+)" data-testid="result-row"', page)
+    assert sorted(rows) == ["Justin Late", "Sunny Soon", "Vera Overdue"]
+    assert "Due to reconnect <span aria-hidden" in page
+    assert clean_query({"due": "1", "sort": "name"}) == "due=1"
+    assert describe_query("due=1") == "due to reconnect"
+
+
+@pytest.mark.req("C-17")
+def test_email_and_call_links_offer_the_log_prompt(client: TestClient, db_session: Session) -> None:
+    contact = _person(client, db_session, "Prompt Me", None, email="p@x.io")
+    page = client.get(f"/contacts/{contact.id}").text
+    assert f'data-log-kind="email" data-log-contact="{contact.id}"' in page
+    assert 'data-testid="log-prompt"' in page
+    assert re.search(r'<form class="log-prompt"[^>]*hidden', page)

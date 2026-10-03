@@ -554,3 +554,58 @@ def test_increased_contrast_and_reduced_motion_follow_the_system(base_url: str) 
         expect(more.locator("p.muted").first).to_have_css("color", "rgb(20, 28, 38)")
         assert transition(more) != "0s"  # the reduced-motion rule is in force
         browser.close()
+
+
+@pytest.mark.req("S-11", "C-15", "C-17")
+def test_reconnect_count_page_and_log_prompt(base_url: str) -> None:
+    from datetime import date, timedelta
+
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page()
+        types = page.request.get(base_url + "/api/contact-types").json()
+        employee = next(t["id"] for t in types if t["name"] == "Employee")
+        rhea = page.request.post(
+            base_url + "/api/contacts",
+            data={
+                "display_name": "Rhea Reconnect",
+                "contact_type_id": employee,
+                "emails": [{"email": "rhea@example.com", "label": "work", "is_primary": True}],
+            },
+        ).json()
+
+        # Every 2 weeks, last call 30 days ago -> overdue.
+        page.goto(base_url + f"/contacts/{rhea['id']}")
+        page.get_by_test_id("kit-interval").select_option("2w")
+        page.get_by_test_id("kit-save").click()
+        page.locator("#act-kind").select_option("call")
+        page.locator("#act-date").fill((date.today() - timedelta(days=30)).isoformat())
+        page.locator("#act-summary").fill("Quarterly check-in")
+        page.get_by_test_id("activity-add").click()
+        expect(page.get_by_test_id("kit-line")).to_contain_text("Overdue by 16 days")
+        expect(page.get_by_test_id("reconnect-count")).to_contain_text("1")
+
+        page.get_by_test_id("nav-reconnect").click()
+        row = page.get_by_test_id("reconnect-row").filter(has_text="Rhea Reconnect")
+        expect(row).to_contain_text("Overdue by 16 days")
+
+        # Clicking Email offers to log it (the mail app itself is suppressed in the test).
+        page.evaluate(
+            "window.addEventListener('click', e => {"
+            " if (e.target.closest('a[href^=\"mailto:\"]')) e.preventDefault(); }, true)"
+        )
+        row.get_by_role("link", name="Email").click()
+        prompt = page.get_by_test_id("log-prompt")
+        expect(prompt).to_be_visible()
+        expect(prompt).to_contain_text("Log an email with Rhea Reconnect today?")
+        page.get_by_test_id("log-prompt-yes").click()
+        expect(page.get_by_test_id("flash")).to_contain_text("Logged")
+        expect(
+            page.get_by_test_id("reconnect-row").filter(has_text="Rhea Reconnect")
+        ).to_have_count(0)
+        expect(page.get_by_test_id("reconnect-count")).to_have_count(0)
+        browser.close()

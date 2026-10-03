@@ -14,7 +14,7 @@ import secrets
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +32,7 @@ from app.config import Settings, load_settings
 from app.contacts import ContactError, ContactNotFound
 from app.db import create_db_engine, make_session_factory
 from app.embedder import Embedder
+from app.keep_in_touch import INTERVAL_LABELS, count_due
 from app.links import display_phone, slack_handle_display
 from app.migrate import current_revision, ensure_contact_types, upgrade_to_head
 from app.saved_searches import describe_query
@@ -137,6 +138,15 @@ def build_templates(settings: Settings) -> Jinja2Templates:
     return templates
 
 
+def _reconnect_count(app: FastAPI) -> int:
+    """S-11: people due within a week, for the navigation; 0 if the database is unavailable."""
+    try:
+        with app.state.session_factory() as session:
+            return count_due(session, today=date.today())
+    except SQLAlchemyError:
+        return 0
+
+
 def create_app(
     settings: Settings | None = None,
     *,
@@ -184,6 +194,8 @@ def create_app(
     app.state.appearance = None  # loaded on first render (A-03)
     app.state.templates.env.globals["appearance"] = lambda: current_appearance(app.state)
     app.state.templates.env.globals["theme_choices"] = THEME_CHOICES
+    app.state.templates.env.globals["kit_intervals"] = INTERVAL_LABELS
+    app.state.templates.env.globals["reconnect_count"] = lambda: _reconnect_count(app)
     app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 
     @app.middleware("http")

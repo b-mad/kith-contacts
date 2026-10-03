@@ -13,6 +13,7 @@ from app.models import SavedSearch
 
 SAVED_PARAMS = (
     "q", "type", "company", "team", "manager", "tag", "list", "favorites", "archived", "contacted",
+    "due",
 )  # fmt: skip
 MAX_NAME = 100
 MAX_QUERY = 1000
@@ -98,6 +99,7 @@ _LABELS = {
     "favorites": "favorites",
     "archived": "include archived",
     "contacted": "contacted in the last",
+    "due": "due to reconnect",
 }
 
 
@@ -106,7 +108,7 @@ def describe_query(query: str) -> str:
     parts = []
     for key, value in parse_qsl(query):
         label = _LABELS.get(key, key)
-        if key in {"favorites", "archived"}:
+        if key in {"favorites", "archived", "due"}:
             parts.append(label)
         elif key == "contacted":
             parts.append(f"{label} {value} days")

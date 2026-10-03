@@ -7,7 +7,7 @@ CSRF token (N-05, ADR-0008).
 from __future__ import annotations
 
 import secrets
-from datetime import date
+from datetime import date, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -35,7 +35,7 @@ from app.contacts import (
     update_contact,
 )
 from app.db import get_session
-from app.keep_in_touch import INTERVAL_LABELS, SNOOZE_CHOICES, reminder_for
+from app.keep_in_touch import DUE_SOON_DAYS, INTERVAL_LABELS, SNOOZE_CHOICES, reminder_for
 from app.lists import add_members, all_lists, find_or_create_list, remove_member
 from app.models import Activity, Contact, Tag
 from app.related import related_contacts
@@ -145,6 +145,9 @@ NOTICES = {
     "kit_off": "Keep-in-touch reminder turned off.",
     "snoozed": "Reminder snoozed until {name}.",
     "unsnoozed": "Snooze cancelled.",
+    "kit_bulk": "Keep in touch set for {n} contact(s).",
+    "kit_bulk_off": "Keep in touch turned off for {n} contact(s).",
+    "logged": "Logged. The next reminder for {name} starts from today.",
 }
 
 
@@ -209,6 +212,7 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
     list_id = _int(p.get("list"))
     contacted = _int(p.get("contacted"))
     contacted = contacted if contacted in CONTACTED_CHOICES else None
+    due = p.get("due") == "1"  # S-11
     filters = SearchFilters(
         type_id=_int(p.get("type")),
         company=p.get("company") or None,
@@ -219,6 +223,7 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         favorites=p.get("favorites") == "1",
         include_archived=p.get("archived") == "1",
         active_from=contacted_since(contacted) if contacted else None,
+        due_by=date.today() + timedelta(days=DUE_SOON_DAYS) if due else None,
     )
     # S-10: a time phrase ("recently", "last week") becomes a period filter.
     words, period_filters, time_query = apply_time_query(q, filters)
@@ -749,6 +754,14 @@ async def add_activity_form(request: Request, contact_id: int, session: SessionD
         session.rollback()
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message) from None
     session.commit()
+    if form.get("next"):  # C-17 / S-11: logged from the Reconnect page or the log prompt
+        contact = _load(session, contact_id)
+        target = safe_next(form.get("next"), f"/contacts/{contact_id}")
+        path, _, fragment = target.partition("#")
+        url = with_notice(path, "logged", name=contact.display_name)
+        return RedirectResponse(
+            url + (f"#{fragment}" if fragment else ""), status.HTTP_303_SEE_OTHER
+        )
     return RedirectResponse(
         with_notice(f"/contacts/{contact_id}", "activity_added") + "#activity-h",
         status.HTTP_303_SEE_OTHER,
