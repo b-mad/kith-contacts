@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.9.1 |
+| Version | 1.10 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-03 |
@@ -104,6 +104,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | C-15 | Keep-in-touch cadence per contact (every 2 weeks, month, 3 months, 6 months or year; off by default), set on the card or for a selection. Due = last interaction (meeting, call, email or message) + cadence (ADR-0016). | Should | 7 |
 | C-16 | Snooze a keep-in-touch reminder to a date; logging an interaction clears the snooze. | Should | 7 |
 | C-17 | After Email, Call or Compose from the app, offer one-click logging of that interaction. | Could | 7 |
+| C-18 | Optional LinkedIn profile per contact, entered as a profile URL or name and stored as `https://www.linkedin.com/in/<name>`; a LinkedIn action on the card and search preview opens it in a new tab; CSV import (including LinkedIn's Connections export), vCard and JSON carry it (ADR-0018). | Should | 8 |
 
 ### Search and discovery
 
@@ -247,6 +248,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | `semantic_chunk` | id, contact_id, source, text, vector (bytea) | Phase 5 (S-08). Derived data; not exported; dropped when anonymizing. |
 | `app_setting` | key (primary key), value, updated_at | Phase 6 (A-03, ADR-0015). Per-instance preferences: theme, palette, density; Phase 7 adds presenting options. |
 | `contact` (Phase 7 columns) | kit_interval, kit_started_on, kit_snoozed_until, is_private | Phase 7 (C-15, C-16, P-03, ADR-0016). Due date is computed, not stored. |
+| `contact` (Phase 8 column) | linkedin_url | Phase 8 (C-18, ADR-0018). Canonical `https://www.linkedin.com/in/<name>`. |
 | `tag`, `contact_list`, `custom_field` (Phase 7) | is_private | Phase 7 (P-03, ADR-0016). |
 | `contact.search_vector` | Weighted tsvector: name (A); team, company, manager, tags (B); title, department, works_on, lists, emails, custom fields (C); notes, location, activities (D) | Maintained by the application (`app/search.py`, ADR-0010); GIN index; plus `pg_trgm` GIN index on names. |
 
@@ -273,6 +275,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 5 — Smart | Semantic search, recent interactions and directory sync | S-08–S-10, D-05 | 2+ weeks |
 | 6 — Look and feel ✅ | Theme modes, three palettes, accessibility pass, layout refresh, command palette | A-01–A-06, N-09, S-12 | 8–10 days |
 | 7 — Relationships and privacy ✅ | Keep-in-touch reminders and presenting mode | C-15–C-17, S-11, P-01–P-07 | ~8 days |
+| 8 — Profiles | LinkedIn profile link on every card | C-18 | 1 day |
 
 ### Phase 0 — Foundation
 
@@ -341,6 +344,12 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 **Done when:** a contact with a monthly cadence and a call logged 40 days ago appears on Reconnect as overdue by about 10 days, and logging a call removes it; with presenting on, a marker string seeded into every private field appears in no page, fragment or API response.
 
+### Phase 8 — Profiles
+
+- `contact.linkedin_url` (migration 0009); profile URL or name normalised on save; LinkedIn action on the card and preview; edit form field; duplicate merge, anonymised copies, CSV/vCard/JSON export and import, including LinkedIn's own Connections export (ADR-0018).
+
+**Done when:** importing LinkedIn's `Connections.csv` fills profile links for those people, and the card's LinkedIn action opens `https://www.linkedin.com/in/<name>` in a new tab.
+
 ## 9. Open questions
 
 - [x] Build language → Python (ADR-0004).
@@ -366,6 +375,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.10 | 2026-10-03 | C-18 LinkedIn profile link added in a new Phase 8 — Profiles. Data model gains contact.linkedin_url. | 0018 |
 | 1.9.1 | 2026-10-03 | Phases 6 and 7 delivered. Clarified I-09: a JSON copy also carries the keep-in-touch cadence and snooze (C-15, C-16) and private flags (P-03). No requirement added or removed. | 0016, 0017 |
 | 1.9 | 2026-10-03 | S-12 command palette added to Phase 6; S-02 highlights matched words; S-11 adds Undo on Reconnect and an overdue marker in results; N-09 adds `?`, Ctrl/⌘ + K and 40/44 px controls. | 0017 |
 | 1.8 | 2026-10-03 | Phase 7 added: keep-in-touch reminders (C-15–C-17, S-11) and presenting mode (P-01–P-07). Data model gains kit_* and is_private columns. | 0016 |
