@@ -710,12 +710,33 @@ def test_preview_pane_chips_and_keyboard(base_url: str) -> None:
         expect(page.get_by_test_id("result-row")).to_have_count(2)
         expect(page.locator("[data-testid=result-row] mark").first).to_have_text("panes")
 
+        # Rows respond to the pointer (as in the mockups).
+        first = page.get_by_test_id("result-row").first
+        before = first.evaluate("e => getComputedStyle(e).backgroundColor")
+        first.hover()
+        page.wait_for_timeout(200)
+        assert first.evaluate("e => getComputedStyle(e).backgroundColor") != before
+
         # A click on a name previews instead of navigating; a second click opens the card.
-        page.get_by_role("link", name="Pim Preview").click()
-        expect(page.get_by_test_id("preview")).to_contain_text("pim@acme.example")
+        page.get_by_test_id("result-row").filter(has_text="Pim Preview").locator(
+            ".person-sub"
+        ).click()
+        expect(page.get_by_test_id("preview")).to_contain_text(
+            "pim@acme.example"
+        )  # anywhere on the card
         expect(page).to_have_url(re.compile(r"/\?q=panes$"))
         row = page.get_by_test_id("result-row").filter(has_text="Pim Preview")
         expect(row).to_have_class(re.compile("previewing"))
+
+        # After clicking a card, ↑ ↓ carry on from it.
+        page.get_by_test_id("result-row").filter(has_text="Pax Preview").locator(
+            ".person-sub"
+        ).click()
+        expect(page.get_by_test_id("preview")).to_contain_text("pax@acme.example")
+        page.keyboard.press("ArrowDown")
+        expect(page.get_by_test_id("preview")).to_contain_text("pim@acme.example")
+        page.keyboard.press("ArrowUp")
+        expect(page.get_by_test_id("preview")).to_contain_text("pax@acme.example")
 
         # ↓ from the search box and between names previews each person; space selects; c copies.
         search.focus()

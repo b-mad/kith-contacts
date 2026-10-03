@@ -704,3 +704,30 @@ dialog.shortcuts h2 { margin: 0 0 0.75rem; font-size: 1.15rem; text-transform: n
 .shortcut-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.5rem 1rem; margin: 0 0 1rem; }
 .shortcut-list dt { white-space: nowrap; }
 .shortcut-list dd { margin: 0; }
+
+/* Hover feedback, as in the mockups: every row, card, chip and action responds to the pointer. */
+.result-card, .reconnect-row, table.contacts tbody tr, .private-item, .action, .filter-chip, .chip,
+.bar-nav a, .palette-open, .present-toggle, button, .button, .tag {
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.result-card { cursor: pointer; }
+.result-card:hover { background: var(--surface-2); }
+.result-card.previewing:hover { background: var(--accent-soft); }
+.person-name { text-underline-offset: 3px; }
+.result-card:hover .person-name, .person-name:hover { text-decoration-thickness: 2px; }
+.reconnect-row:hover, table.contacts tbody tr:hover, .private-item:hover { background: var(--surface-2); }
+a.action:hover { background: var(--accent-soft); border-color: var(--accent); }
+.filter-chip:hover { background-color: var(--surface-2); }
+select.filter-chip:has(option:checked:not([value=""])):hover, .filter-toggle:has(input:checked):hover,
+summary.filter-chip.on:hover { background-color: var(--accent-soft); border-color: var(--accent); }
+a.chip:hover { background: var(--accent-soft); border-color: var(--accent); }
+.tag:hover { border-color: var(--fg); }
+.bar-nav { gap: 0.1rem; margin-left: 0.5rem; }
+.bar-nav a { padding: 0.35rem 0.5rem; border-radius: 8px; }
+.bar-nav a:hover { text-decoration: none; background: color-mix(in srgb, var(--instance-on) 18%, transparent); }
+body.env-production .bar-nav a:hover { background: var(--surface-2); color: var(--fg); }
+.palette-open:hover { background: color-mix(in srgb, var(--instance-on) 18%, transparent); }
+body.env-production .palette-open:hover { background: var(--surface-2); }
+body.env-production .present-toggle:not([aria-pressed="true"]):hover { background: var(--surface-2); }
+.palette-item:hover { background: var(--surface-2); }
+.palette-item[aria-selected="true"]:hover { background: var(--accent-soft); }

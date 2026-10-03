@@ -544,10 +544,23 @@ function initPreview() {
   const rowId = (link) => link.closest("[data-contact-id]").dataset.contactId;
 
   results.addEventListener("click", (e) => {
-    const link = e.target.closest("a[data-preview-link]");
-    if (!link || !wide.matches || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    let link = e.target.closest("a[data-preview-link]");
+    if (!link) {
+      // A click anywhere else on a result card (not its checkbox or another link) acts on the name.
+      const card = e.target.closest(".result-card");
+      if (!card || e.target.closest("a, input, button, label, select")) return;
+      link = $("a[data-preview-link]", card);
+      if (!link) return;
+      if (!wide.matches || rowId(link) === current) {
+        window.location.assign(link.href);
+        return;
+      }
+    }
+    if (!wide.matches) return;
     if (rowId(link) === current) return; // already previewed: open the card
     e.preventDefault();
+    link.focus({ preventScroll: true }); // so ↑ ↓ carry on from here (Safari doesn't focus links on click)
     show(rowId(link));
   });
 
@@ -567,6 +580,22 @@ function initPreview() {
       go(links()[0]);
     });
   }
+  // ↑ ↓ also work after clicking a card, from its checkbox, or with nothing focused.
+  document.addEventListener("keydown", (e) => {
+    if ((e.key !== "ArrowDown" && e.key !== "ArrowUp") || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.target.closest("a[data-preview-link]") || typingIn(e.target)) return;
+    if (document.querySelector("dialog[open]")) return;
+    const inResults = results.contains(e.target);
+    if (!inResults && e.target !== document.body && e.target !== document.documentElement) return;
+    const all = links();
+    if (!all.length) return;
+    const card = e.target.closest("[data-contact-id]");
+    const from = card ? card.dataset.contactId : current;
+    const i = all.findIndex((l) => rowId(l) === from);
+    e.preventDefault();
+    if (i === -1) go(all[e.key === "ArrowDown" ? 0 : all.length - 1]);
+    else go(all[Math.min(all.length - 1, Math.max(0, i + (e.key === "ArrowDown" ? 1 : -1)))]);
+  });
   results.addEventListener("keydown", (e) => {
     const link = e.target.closest("a[data-preview-link]");
     if (!link) return;
