@@ -242,7 +242,8 @@ def mount_report(stack: Stack, service: str) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     del argv
-    with tempfile.TemporaryDirectory(prefix="contact-manager-test-") as tmp:
+    # a space in the path, like "~/Contact Manager"
+    with tempfile.TemporaryDirectory(prefix="contact manager test-") as tmp:
         home = Path(tmp)
         stack = Stack(home)
         stack.settings.write_text(SETTINGS.format(**PORTS), encoding="utf-8")

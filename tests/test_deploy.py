@@ -221,11 +221,14 @@ def test_instances_run_as_the_computers_user_when_given() -> None:
 
 
 @pytest.mark.req("I-10", "N-06")
-def test_docker_never_creates_the_backup_folders() -> None:
-    """Found on a Mac: a folder Docker Desktop creates for a share is root-owned at first start."""
-    assert COMPOSE.count("create_host_path: false") == 3
-    assert 'mkdir -p "$DATA/Backups/work" "$DATA/Backups/personal"' in MAC_START
-    assert "'Backups') 'work'" in WIN_START
-    assert "'Backups') 'personal'" in WIN_START
-    start = MAC_START.index('mkdir -p "$DATA/Backups/work"')
-    assert start < MAC_START.index("up -d --build")
+def test_backup_folders_are_made_on_this_computer_before_start() -> None:
+    """Found on a Mac: a folder Docker Desktop creates for a share is root-owned at first start,
+    and making Docker refuse missing folders (create_host_path) rejected "~/Contact Manager"."""
+    assert "create_host_path" not in COMPOSE
+    assert MAC_START.index('mkdir -p "$DATA/Backups/work" "$DATA/Backups/personal"') < (
+        MAC_START.index("up -d --build")
+    )
+    assert WIN_START.index("'Backups') 'work'") < WIN_START.index("up -d --build")
+    test = (ROOT / "scripts/container_test.py").read_text()
+    assert "(stack.backups / name).mkdir(parents=True)" in test
+    assert 'prefix="contact manager test-"' in test  # a space, as in "~/Contact Manager"

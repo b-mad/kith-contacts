@@ -21,6 +21,10 @@ x-image: &image
   image: contact-manager:${APP_VERSION:-dev}
   pull_policy: never
 
+# Backup folders are shared from this computer. The Start scripts (and container-test) create
+# them before `up`: a folder Docker Desktop creates itself is root-owned at first start. Do not
+# make Docker refuse missing folders instead: on a Mac that rejected "~/Contact Manager". (ADR-0019)
+
 x-instance: &instance
   <<: *image
   # The start scripts pass the computer's own user (macOS, Linux) so the app may write to the
@@ -104,10 +108,6 @@ services:
       - type: bind
         source: ${CONTACTS_BACKUPS:?run Start Contact Manager}
         target: /backups
-        bind:
-          # the Start scripts create it on this computer; Docker Desktop creating it (as root)
-          # leaves it unwritable for the app at first start
-          create_host_path: false
     networks: [backend]
     logging: *logging
 
@@ -129,10 +129,6 @@ services:
       - type: bind
         source: ${CONTACTS_BACKUPS:?run Start Contact Manager}/work
         target: /backups
-        bind:
-          # the Start scripts create it on this computer; Docker Desktop creating it (as root)
-          # leaves it unwritable for the app at first start
-          create_host_path: false
 
   personal:
     <<: *instance
@@ -152,10 +148,6 @@ services:
       - type: bind
         source: ${CONTACTS_BACKUPS:?run Start Contact Manager}/personal
         target: /backups
-        bind:
-          # the Start scripts create it on this computer; Docker Desktop creating it (as root)
-          # leaves it unwritable for the app at first start
-          create_host_path: false
 
 networks:
   backend:

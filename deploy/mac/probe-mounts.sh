@@ -63,6 +63,13 @@ $(docker run --rm --user "$user" $opts -v "$base/$d:/b" --entrypoint sh "$IMG" -
           if touch "/b/.probe-$$" 2>/dev/null; then echo "'"$d"'-shared-alone OK"; rm -f "/b/.probe-$$"
           else echo "'"$d"'-shared-alone FAIL $(ls -lnd /b 2>&1)"; fi' 2>&1)"
       done
+      # the same folder shared with --mount (what Compose uses for some settings)
+      # shellcheck disable=SC2086
+      out="$out
+$(docker run --rm --user "$user" $opts --mount "type=bind,source=$base/made-on-host,target=/b" \
+        --entrypoint sh "$IMG" -c '
+        if touch "/b/.probe-$$" 2>/dev/null; then echo "made-on-host-via-mount OK"; rm -f "/b/.probe-$$"
+        else echo "made-on-host-via-mount FAIL $(ls -lnd /b 2>&1)"; fi' 2>&1 | tail -1)"
       # a share whose folder does not exist yet: Docker creates it
       # shellcheck disable=SC2086
       out="$out
