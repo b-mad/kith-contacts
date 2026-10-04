@@ -83,18 +83,18 @@ preview with duplicate warnings, and can put everyone imported into a list.
 `Start Contact Manager` (macOS `.command`, Windows `.bat`) runs, from the program folder:
 
 ```bash
-docker compose --project-name contact-manager --env-file ~/"Contact Manager/settings.env" \
+docker compose --project-name contact-manager --env-file ~/ContactManager/settings.env \
   -f compose.yaml up -d --build --wait
 ```
 
-with `APP_VERSION` (from `pyproject.toml`) and `CONTACTS_BACKUPS=~/Contact Manager/Backups`
+with `APP_VERSION` (from `pyproject.toml`) and `CONTACTS_BACKUPS=~/ContactManager/Backups`
 exported. To run the commands below from a terminal, set the same two variables and use the
 same flags; `C` stands for that `docker compose …` prefix.
 
 | What | Where |
 | --- | --- |
-| Settings people may edit (names, colors, contact types, ports, `COMPOSE_PROFILES`) | `~/Contact Manager/settings.env` |
-| Backups (bind mount, outside Docker — N-06) | `~/Contact Manager/Backups/work`, `…/personal` |
+| Settings people may edit (names, colors, contact types, ports, `COMPOSE_PROFILES`) | `~/ContactManager/settings.env` |
+| Backups (bind mount, outside Docker — N-06) | `~/ContactManager/Backups/work`, `…/personal` |
 | Database | volume `contact-manager_pgdata` (PostgreSQL 17, no published port) |
 | Passwords (generated on first start) | volumes `contact-manager_db-secrets`, `…_work-instance`, `…_personal-instance` |
 
@@ -137,8 +137,8 @@ the previous version's folder again. To undo an upgrade that did complete:
 make move-to-containers WORK=business-prod PERSONAL=personal-prod
 ```
 
-takes a fresh backup of each instance, copies it into `~/Contact Manager/Backups/work` and
-`…/personal`, and writes `~/Contact Manager/settings.env` with the same names (so backup file
+takes a fresh backup of each instance, copies it into `~/ContactManager/Backups/work` and
+`…/personal`, and writes `~/ContactManager/settings.env` with the same names (so backup file
 names match), colors, contact types, ports, home company and phone region. Then:
 
 1. Stop `./run.sh` for those instances (changes made after the backup are not moved).

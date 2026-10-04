@@ -3,8 +3,8 @@
     make move-to-containers WORK=business-prod PERSONAL=personal-prod
 
 For each instance named: takes a fresh backup, copies it into the container install's backup
-folder (``~/Contact Manager/Backups/work`` or ``…/personal``) and writes
-``~/Contact Manager/settings.env`` with the same name, color, contact types, port, home
+folder (``~/ContactManager/Backups/work`` or ``…/personal``) and writes
+``~/ContactManager/settings.env`` with the same name, color, contact types, port, home
 company and phone region. On its first start each container instance finds its new database
 empty and restores that backup (I-12). Nothing in the old instances is changed.
 """
@@ -21,7 +21,7 @@ from app.backup import BackupError, backup
 from app.config import Settings, load_settings
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA = Path.home() / "Contact Manager"
+DATA = Path.home() / "ContactManager"
 SLOTS = ("work", "personal")
 
 

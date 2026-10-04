@@ -404,7 +404,7 @@ def test_move_to_containers_copies_a_backup_and_writes_settings(
     info.env_file.write_text(env + "BACKUP_TOOL=local\nHOME_COMPANY=Acme Health\n")
     try:
         upgrade_to_head(make_settings(info.database_url))
-        data = tmp_path / "Contact Manager"
+        data = tmp_path / "ContactManager"
         said: list[str] = []
         written = move({"work": spec.name}, data=data, instances_dir=instances, say=said.append)
         text = written.read_text()

@@ -29,7 +29,7 @@ if ! docker image inspect "$IMG" >/dev/null 2>&1; then
 fi
 
 TMP_BASE="$(mktemp -d "${TMPDIR:-/tmp}/cm-probe.XXXXXX")"
-HOME_BASE="$HOME/Contact Manager/.probe"
+HOME_BASE="$HOME/ContactManager/.probe"
 LOCATIONS="$TMP_BASE|$HOME_BASE|/tmp/cm-probe-$$"
 failures=0
 results=""
@@ -104,7 +104,7 @@ for base in "${bases[@]}"; do
   printf '  %-8s %-11s %-9s %-30s %s\n' "RESULT" "USER" "OPTIONS" "FOLDER (MADE BY, HOW SHARED)" "WHAT THE CONTAINER SEES"
   probe_location "$base"
 done
-rmdir "$HOME/Contact Manager" 2>/dev/null || true
+rmdir "$HOME/ContactManager" 2>/dev/null || true
 
 echo ""
 if [ "$failures" -eq 0 ]; then

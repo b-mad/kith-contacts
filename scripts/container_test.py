@@ -242,7 +242,7 @@ def mount_report(stack: Stack, service: str) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     del argv
-    # a space in the path, like "~/Contact Manager"
+    # a space in the path, as Windows user names often have ("C:\\Users\\Ann Lee")
     with tempfile.TemporaryDirectory(prefix="contact manager test-") as tmp:
         home = Path(tmp)
         stack = Stack(home)

@@ -4,7 +4,7 @@
 
 $ErrorActionPreference = 'Continue'
 $Program = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$Data = Join-Path $env:USERPROFILE 'Contact Manager'
+$Data = Join-Path $env:USERPROFILE 'ContactManager'
 $Settings = Join-Path $Data 'settings.env'
 $Project = 'contact-manager'
 

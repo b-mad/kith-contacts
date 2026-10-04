@@ -4,7 +4,7 @@
 set -u
 
 PROGRAM="$(cd "$(dirname "$0")/../.." && pwd)"
-DATA="$HOME/Contact Manager"
+DATA="$HOME/ContactManager"
 SETTINGS="$DATA/settings.env"
 PROJECT="contact-manager"
 export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:$HOME/.docker/bin:/Applications/Docker.app/Contents/Resources/bin"

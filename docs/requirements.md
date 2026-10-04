@@ -360,10 +360,10 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 - `Dockerfile` (Python 3.12 on Debian trixie, PostgreSQL 17 client, model fetched at build time) and `compose.yaml` (PostgreSQL, one-shot `secrets` and `setup`, `work` and `personal` instances by profile) (ADR-0019).
 - Before-upgrade backup for production instances; restore-on-empty for new container instances.
-- Start and Stop launchers for macOS (`.command`) and Windows (`.bat` + PowerShell); `~/Contact Manager/settings.env` and `~/Contact Manager/Backups/`.
+- Start and Stop launchers for macOS (`.command`) and Windows (`.bat` + PowerShell); `~/ContactManager/settings.env` and `~/ContactManager/Backups/`.
 - `make image`, `make container-test`, `make bundle`; `docs/install-guide.md`, shipped as `Start here.html`.
 
-**Done when:** on a computer with only Docker Desktop installed, unzipping the bundle and double-clicking Start opens a working instance at `http://localhost:5170`; stopping and starting keeps the data; a newer version applies its migrations after a before-upgrade backup; copying `~/Contact Manager` to another computer and starting there brings the contacts back.
+**Done when:** on a computer with only Docker Desktop installed, unzipping the bundle and double-clicking Start opens a working instance at `http://localhost:5170`; stopping and starting keeps the data; a newer version applies its migrations after a before-upgrade backup; copying `~/ContactManager` to another computer and starting there brings the contacts back.
 
 ## 9. Open questions
 

@@ -162,7 +162,7 @@ def zip_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.mark.req("I-13")
 def test_bundle_has_launchers_guide_and_program(zip_path: Path) -> None:
-    top = f"Contact Manager {app_version()}"
+    top = f"ContactManager-{app_version()}"
     assert zip_path.name == f"Contact-Manager-{app_version()}.zip"
     with zipfile.ZipFile(zip_path) as zf:
         names = set(zf.namelist())
@@ -197,7 +197,7 @@ def test_bundle_never_carries_secrets_or_local_files(zip_path: Path) -> None:
 
 @pytest.mark.req("I-13")
 def test_bundle_permissions_and_line_endings(zip_path: Path) -> None:
-    top = f"Contact Manager {app_version()}"
+    top = f"ContactManager-{app_version()}"
     with zipfile.ZipFile(zip_path) as zf:
         mode = {i.filename: (i.external_attr >> 16) & 0o777 for i in zf.infolist()}
         assert mode[f"{top}/Start Contact Manager.command"] == 0o755
@@ -223,7 +223,7 @@ def test_instances_run_as_the_computers_user_when_given() -> None:
 @pytest.mark.req("I-10", "N-06")
 def test_backup_folders_are_made_on_this_computer_before_start() -> None:
     """Found on a Mac: a folder Docker Desktop creates for a share is root-owned at first start,
-    and making Docker refuse missing folders (create_host_path) rejected "~/Contact Manager"."""
+    and making Docker refuse missing folders (create_host_path) rejected a folder path with a space."""
     assert "create_host_path" not in COMPOSE
     assert MAC_START.index('mkdir -p "$DATA/Backups/work" "$DATA/Backups/personal"') < (
         MAC_START.index("up -d --build")
@@ -231,4 +231,4 @@ def test_backup_folders_are_made_on_this_computer_before_start() -> None:
     assert WIN_START.index("'Backups') 'work'") < WIN_START.index("up -d --build")
     test = (ROOT / "scripts/container_test.py").read_text()
     assert "(stack.backups / name).mkdir(parents=True)" in test
-    assert 'prefix="contact manager test-"' in test  # a space, as in "~/Contact Manager"
+    assert 'prefix="contact manager test-"' in test  # a space, as Windows user names often have

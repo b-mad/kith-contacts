@@ -4,7 +4,7 @@
 
 Layout inside the zip::
 
-    Contact Manager <version>/
+    ContactManager-<version>/
         Start here.html                    the install guide (docs/install-guide.md)
         Start Contact Manager.command      macOS
         Stop Contact Manager.command
@@ -130,7 +130,7 @@ def _content(path: Path) -> bytes:
 
 def build(dest: Path, version: str | None = None) -> Path:
     version = version or app_version()
-    top = f"Contact Manager {version}"
+    top = f"ContactManager-{version}"
     dest.mkdir(parents=True, exist_ok=True)
     target = dest / f"Contact-Manager-{version}.zip"
     files = tracked(PROGRAM_PATHS)

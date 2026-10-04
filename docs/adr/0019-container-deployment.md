@@ -63,7 +63,7 @@ Option 2, designed so option 1 can be switched on later by changing only the ima
   read-only root filesystem, no added capabilities and `no-new-privileges`, and logs rotate
   at 3 × 10 MB.
 - **Backups** stay outside Docker (N-06): each instance writes to
-  `~/Contact Manager/Backups/<instance>` on the host through a bind mount. The existing
+  `~/ContactManager/Backups/<instance>` on the host through a bind mount. The existing
   hourly check keeps a daily backup while Docker runs, replacing the launchd job.
 - **Before-upgrade backup (I-11):** when a production instance with an existing schema has
   pending migrations, it takes `<instance>_<time>_before-upgrade.dump` first and refuses to
@@ -72,10 +72,10 @@ Option 2, designed so option 1 can be switched on later by changing only the ima
   (no schema yet) and its backup folder already holds backups, it restores the newest one
   before migrating. No safety backup is taken in that case because the database is empty
   (the one exception to the "back up before overwriting" rule).
-- **Settings for people** live in `~/Contact Manager/settings.env` (names, colors, contact
+- **Settings for people** live in `~/ContactManager/settings.env` (names, colors, contact
   types, ports, which instances to run); it holds no passwords. The home folder is used
   instead of Documents to avoid the macOS Documents permission prompt and Windows OneDrive
-  redirection.
+  redirection. The folder name has no space (`ContactManager`), so commands that use it need no quoting; the unzipped program folder is `ContactManager-<version>` for the same reason.
 - **Launchers (I-13):** `Start Contact Manager.command` and `Stop Contact Manager.command`
   for macOS, `Start Contact Manager.bat` and `Stop Contact Manager.bat` for Windows
   (PowerShell does the work). Start checks Docker Desktop is installed and running (and

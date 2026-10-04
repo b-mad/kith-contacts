@@ -76,7 +76,7 @@ Docker Desktop is ready when its window shows **Engine running** at the bottom l
 You were given a file named like `Contact-Manager-1.0.0.zip`.
 
 - **Mac:** double-click the zip in your Downloads folder. A folder named
-  **Contact Manager 1.0.0** appears next to it. You can move that folder anywhere, for
+  **ContactManager-1.0.0** appears next to it. You can move that folder anywhere, for
   example into Documents.
 - **Windows:** right-click the zip and choose **Extract All…**, then click **Extract**. Use
   the folder this creates.
@@ -88,7 +88,7 @@ You were given a file named like `Contact-Manager-1.0.0.zip`.
 
 ### On a Mac
 
-1. In the **Contact Manager** folder, double-click **Start Contact Manager.command**.
+1. In the **ContactManager-1.0.0** folder you unzipped, double-click **Start Contact Manager.command**.
 2. The first time, macOS blocks it, saying it could not verify that the file is free of
     malware. That's because the file isn't registered with Apple, not because something is
     wrong. Allow it once:
@@ -101,7 +101,7 @@ You were given a file named like `Contact-Manager-1.0.0.zip`.
 
 ### On Windows
 
-1. In the **Contact Manager** folder, double-click **Start Contact Manager**. It may show as
+1. In the **ContactManager-1.0.0** folder you unzipped, double-click **Start Contact Manager**. It may show as
     **Start Contact Manager.bat**, of type *Windows Batch File*.
 2. If a blue box says **Windows protected your PC**, click **More info**, then
     **Run anyway**. You only need to do this once.
@@ -142,16 +142,16 @@ When it's ready, your browser opens it:
 Contact Manager backs itself up every day while it runs. It also backs up before every
 update, and before you restore an older backup.
 
-- **Where the backups are:** in the **Contact Manager** folder in your home folder.
-  - **Mac:** open Finder, choose **Go**, then **Home**, then open **Contact Manager**, then
+- **Where the backups are:** in the **ContactManager** folder in your home folder.
+  - **Mac:** open Finder, choose **Go**, then **Home**, then open **ContactManager**, then
         **Backups**.
-  - **Windows:** `C:\Users\<your name>\Contact Manager\Backups`
+  - **Windows:** `C:\Users\<your name>\ContactManager\Backups`
 - **How long they're kept:** 14 days. The newest backup is never deleted.
 - **Backing up or restoring yourself:** in the app, go to **Settings**, then **Backups**.
   You can back up now, download a backup, or restore one. To restore, you type the contact
   book's name to confirm.
 
-For extra safety, copy the whole **Contact Manager** folder to a USB drive or a cloud
+For extra safety, copy the whole **ContactManager** folder to a USB drive or a cloud
 folder now and then. It holds your contacts' details, so keep that copy somewhere safe. It's
 also wise to turn on disk encryption on your computer: **FileVault** on a Mac, or
 **BitLocker / Device encryption** on Windows.
@@ -161,7 +161,7 @@ also wise to turn on disk encryption on your computer: **FileVault** on a Mac, o
 1. **On the old computer:**
     1. In the app, go to **Settings**, then **Backups**, then **Back up now**.
     2. Double-click **Stop Contact Manager**.
-2. **Copy the whole Contact Manager folder** from your home folder to the same place on the
+2. **Copy the whole ContactManager folder** from your home folder to the same place on the
     new computer. You can use a USB drive or a cloud folder. This works between a Mac and a
     Windows computer too.
 3. **On the new computer:**
@@ -183,7 +183,7 @@ also wise to turn on disk encryption on your computer: **FileVault** on a Mac, o
 
 ## Changing names, colors or ports
 
-Your answers are saved in **settings.env** in the Contact Manager folder. To change them:
+Your answers are saved in **settings.env** in the ContactManager folder in your home folder. To change them:
 
 1. Open **settings.env** with a plain text editor.
     - **Mac:** right-click, choose **Open With**, then **TextEdit**.
@@ -209,8 +209,8 @@ the folder.
 2. In Docker Desktop, go to **Containers** and delete **contact-manager**.
 3. Then go to **Volumes** and delete the volumes whose names start with
     `contact-manager_`. **This permanently deletes your contacts**, except for the backups
-    in your Contact Manager folder.
-4. Delete the program folder. Delete the **Contact Manager** folder in your home folder
+    in your ContactManager folder.
+4. Delete the program folder. Delete the **ContactManager** folder in your home folder
     too, if you no longer need the backups.
 5. If nothing else uses Docker Desktop, uninstall it:
     - **Mac:** drag Docker from Applications to the Bin.
@@ -229,7 +229,7 @@ the folder.
 | **Windows:** Docker says WSL needs updating | Click Docker's update button and restart if it asks. |
 | "port is already allocated" or "address already in use" | Another program uses that port. Change `WORK_PORT` or `PERSONAL_PORT` in settings.env (see above), then start again. |
 | "failed to resolve", "network" or "timeout" during the first start | Check the internet connection and start again. Some work networks block the downloads: use another network for the first start, or ask your IT department. |
-| "Cannot write backups" | Contact Manager won't run without working backups. Check that the **Contact Manager** folder in your home folder belongs to you and isn't locked or read-only (Mac: select it, **File**, **Get Info**, **Sharing & Permissions**). Then start again. |
+| "Cannot write backups" | Contact Manager won't run without working backups. Check that the **ContactManager** folder in your home folder belongs to you and isn't locked or read-only (Mac: select it, **File**, **Get Info**, **Sharing & Permissions**). Then start again. |
 | The browser says "This site can't be reached" | Wait a minute after signing in, then reload. If it still fails, double-click **Start Contact Manager**. |
 | Settings says search by meaning is off | Its language model couldn't be downloaded during the first start. Everything else works. It will try again with the next update. |
 | Anything else | Copy the text in the window and send it to whoever gave you Contact Manager. More detail is in Docker Desktop: go to **Containers**, then **contact-manager**, then **work** (or **personal**), then **Logs**. |

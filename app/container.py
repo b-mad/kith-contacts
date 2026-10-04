@@ -9,7 +9,7 @@
 Passwords live only in Docker volumes: ``/run/contacts/db`` (shared by ``secrets``,
 PostgreSQL and ``setup``) and one ``/run/contacts/instance`` volume per instance, which
 only ``setup`` and that instance mount. Everything people may change is in
-``~/Contact Manager/settings.env`` on the host and arrives as environment variables.
+``~/ContactManager/settings.env`` on the host and arrives as environment variables.
 """
 
 from __future__ import annotations
@@ -205,7 +205,7 @@ def check_backup_folder(settings: Settings) -> None:
             pass
     except OSError as exc:
         raise ContainerError(
-            f"Cannot write backups to {folder} (the Contact Manager/Backups folder on this "
+            f"Cannot write backups to {folder} (the ContactManager/Backups folder on this "
             f"computer): {exc.strerror or exc}. Contact Manager does not start without "
             "working backups."
         ) from exc
