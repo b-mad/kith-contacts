@@ -138,7 +138,8 @@ DOWNGRADE_ONE = (
 
 def run(stack: Stack) -> None:
     say(f"building and starting {PROJECT} (version {app_version()})")
-    stack.backups.mkdir(parents=True)
+    for name in PORTS:  # as the Start scripts do: Docker must never create these
+        (stack.backups / name).mkdir(parents=True)
     stack.up()
 
     for name, port in PORTS.items():
@@ -190,6 +191,55 @@ def run(stack: Stack) -> None:
     check("Container Test Person" in names, "a new database starts from the newest backup")
 
 
+MOUNT_CHECK = r"""
+echo "user: $(id)"
+echo "BACKUP_DIR=${BACKUP_DIR:-unset}"
+echo "folder: $(ls -lnd "${BACKUP_DIR:-/backups}" 2>&1)"
+echo "mount: $(grep -E ' /backups( |/)' /proc/self/mountinfo 2>&1)"
+echo "capabilities: $(grep -E '^Cap(Eff|Bnd)' /proc/self/status | tr '\n' ' ')"
+if touch "${BACKUP_DIR:-/backups}/.mount-check" 2>/tmp/err; then echo "write: OK"; \
+  rm -f "${BACKUP_DIR:-/backups}/.mount-check"; else echo "write: FAIL $(cat /tmp/err)"; fi
+python - <<'PY'
+import os, tempfile
+folder = os.environ.get("BACKUP_DIR", "/backups")
+for label, call in (
+    ("python mkdir(exist_ok)", lambda: os.makedirs(folder, exist_ok=True)),
+    ("python temp file", lambda: tempfile.NamedTemporaryFile(dir=folder).close()),
+):
+    try:
+        call()
+        print(f"{label}: OK")
+    except OSError as exc:
+        print(f"{label}: FAIL {exc!r}")
+PY
+"""
+
+
+def mount_report(stack: Stack, service: str) -> str:
+    """What a fresh copy of ``service`` sees in its backup folder: same user, mounts and
+    restrictions, started through Compose (the probe's ``docker run`` cannot reproduce every
+    Compose setting)."""
+    result = stack.compose(
+        "run",
+        "--rm",
+        "--no-deps",
+        "-T",
+        "--entrypoint",
+        "sh",
+        service,
+        "-c",
+        MOUNT_CHECK,
+        check_ok=False,
+    )
+    host = subprocess.run(  # noqa: S603
+        ["ls", "-lna", str(stack.backups), str(stack.backups / service)],  # noqa: S607
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return f"{result.stdout}{result.stderr}--- on this computer ---\n{host.stdout}{host.stderr}"
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     del argv
     with tempfile.TemporaryDirectory(prefix="contact-manager-test-") as tmp:
@@ -203,6 +253,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             for service in ("setup", "work", "personal"):
                 logs = stack.compose("logs", "--tail", "40", service, check_ok=False)
                 print(f"--- {service} logs ---\n{logs.stdout}{logs.stderr}", file=sys.stderr)
+            print(
+                f"--- backup folder, as work sees it ---\n{mount_report(stack, 'work')}",
+                file=sys.stderr,
+            )
             return 1
         finally:
             stack.compose("down", "--volumes", "--remove-orphans", check_ok=False)

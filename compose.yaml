@@ -104,6 +104,10 @@ services:
       - type: bind
         source: ${CONTACTS_BACKUPS:?run Start Contact Manager}
         target: /backups
+        bind:
+          # the Start scripts create it on this computer; Docker Desktop creating it (as root)
+          # leaves it unwritable for the app at first start
+          create_host_path: false
     networks: [backend]
     logging: *logging
 
@@ -125,6 +129,10 @@ services:
       - type: bind
         source: ${CONTACTS_BACKUPS:?run Start Contact Manager}/work
         target: /backups
+        bind:
+          # the Start scripts create it on this computer; Docker Desktop creating it (as root)
+          # leaves it unwritable for the app at first start
+          create_host_path: false
 
   personal:
     <<: *instance
@@ -144,6 +152,10 @@ services:
       - type: bind
         source: ${CONTACTS_BACKUPS:?run Start Contact Manager}/personal
         target: /backups
+        bind:
+          # the Start scripts create it on this computer; Docker Desktop creating it (as root)
+          # leaves it unwritable for the app at first start
+          create_host_path: false
 
 networks:
   backend:

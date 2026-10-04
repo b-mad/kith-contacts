@@ -218,3 +218,14 @@ def test_instances_run_as_the_computers_user_when_given() -> None:
     assert 'user: "${APP_UID:-10001}:${APP_GID:-10001}"' in block
     assert "APP_UID: ${APP_UID:-10001}" in _service("setup")
     assert 'APP_UID="$(id -u)"' in MAC_START
+
+
+@pytest.mark.req("I-10", "N-06")
+def test_docker_never_creates_the_backup_folders() -> None:
+    """Found on a Mac: a folder Docker Desktop creates for a share is root-owned at first start."""
+    assert COMPOSE.count("create_host_path: false") == 3
+    assert 'mkdir -p "$DATA/Backups/work" "$DATA/Backups/personal"' in MAC_START
+    assert "'Backups') 'work'" in WIN_START
+    assert "'Backups') 'personal'" in WIN_START
+    start = MAC_START.index('mkdir -p "$DATA/Backups/work"')
+    assert start < MAC_START.index("up -d --build")

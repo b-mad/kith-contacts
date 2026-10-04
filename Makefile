@@ -9,7 +9,7 @@ ifeq ($(shell command -v uv 2>/dev/null),)
 $(error uv is not installed. Install it with `brew install uv` (or `curl -LsSf https://astral.sh/uv/install.sh | sh`), then open a new terminal)
 endif
 
-.PHONY: help install fmt lint typecheck test test-model e2e check trace db-up db-down instance migration seed backup backups restore copy-to-dev model reindex image container-test bundle move-to-containers
+.PHONY: help install fmt lint typecheck test test-model e2e check trace db-up db-down instance migration seed backup backups restore copy-to-dev model reindex image container-test bundle move-to-containers probe-mounts
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -98,3 +98,6 @@ bundle: ## The zip people download: dist/Contact-Manager-<version>.zip (I-13)
 move-to-containers: ## Move ./run.sh instances into the container install: make move-to-containers WORK=business-prod PERSONAL=personal-prod [FORCE=1]
 	@test -n "$(WORK)$(PERSONAL)" || (echo "usage: make move-to-containers WORK=<instance> PERSONAL=<instance>" && exit 2)
 	$(UV) python -m scripts.move_to_containers $(if $(WORK),--work "$(WORK)") $(if $(PERSONAL),--personal "$(PERSONAL)") $(if $(FORCE),--force)
+
+probe-mounts: ## Diagnose "Cannot write backups": can containers write to shared folders here?
+	bash deploy/mac/probe-mounts.sh
