@@ -34,6 +34,7 @@
       {% if c.location %}<dt>Location</dt><dd>{{ c.location }}</dd>{% endif %}
       {% if c.addresses %}{% set a = c.addresses[0] %}<dt>{{ (a.label or "Address") | capitalize }}{% if a.label %} address{% endif %}</dt>
       <dd data-testid="preview-address">{{ ([a.city, a.region] | select | join(", ")) or address_lines(a) | first }}{% if c.addresses | length > 1 %} <span class="muted small">+{{ c.addresses | length - 1 }} more</span>{% endif %}</dd>{% endif %}
+      {% if c.birthday %}<dt>Birthday</dt><dd data-testid="preview-birthday">{{ birthday_text(c.birthday) }}</dd>{% endif %}
       {% if c.last_contact %}<dt>Last contact</dt><dd><time datetime="{{ c.last_contact.isoformat() }}">{{ c.last_contact.strftime("%b") }} {{ c.last_contact.day }}, {{ c.last_contact.year }}</time></dd>{% endif %}
     </dl>
     {% if hidden.personal %}<p class="redacted">{{ hidden.personal }} personal address{{ "" if hidden.personal == 1 else "es" }} or number{{ "" if hidden.personal == 1 else "s" }} hidden while presenting</p>{% endif %}

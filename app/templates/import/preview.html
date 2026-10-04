@@ -37,7 +37,7 @@
     <div class="field">
       <label for="default_type_id">Type for rows without one</label>
       <select id="default_type_id" name="default_type_id">
-        {% for t in types %}<option value="{{ t.id }}"{% if t.id == default_type_id %} selected{% endif %}>{{ t.name }}</option>{% endfor %}
+        {% for t in types %}<option value="{{ t.id }}"{% if t.id == default_type_id %} selected{% endif %}>{{ t.name }}{% if t.is_private %} (private){% endif %}</option>{% endfor %}
       </select>
     </div>
     <div class="field">

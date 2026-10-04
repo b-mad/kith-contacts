@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.13 |
+| Version | 1.14 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-04 |
@@ -106,6 +106,8 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | C-17 | After Email, Call or Compose from the app, offer one-click logging of that interaction. | Could | 7 |
 | C-18 | Optional LinkedIn profile per contact, entered as a profile URL or name and stored as `https://www.linkedin.com/in/<name>`; a LinkedIn action on the card and search preview opens it in a new tab; CSV import (including LinkedIn's Connections export), vCard and JSON carry it (ADR-0018). | Should | 8 |
 | C-19 | Zero or more postal addresses per contact, each with a label (home, work…), street, city, state or region, postal code and country. The country is stored with its ISO 3166-1 code and the state as its ISO 3166-2 code where recognised; an address with a state but no country takes the instance's home country when the state belongs to it. Shown on the card, editable on the form, searchable by city, state, postal code and country, and carried by CSV, vCard and JSON import and export (ADR-0021). | Should | 10 |
+| C-20 | Optional birthday per contact, with or without the year, stored as `YYYY-MM-DD` or `--MM-DD`; typed or imported dates are read in common forms (ISO, month names, slashed dates in the instance's order); shown on the card with the age; carried by CSV, vCard and JSON (ADR-0022). | Should | 11 |
+| C-21 | Reconnect lists birthdays in the next 14 days, today first, with the age they turn; 29 February falls on 28 February in other years (ADR-0022). | Should | 11 |
 
 ### Search and discovery
 
@@ -215,6 +217,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | P-05 | Import preview, duplicate merge, backup restore, exports and the JSON API do not expose private data while presenting. | Should | 7 |
 | P-06 | Copy emails and Compose use work addresses only while presenting and say how many were left out. | Should | 7 |
 | P-07 | Per-instance presenting view: work details, names and companies only, or a lock screen. | Could | 7 |
+| P-08 | A contact type can be marked private: while presenting, every contact of that type is withheld like a private contact, and the type itself is hidden (ADR-0022). | Should | 11 |
 
 ## 5. Non-functional requirements
 
@@ -241,6 +244,8 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | `contact_email` | id, contact_id, email, label, is_primary | Unique (contact_id, lower(email)); at most one primary per contact. |
 | `contact_photo` | contact_id, content_type, data, updated_at | Phase 3. ≤ 512 px, EXIF stripped; stored in the database so backups include it (ADR-0011). |
 | `contact_phone` | id, contact_id, number, label | Stored as E.164 when parseable, using the instance's `PHONE_REGION` (ADR-0008). |
+| `contact` (Phase 11 column) | birthday | Phase 11 (C-20, ADR-0022). `YYYY-MM-DD`, or `--MM-DD` without a year. |
+| `contact_type` (Phase 11 column) | is_private | Phase 11 (P-08, ADR-0022). |
 | `contact_address` | id, contact_id, label, street, city, region, postal_code, country, country_code | Phase 10 (C-19, ADR-0021). `country_code` is ISO 3166-1 alpha-2; `region` is the ISO 3166-2 subdivision code (without the country prefix) when recognised. |
 | `tag` | id, name (unique, case-insensitive), color | Phase 2. |
 | `contact_tag` | contact_id, tag_id | Phase 2. Composite key. |
@@ -286,6 +291,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 8 — Profiles | LinkedIn profile link on every card | C-18 | 1 day |
 | 9 — Containers | Container deployment, safer upgrades, double-click install for Windows and Mac | I-10–I-14 | 3–4 days |
 | 10 — Places | Postal addresses, groundwork for a contact map and time zones | C-19 | 2 days |
+| 11 — Birthdays and private types | Birthdays with reminders; private contact types | C-20, C-21, P-08 | 1–2 days |
 
 ### Phase 0 — Foundation
 
@@ -376,6 +382,14 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 **Done when:** importing a Google Contacts export gives each person their addresses with labels, a two-letter country code and a state code; a card shows them; searching a city finds the people there; presenting hides home addresses.
 
+### Phase 11 — Birthdays and private types
+
+- `contact.birthday` and `contact_type.is_private` (migration 0011). Birthday on the form, card and preview; imported from Google, Outlook, vCard, CSV and JSON; exported to all three; presenting treats it as personal.
+- Reconnect lists birthdays in the next 14 days.
+- Private contact types: a toggle on Settings › Contact types and Settings › Privacy; presenting withholds their contacts and hides the type (ADR-0022).
+
+**Done when:** importing a Google export fills birthdays (with and without years); Reconnect shows those coming up in the next two weeks; marking the import's type private hides all of its contacts while presenting.
+
 ## 9. Open questions
 
 - [x] Build language → Python (ADR-0004).
@@ -402,6 +416,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.14 | 2026-10-04 | C-20 birthdays, C-21 birthday reminders on Reconnect and P-08 private contact types added in a new Phase 11. Data model gains `contact.birthday` and `contact_type.is_private`. Clarified P-02 (birthdays are personal) and D-01, D-02, D-03, I-09 (birthdays included). | 0022 |
 | 1.13 | 2026-10-04 | C-19 postal addresses added in a new Phase 10 — Places. Data model gains `contact_address`. Clarified D-01 (Google's per-value email and phone labels, fax numbers skipped, `:::` cells split, address columns), D-02, D-03 and I-09 (addresses included). | 0021 |
 | 1.12 | 2026-10-04 | D-06 in-app import help added (Phase 3). Clarified D-01: Google Contacts' current export columns (Organization Name, Organization Title, Organization Department, Address 1 - City) are recognised, and a row with a company but no person's name uses the company as display name. | 0020 |
 | 1.11.1 | 2026-10-04 | Clarified C-01: the card and search preview show the first and last name and nickname when they differ from the display name. No requirement added or removed. | — |

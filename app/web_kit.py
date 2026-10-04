@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.activity import add_activity
 from app.contacts import ContactError, to_out
 from app.keep_in_touch import (
+    BirthdaySoon,
     Reminder,
     clear_snooze,
     count_due,
@@ -21,8 +22,10 @@ from app.keep_in_touch import (
     set_cadence,
     snooze,
     snooze_until,
+    upcoming_birthdays,
 )
 from app.models import Contact
+from app.privacy import presenting
 from app.search import last_interactions, refresh_search
 from app.web import (
     CsrfChecked,
@@ -75,6 +78,11 @@ def reconnect(request: Request, session: SessionDep) -> HTMLResponse:
     overdue = [row(c, r) for c, r in due if r.days < 0]
     this_week = [row(c, r) for c, r in due if r.days >= 0]
     upcoming = next_reminder(session, today=today) if not due else None
+    # C-21: birthdays are personal details; presenting may hide them (ADR-0022).
+    p = presenting()
+    birthdays: list[tuple[Any, BirthdaySoon]] = []
+    if p is None or not p.hides("personal"):
+        birthdays = [(to_out(c), soon) for c, soon in upcoming_birthdays(session, today=today)]
     return _render(
         request,
         "reconnect/index.html",
@@ -82,6 +90,7 @@ def reconnect(request: Request, session: SessionDep) -> HTMLResponse:
             "overdue": overdue,
             "this_week": this_week,
             "upcoming": upcoming,
+            "birthdays": birthdays,
             "shown": len(due),
             "total": total,
             "notice": notice_text(request),

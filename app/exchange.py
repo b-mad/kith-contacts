@@ -23,6 +23,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.addresses import lines_of
+from app.birthdays import parse_birthday
 from app.contacts import ContactError, check_manager, create_contact, resolve_company
 from app.links import normalize_linkedin
 from app.lists import add_members, find_or_create_list
@@ -97,6 +98,7 @@ def contact_record(contact: Contact, *, include_photo: bool = False) -> dict[str
         "teams_url": c.teams_url,
         "linkedin_url": c.linkedin_url,  # C-18
         "pronunciation": c.pronunciation,
+        "birthday": c.birthday,  # C-20
         "is_favorite": c.is_favorite,
         "keep_in_touch": c.kit_interval,  # C-15
         "keep_in_touch_started_on": c.kit_started_on.isoformat() if c.kit_started_on else None,
@@ -156,7 +158,7 @@ def export_json(session: Session, instance_name: str) -> dict[str, Any]:
         "exported_at": datetime.now(UTC).isoformat(),
         "instance": instance_name,
         "contact_types": [
-            {"name": t.name, "sort_order": t.sort_order}
+            {"name": t.name, "sort_order": t.sort_order, "private": t.is_private}
             for t in session.scalars(select(ContactType).order_by(ContactType.sort_order))
         ],
         "tags": [
@@ -196,7 +198,7 @@ CSV_COLUMNS = [
     "department", "location", "manager", "primary_email", "emails", "phones", "slack_handle",
     "slack_url", "teams_url", "works_on", "notes", "tags", "lists", "favorite", "archived",
     "linkedin", "address_label", "street", "city", "state", "postal_code", "country",
-    "more_addresses",
+    "more_addresses", "birthday",
 ]  # fmt: skip
 
 _FORMULA = re.compile(r"^[=@\t\r]|^[+-](?!\d)")
@@ -252,6 +254,7 @@ def export_csv(session: Session) -> str:
                     "yes" if c.archived_at else "",
                     c.linkedin_url,
                     *_first_address(c),
+                    c.birthday,
                 )
             ]
         )
@@ -302,6 +305,7 @@ FIELDS: dict[str, tuple[str, ...]] = {
     "tags": ("tags", "categories", "labels", "groupmembership"),
     "type": ("type", "contacttype", "relationship", "category"),
     "slack_handle": ("slack", "slackhandle", "slackusername"),
+    "birthday": ("birthday", "birthdate", "dateofbirth", "dob", "bday"),  # C-20
     # C-18: LinkedIn's own Connections.csv calls the profile link "URL".
     "linkedin_url": ("linkedin", "linkedinurl", "linkedinprofile", "linkedinprofileurl",
                      "profileurl", "url"),
@@ -333,6 +337,7 @@ FIELD_LABELS = {
     "title": "Title", "department": "Department", "team": "Team", "location": "Location",
     "manager": "Manager (name)", "works_on": "Works on", "notes": "Notes", "tags": "Tags",
     "type": "Type", "slack_handle": "Slack handle", "linkedin_url": "LinkedIn profile",
+    "birthday": "Birthday",
     "email_label": "Email label", "email2_label": "Email 2 label",
     "email3_label": "Email 3 label", "phone_label": "Phone label",
     "phone2_label": "Phone 2 label", "phone3_label": "Phone 3 label",
@@ -355,7 +360,7 @@ FIELD_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
                  "address_postal_code", "address_country")),
     ("Address 2", ("address2_label", "address2_street", "address2_city", "address2_region",
                    "address2_postal_code", "address2_country")),
-    ("Other", ("notes", "tags", "slack_handle", "linkedin_url")),
+    ("Other", ("birthday", "notes", "tags", "slack_handle", "linkedin_url")),
 )  # fmt: skip
 
 
@@ -414,6 +419,8 @@ FIELD_HELP = {
     "chosen under \u201cType for rows without one\u201d.",
     "slack_handle": "Slack user name, for the Slack action.",
     "linkedin_url": "Link to a LinkedIn profile. Other links are left out.",
+    "birthday": "Birthday, with or without the year: 1980-03-14, --03-14 (Google), 3/14/1980 "
+    "(Outlook) or March 14. A date that can\u2019t be read is left out.",
     "address_label": "The label for the address, e.g. home or work. Outlook\u2019s Home and "
     "Business columns set it for you.",
     "address_street": "Street, on one or more lines.",
@@ -538,6 +545,7 @@ def rows_from_vcards(cards: Sequence[ParsedCard]) -> list[dict[str, Any]]:
                 "notes": card.notes,
                 "tags": "; ".join(card.tags),
                 "linkedin_url": card.linkedin_url,
+                "birthday": card.birthday,
             }.items()
             if v
         }
@@ -578,6 +586,7 @@ def rows_from_json(raw: str) -> list[dict[str, Any]]:
                 "display_name", "first_name", "last_name", "nickname", "type", "company",
                 "title", "team", "department", "location", "manager", "works_on", "notes",
                 "slack_handle", "slack_url", "teams_url", "pronunciation", "linkedin_url",
+                "birthday",
             )
             if (value := _text(c.get(key)))
         }  # fmt: skip
@@ -683,6 +692,16 @@ def _split_tags(raw: str) -> list[str]:
     return tags
 
 
+def _import_birthday(raw: object, month_first: bool) -> str | None:
+    """C-20: an unreadable birthday is left out rather than failing the row (ADR-0022)."""
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        return parse_birthday(raw, month_first=month_first)
+    except ValueError:
+        return None
+
+
 def _parts(value: str, *, keep_empty: bool = False) -> list[str]:
     """Google packs several values into one cell: "a ::: b" -> ["a", "b"] (D-01)."""
     parts = [p.strip() for p in value.split(":::")]
@@ -735,9 +754,16 @@ def _addresses(record: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def plan_import(
-    session: Session, records: Sequence[dict[str, Any]], default_type_id: int
+    session: Session,
+    records: Sequence[dict[str, Any]],
+    default_type_id: int,
+    *,
+    month_first: bool = True,
 ) -> list[PlannedRow]:
-    """Validate rows and flag duplicates (same email, or same name + company)."""
+    """Validate rows and flag duplicates (same email, or same name + company).
+
+    ``month_first``: how the instance writes dates, for a birthday like 3/4 (C-20).
+    """
     types = {t.name.lower(): t.id for t in session.scalars(select(ContactType))}
     known_emails = {e.lower() for e in session.scalars(select(ContactEmail.email))}
     known_people = {
@@ -794,6 +820,7 @@ def plan_import(
                 )
                 if record.get(k)
             },
+            "birthday": _import_birthday(record.get("birthday"), month_first),
             "emails": [],
             "phones": [{"number": n, "label": label or None} for n, label in phones],
             "addresses": [*record.get("_addresses", []), *_addresses(record)],  # C-19

@@ -52,12 +52,14 @@
   <li>Addresses keep their street, city, state, ZIP and country. States are stored as their code (“Kansas” and “Kan” become KS), countries get their two-letter code, and an address with a US state but no country is taken to be in your home country.</li>
   <li>A row with a company but no person’s name — a doctor’s office, a restaurant — uses the company as its name.</li>
   <li>If you kept context in a name field — say, a child’s name in Name Suffix — map that column to an unused field such as <strong>Works on</strong> so it stays searchable.</li>
+  <li>Birthdays come along, with or without the year (Google writes <code>--03-14</code> when the year is unknown). Reconnect lists the ones coming up.</li>
+  <li>Importing a whole address book you’d rather not show on screen? Pick a private contact type under <strong>Type for rows without one</strong> and presenting mode leaves all of them out.</li>
   <li>Photos aren’t imported: Google’s photo links point to Google’s servers, and this app never contacts outside services. Add a photo on the card.</li>
 </ul>
 <details class="help-ignored" data-testid="google-ignored">
   <summary>Columns that are left out ({{ google_ignored | length }})</summary>
   <p class="small">{{ google_ignored | join(", ") }}</p>
-  <p class="small">Birthdays, relations, events and websites have no field of their own, and an address’s PO box and extended address (apartment or suite) aren’t imported. Map one to <strong>Notes</strong> if you want to keep it.</p>
+  <p class="small">Relations, events (such as anniversaries) and websites have no field of their own, and an address’s PO box and extended address (apartment or suite) aren’t imported. Map one to <strong>Notes</strong> if you want to keep it.</p>
 </details>
 </section>
 

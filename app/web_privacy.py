@@ -15,7 +15,15 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app.models import Contact, ContactList, CustomField, ListMember, Tag, contact_tag
+from app.models import (
+    Contact,
+    ContactList,
+    ContactType,
+    CustomField,
+    ListMember,
+    Tag,
+    contact_tag,
+)
 from app.privacy import (
     CATEGORIES,
     CATEGORY_CHOICES,
@@ -44,7 +52,7 @@ from app.web import (
 router = APIRouter(include_in_schema=False)
 
 _CARD = re.compile(r"^/contacts/(\d+)")
-ITEM_KINDS = ("tag", "list", "field", "contact")
+ITEM_KINDS = ("tag", "list", "field", "contact", "type")  # a contact type: P-08
 
 
 def set_presenting_cookie(response: Response, on: bool, settings: PrivacySettings) -> None:
@@ -118,6 +126,13 @@ def _items(session: Session, settings: PrivacySettings) -> dict[str, Any]:
         .order_by(func.lower(func.min(CustomField.name)))
         .execution_options(**everything)
     ).all()
+    type_rows = session.execute(
+        select(ContactType, func.count(Contact.id))
+        .outerjoin(Contact, Contact.contact_type_id == ContactType.id)
+        .group_by(ContactType.id)
+        .order_by(ContactType.sort_order, ContactType.name)
+        .execution_options(**everything)
+    ).all()
     contacts = session.scalars(
         select(Contact)
         .where(Contact.is_private.is_(True))
@@ -132,6 +147,7 @@ def _items(session: Session, settings: PrivacySettings) -> dict[str, Any]:
             for name, n, flagged in field_rows
         ],
         "private_contacts": contacts,
+        "types": [(t, n) for t, n in type_rows],
     }
 
 
@@ -202,10 +218,11 @@ async def mark_item(request: Request, session: SessionDep) -> Response:
     else:
         if not key.isdigit():
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown item")
-        models: dict[str, type[Tag] | type[ContactList] | type[Contact]] = {
+        models: dict[str, type[Tag] | type[ContactList] | type[Contact] | type[ContactType]] = {
             "tag": Tag,
             "list": ContactList,
             "contact": Contact,
+            "type": ContactType,
         }
         model = models[kind]
         found = session.execute(

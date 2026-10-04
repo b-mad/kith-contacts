@@ -22,6 +22,7 @@ from typing import Any, Final, Literal, get_args
 from sqlalchemy import Date, case, cast, func, select
 from sqlalchemy.orm import Session
 
+from app.birthdays import UPCOMING_DAYS, Birthday, upcoming_keys
 from app.contacts import ContactError
 from app.models import Activity, Contact
 from app.timephrase import INTERACTION_KINDS
@@ -253,6 +254,50 @@ def due_reminders(
         reminder = Reminder(contact.kit_interval, due_on, today, last_on, contact.kit_snoozed_until)
         result.append((contact, reminder))
     return result
+
+
+@dataclass(frozen=True)
+class BirthdaySoon:
+    """C-21: one birthday coming up."""
+
+    on: date
+    days: int  # 0 = today
+    turns: int | None  # the age they turn, when the year is known
+
+    @property
+    def when(self) -> str:
+        if self.days == 0:
+            return "Today"
+        if self.days == 1:
+            return "Tomorrow"
+        return f"In {self.days} days"
+
+    @property
+    def date_text(self) -> str:
+        return f"{self.on.strftime('%A')}, {calendar.month_name[self.on.month]} {self.on.day}"
+
+
+def upcoming_birthdays(
+    session: Session, *, today: date, days: int = UPCOMING_DAYS
+) -> list[tuple[Contact, BirthdaySoon]]:
+    """C-21: active contacts whose birthday falls in the next ``days`` days, soonest first."""
+    from app.search import _with_details  # app.search imports this module lazily
+
+    contacts = session.scalars(
+        _with_details(select(Contact)).where(
+            Contact.archived_at.is_(None),
+            func.right(Contact.birthday, 5).in_(upcoming_keys(today, days)),
+        )
+    ).all()
+    found = []
+    for contact in contacts:
+        if contact.birthday is None:  # pragma: no cover - excluded by the query
+            continue
+        birthday = Birthday.of(contact.birthday)
+        on = birthday.next_on(today)
+        if (on - today).days < days:
+            found.append((contact, BirthdaySoon(on, (on - today).days, birthday.age_on(on))))
+    return sorted(found, key=lambda pair: (pair[1].on, pair[0].display_name.lower()))
 
 
 def count_due(session: Session, *, today: date, within_days: int = DUE_SOON_DAYS) -> int:

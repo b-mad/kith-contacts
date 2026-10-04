@@ -51,3 +51,4 @@ not change meaning — those are logged in the requirements change log only.
 | [0019](0019-container-deployment.md) | Container deployment with double-click start for Windows and Mac | Accepted | I-10–I-14, N-01, N-04, N-06 |
 | [0020](0020-in-app-import-help.md) | In-app help for the import column mapping, generated from the importer's rules | Accepted | D-06, D-01 |
 | [0021](0021-postal-addresses.md) | Postal addresses as structured rows with ISO country and state codes | Accepted | C-19, D-01, D-02, D-03, I-09 |
+| [0022](0022-birthdays-and-private-contact-types.md) | Birthdays as a partial date with Reconnect reminders; private contact types | Accepted | C-20, C-21, P-08, P-02 |

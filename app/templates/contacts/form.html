@@ -35,8 +35,9 @@
       {{ m.text_input("Last name", "last_name", values, errors) }}
       {{ m.text_input("Nickname", "nickname", values, errors) }}
     </div>
-    <div class="row">
+    <div class="row three">
       {{ m.text_input("Pronunciation", "pronunciation", values, errors, hint="e.g. PREE-yah RAH-mun") }}
+      {{ m.text_input("Birthday", "birthday", values, errors, hint="e.g. March 14 or March 14, 1980 — the year is optional") }}
       <div class="field check-field">
         <label class="check"><input type="checkbox" name="is_favorite"{% if values.get('is_favorite') %} checked{% endif %}> Favorite</label>
       </div>

@@ -54,7 +54,7 @@
 </form>
 
 <section class="panel" aria-labelledby="items-h" data-testid="private-items">
-  <h2 id="items-h">Private tags, lists, fields and contacts</h2>
+  <h2 id="items-h">Private tags, lists, fields, types and contacts</h2>
   <p class="muted small">Private items vanish while presenting. A private contact is left out of results entirely; mark one private from its card.</p>
 
   {% macro item_row(kind, key, name, note, private) -%}
@@ -82,6 +82,10 @@
   {% if fields %}<ul class="plain private-items">{% for name, n, private in fields %}{{ item_row("field", name, name, "on " ~ n ~ " contact" ~ ("" if n == 1 else "s"), private) }}{% endfor %}</ul>
   <p class="hint">A private field name stays private for contacts you add it to later.</p>
   {% else %}<p class="muted small">No extra fields yet.</p>{% endif %}
+
+  <h3>Contact types</h3>
+  <ul class="plain private-items">{% for t, n in types %}{{ item_row("type", t.id, t.name, "all " ~ n ~ " contact" ~ ("" if n == 1 else "s"), t.is_private) }}{% endfor %}</ul>
+  <p class="hint">Every contact of a private type is left out while presenting — handy for a large import: choose a private type as “Type for rows without one”.</p>
 
   <h3>Contacts</h3>
   {% if private_contacts %}<ul class="plain private-items">{% for c in private_contacts %}{{ item_row("contact", c.id, c.display_name, c.company or "private contact", True) }}{% endfor %}</ul>

@@ -40,6 +40,7 @@ from app.models import (
     ContactList,
     ContactPhone,
     ContactPhoto,
+    ContactType,
     CustomField,
     ListMember,
     Tag,
@@ -53,7 +54,11 @@ Choices = tuple[tuple[str, str, str], ...]  # (value, label, hint)
 CATEGORY_CHOICES: Final[Choices] = (
     ("notes", "Notes", "Memory cues, how you met, anything personal"),
     ("activity", "Activity details", "The kind and date stay; what was said is hidden"),
-    ("personal", "Personal emails, phones and addresses", "Anything with a personal label"),
+    (
+        "personal",
+        "Personal details",
+        "Birthdays, and emails, phones and addresses with a personal label",
+    ),
     ("fields", "Extra fields marked private", "Birthday, family, anything you flag"),
     ("location", "Location and addresses", "City or office, and every postal address"),
     ("photo", "Photos", "Profile pictures"),
@@ -196,6 +201,12 @@ class Presenting:
     def personal(self, label: str | None) -> bool:
         return self.hides("personal") and (label or "").strip().lower() in self.settings.labels
 
+    def private_contact(self, contact: Contact) -> bool:
+        """P-03, P-08: marked private itself, or of a private contact type (a private type is
+        not loaded while presenting, so a missing type counts as private)."""
+        kind = contact.contact_type
+        return contact.is_private or kind is None or kind.is_private
+
     def private_field(self, name: str, flagged: bool) -> bool:
         return self.hides("fields") and (flagged or name.strip().lower() in self.settings.fields)
 
@@ -249,6 +260,10 @@ def is_unlocked(path: str) -> bool:
     return path.startswith(UNLOCKED_PREFIXES)
 
 
+_TYPES = ContactType.__table__
+_PRIVATE_TYPE_IDS = select(_TYPES.c.id).where(_TYPES.c.is_private.is_(True))
+
+
 @event.listens_for(Session, "do_orm_execute")
 def _withhold_private_records(state: ORMExecuteState) -> None:
     """P-02: while presenting, ORM reads never return private records."""
@@ -263,7 +278,15 @@ def _withhold_private_records(state: ORMExecuteState) -> None:
         return
     options = [
         # Lambdas, so the criteria follow aliased tables too (e.g. a tag table joined twice).
-        with_loader_criteria(Contact, lambda c: c.is_private.is_(False), include_aliases=True),
+        with_loader_criteria(
+            Contact,
+            # P-08: the table, not the entity, so the ContactType criteria below can't empty it
+            lambda c: c.is_private.is_(False) & c.contact_type_id.not_in(_PRIVATE_TYPE_IDS),
+            include_aliases=True,
+        ),
+        with_loader_criteria(
+            ContactType, lambda t: t.is_private.is_(False), include_aliases=True
+        ),  # P-08
         with_loader_criteria(Tag, lambda t: t.is_private.is_(False), include_aliases=True),
         with_loader_criteria(
             ContactList, lambda cl: cl.is_private.is_(False), include_aliases=True
@@ -340,7 +363,7 @@ NAME_FIELDS: Final = frozenset(
 )
 # Private fields, each shown only when Settings doesn't hide its category. Every ContactOut
 # field is in WORK_FIELDS or here (a test checks), so a new field starts out hidden.
-PRIVATE_FIELDS: Final = {"notes": "notes"}
+PRIVATE_FIELDS: Final = {"notes": "notes", "birthday": "personal"}  # C-20
 
 
 def _blank(annotation: Any) -> Any:
@@ -377,9 +400,9 @@ def redact(data: dict[str, Any], p: Presenting) -> dict[str, Any]:
     ]
     out["tags"] = [t for t in out["tags"] if not t.is_private]
     out["lists"] = [cl for cl in out["lists"] if not cl.is_private]
-    if out.get("manager") is not None and out["manager"].is_private:
+    if out.get("manager") is not None and p.private_contact(out["manager"]):
         out["manager"] = None
-    out["reports"] = [r for r in out["reports"] if not r.is_private]
+    out["reports"] = [r for r in out["reports"] if not p.private_contact(r)]
     if out.get("custom_fields") is not None:
         out["custom_fields"] = [
             f for f in out["custom_fields"] if not p.private_field(f.name, f.is_private)
@@ -435,8 +458,11 @@ def private_refs(session: Session) -> tuple[set[str], set[int], set[int]]:
     lists = session.scalars(
         select(ContactList.id).where(ContactList.is_private.is_(True)).execution_options(**opts)
     )
+    types = select(ContactType.id).where(ContactType.is_private.is_(True))  # P-08
     contacts = session.scalars(
-        select(Contact.id).where(Contact.is_private.is_(True)).execution_options(**opts)
+        select(Contact.id)
+        .where(Contact.is_private.is_(True) | Contact.contact_type_id.in_(types))
+        .execution_options(**opts)
     )
     return set(tags), set(lists), set(contacts)
 

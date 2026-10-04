@@ -275,6 +275,7 @@ _SCALAR_FIELDS = (
     "teams_url",
     "linkedin_url",
     "pronunciation",
+    "birthday",  # C-20
     "is_favorite",
 )
 

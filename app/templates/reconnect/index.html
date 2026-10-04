@@ -5,7 +5,30 @@
 <div class="page-head">
   <h1>Reconnect</h1>
 </div>
-<p class="muted">People you asked to stay in touch with, most overdue first. Logging a meeting, call, email or message starts the next reminder; notes don't count.</p>
+<p class="muted">Birthdays in the next two weeks, then people you asked to stay in touch with, most overdue first. Logging a meeting, call, email or message starts the next reminder; notes don't count.</p>
+
+{% if birthdays %}{# C-21 #}
+<section class="panel reconnect" aria-labelledby="birthdays-h" data-testid="birthdays-h">
+  <h2 id="birthdays-h">Birthdays <span class="muted">· {{ birthdays | length }}</span></h2>
+  <ul class="reconnect-list">
+    {% for c, soon in birthdays %}
+      <li class="reconnect-row" data-testid="birthday-row" data-contact-id="{{ c.id }}">
+        <div class="who">
+          <a href="/contacts/{{ c.id }}" class="reconnect-name">{{ c.display_name }}</a>
+          {% if c.title or c.company %}<p class="muted small">{{ c.title or "" }}{% if c.title and c.company %} · {% endif %}{{ c.company or "" }}</p>{% endif %}
+        </div>
+        <div class="when">
+          <p class="kit-status{% if soon.days == 0 %} kit-today{% endif %}" data-testid="birthday-when"><strong>{{ soon.when }}</strong> <span class="muted small">· <time datetime="{{ soon.on.isoformat() }}">{{ soon.date_text }}</time>{% if soon.turns %} · turns {{ soon.turns }}{% endif %}</span></p>
+          <div class="row-actions">
+            {% if c.links.mailto %}<a class="button" href="{{ c.links.mailto }}" data-log-kind="email" data-log-contact="{{ c.id }}" data-log-name="{{ c.display_name }}">Email</a>{% endif %}
+            {% if c.links.tel %}<a class="button" href="{{ c.links.tel }}" data-log-kind="call" data-log-contact="{{ c.id }}" data-log-name="{{ c.display_name }}">Call</a>{% endif %}
+          </div>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 
 {% if total > shown %}
 <p class="notice-more" data-testid="reconnect-more">Showing the {{ shown }} most overdue of {{ total }} people due. <a href="/?due=1">See everyone due to reconnect</a>.</p>

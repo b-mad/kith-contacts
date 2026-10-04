@@ -6,6 +6,7 @@ CSRF token (N-05, ADR-0008).
 
 from __future__ import annotations
 
+import contextlib
 import secrets
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session
 from starlette.datastructures import FormData
 
 from app.activity import KIND_LABELS, add_activity, delete_activity, parse_date
+from app.birthdays import Birthday, month_first, parse_birthday
 from app.config import Settings
 from app.contacts import (
     ContactError,
@@ -282,7 +284,7 @@ def _private_count(session: Session, words: str, filters: SearchFilters) -> int:
     if p is None or not p.placeholders:
         return 0
     with Session(bind=session.get_bind()) as other, unfiltered():  # never rendered
-        return sum(1 for h in search(other, words, filters) if h.contact.is_private)
+        return sum(1 for h in search(other, words, filters) if p.private_contact(h.contact))
 
 
 def _search_context(request: Request, session: Session) -> dict[str, Any]:
@@ -435,8 +437,13 @@ def _row_values(form: FormData, prefix: str, fields: tuple[str, ...]) -> list[di
     ]
 
 
-def parse_contact_form(form: FormData) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Turn a submitted form into (model input, values to re-render the form with)."""
+def parse_contact_form(
+    form: FormData, *, month_first: bool = True
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Turn a submitted form into (model input, values to re-render the form with).
+
+    ``month_first``: how this instance writes dates, for a typed birthday like 3/4 (C-20).
+    """
     scalar = [
         "display_name",
         "first_name",
@@ -456,6 +463,7 @@ def parse_contact_form(form: FormData) -> tuple[dict[str, Any], dict[str, Any]]:
         "teams_url",
         "linkedin_url",
         "pronunciation",
+        "birthday",
     ]
     values: dict[str, Any] = {f: str(form.get(f, "")).strip() for f in scalar}
     values["manager_label"] = str(form.get("manager_label", "")).strip()
@@ -479,6 +487,9 @@ def parse_contact_form(form: FormData) -> tuple[dict[str, Any], dict[str, Any]]:
     values["fields"] = fields
 
     data: dict[str, Any] = {f: values[f] for f in scalar}
+    # C-20: read 3/4 the instance's way; an unreadable value is left for validation to flag.
+    with contextlib.suppress(ValueError):
+        data["birthday"] = parse_birthday(values["birthday"], month_first=month_first)
     data["manager_id"] = int(values["manager_id"]) if values["manager_id"].isdigit() else None
     data["contact_type_id"] = values["contact_type_id"] or None
     data["is_favorite"] = values["is_favorite"]
@@ -517,6 +528,7 @@ FIELD_LABELS = {
     "slack_url": "Slack link",
     "teams_url": "Teams link",
     "linkedin_url": "LinkedIn profile",
+    "birthday": "Birthday",
 }
 
 
@@ -597,6 +609,7 @@ def _values_from_contact(contact: Contact) -> dict[str, Any]:
             "pronunciation",
         ]
     }
+    values["birthday"] = Birthday.of(contact.birthday).text() if contact.birthday else ""
     values["contact_type_id"] = str(contact.contact_type_id)
     values["is_favorite"] = contact.is_favorite
     values["manager_id"] = str(contact.manager_id or "")
@@ -643,7 +656,9 @@ def new_contact(request: Request, session: SessionDep, manager: str = "") -> HTM
 
 @router.post("/contacts", dependencies=CsrfChecked)
 async def create_contact_form(request: Request, session: SessionDep) -> Response:
-    data, values = parse_contact_form(await request.form())
+    data, values = parse_contact_form(
+        await request.form(), month_first=month_first(_settings(request).phone_region)
+    )
     if errors := unresolved_manager(values):
         return _render(
             request,
@@ -697,6 +712,7 @@ def contact_card(request: Request, contact_id: int, session: SessionDep) -> HTML
             "snooze_choices": SNOOZE_CHOICES,
             "hidden": hidden_counts(session, contact, presenting()),  # P-02 placeholders
             "is_private": contact.is_private,
+            "type_private": contact.contact_type.is_private,  # P-08
         },
     )
 
@@ -861,7 +877,9 @@ def edit_contact(request: Request, contact_id: int, session: SessionDep) -> HTML
 @router.post("/contacts/{contact_id}/edit", dependencies=CsrfChecked)
 async def update_contact_form(request: Request, contact_id: int, session: SessionDep) -> Response:
     contact = _load(session, contact_id)
-    data, values = parse_contact_form(await request.form())
+    data, values = parse_contact_form(
+        await request.form(), month_first=month_first(_settings(request).phone_region)
+    )
     if errors := unresolved_manager(values):
         return _render(
             request,

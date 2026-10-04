@@ -393,7 +393,9 @@ def _place(address: ContactAddress) -> str:
 
 
 def _private(item: Contact | Tag | ContactList, p: Presenting | None) -> bool:
-    return p is not None and item.is_private
+    if p is None:
+        return False
+    return p.private_contact(item) if isinstance(item, Contact) else item.is_private
 
 
 def hidden_matches(

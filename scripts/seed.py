@@ -44,6 +44,7 @@ class Sample:
     slack: bool = False
     location: str | None = None
     extra_emails: tuple[str, ...] = field(default_factory=tuple)
+    birthday: str | None = None  # C-20: "YYYY-MM-DD" or "--MM-DD"
 
 
 ACME = "Acme Health"
@@ -86,6 +87,7 @@ def _employees() -> list[Sample]:
             works_on="Platform strategy, engineering hiring",
             slack=True,
             phone="404-555-0101",
+            birthday="1978-11-02",
         ),
         Sample(
             "Maria Lopez",
@@ -98,6 +100,7 @@ def _employees() -> list[Sample]:
             "Lab results pipeline, data warehouse, HL7 ingestion",
             slack=True,
             phone="404-555-0102",
+            birthday="--06-21",
         ),
         Sample(
             "Dev Patel",
@@ -567,6 +570,7 @@ def seed(session: Session, *, phone_region: str = "US") -> int:
                         [{"label": "work", **OFFICES[s.company]}] if s.company in OFFICES else []
                     ),
                     "slack_handle": s.name.split()[0].lower() if s.slack else None,
+                    "birthday": s.birthday,
                 }
             ),
             phone_region=phone_region,

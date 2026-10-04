@@ -14,7 +14,8 @@ from app.search import refresh_all
 _STATEMENTS = (
     """UPDATE contact SET display_name = 'Contact ' || id, first_name = NULL, last_name = NULL,
          nickname = NULL, notes = NULL, pronunciation = NULL, slack_handle = NULL,
-         slack_url = NULL, teams_url = NULL, linkedin_url = NULL, location = NULL""",
+         slack_url = NULL, teams_url = NULL, linkedin_url = NULL, location = NULL,
+         birthday = NULL""",
     """UPDATE contact_email
          SET email = 'contact' || contact_id || '-' || id || '@example.invalid'""",
     "DELETE FROM contact_phone",

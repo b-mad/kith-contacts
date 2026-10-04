@@ -184,6 +184,7 @@ input:not([type]), input[type="text"], input[type="email"], input[type="tel"], i
 .options li[aria-selected="true"] { background: var(--surface-2); }
 .options li.none { color: var(--muted); cursor: default; }
 .form-actions { display: flex; gap: 1rem; align-items: center; }
+.row + .form-actions { margin-top: 1rem; }  /* e.g. Import: room below a hint */
 
 @media (max-width: 40rem) {
   .bar-link { display: none; }

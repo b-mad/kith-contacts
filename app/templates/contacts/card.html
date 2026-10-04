@@ -20,6 +20,7 @@
       {% if reminder %}<p class="kit-line kit-{{ reminder.state }}" data-testid="kit-line"><a href="#kit-h">Keep in touch: {{ reminder.describe }}</a></p>{% endif %}
       <p class="subtitle">
         <span class="pill" data-testid="contact-type">{{ c.contact_type.name }}</span>
+        {% if type_private and not is_private %}<span class="pill" title="Every {{ c.contact_type.name }} contact is left out while presenting" data-testid="type-private">🔒 Private type</span>{% endif %}
         {% if c.archived %}<span class="pill muted" data-testid="archived-badge">Archived</span>{% endif %}
         {{ c.title or "" }}{% if c.title and (c.company or c.team) %} · {% endif %}{{ c.team or "" }}{% if c.team and c.company %} · {% endif %}{{ c.company or "" }}
       </p>
@@ -72,6 +73,7 @@
           <dd class="address" data-testid="address">{% for line in address_lines(a) %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd>
         {% endfor %}
         {% if c.location %}<dt>Location</dt><dd>{{ c.location }}</dd>{% endif %}
+        {% if c.birthday %}<dt>Birthday</dt><dd data-testid="birthday">{{ birthday_text(c.birthday) }}</dd>{% endif %}
       </dl>
       {% if hidden.personal %}<p class="redacted" data-testid="hidden-personal">{{ hidden.personal }} personal address{{ "" if hidden.personal == 1 else "es" }} or number{{ "" if hidden.personal == 1 else "s" }} hidden while presenting</p>{% endif %}
     </section>

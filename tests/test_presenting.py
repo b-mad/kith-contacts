@@ -124,6 +124,7 @@ def seed(session: Session) -> Seeded:
         works_on="HL7 interfaces and lab results",
         notes="Met at HIMSS. zqxcanarynote: kids are Ana and Leo",
         location="Zqxcanarycity office",
+        birthday="1985-03-03",  # C-20: personal
         manager_id=private.id,
         emails=[
             {"email": "maria@northwind.example", "label": "work", "is_primary": True},
@@ -144,6 +145,11 @@ def seed(session: Session) -> Seeded:
         ],
     )
     plain = _contact(session, "Sam Okafor", team="Data Platform", company="Northwind Health")
+    # P-08: every contact of a private type is private, and so is the type's name.
+    kids = ContactType(name="Zqxcanarytype Kids", sort_order=99, is_private=True)
+    session.add(kids)
+    session.flush()
+    _contact(session, "Zqxcanarykid Person", contact_type_id=kids.id)
     session.flush()
     for field in public.custom_fields:
         field.is_private = field.name == "Birthday"
@@ -281,6 +287,7 @@ def test_redaction_keeps_only_public_fields(db_session: Session) -> None:
     assert [e.email for e in out.emails] == ["maria@northwind.example"]
     assert [p.label for p in out.phones] == ["work"]
     assert [a.city for a in out.addresses] == ["Boston"]
+    assert out.birthday is None
     assert out.links.mailto == "mailto:maria@northwind.example"
     assert out.links.tel is not None
     assert "7946" not in out.links.tel
@@ -661,7 +668,8 @@ def test_search_counts_private_contacts_it_leaves_out(
     assert "1 private contact hidden while presenting" in page
     nobody = client.get("/contacts/results?q=zqxcanarycorp").text
     assert 'data-testid="no-results"' in nobody
-    assert "1 private contact hidden while presenting" in nobody
+    # the private company's contact, and the private-type contact whose name is a typo match
+    assert "2 private contacts hidden while presenting" in nobody
 
 
 @pytest.mark.req("P-04")

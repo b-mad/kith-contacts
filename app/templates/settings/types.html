@@ -3,11 +3,11 @@
 {% block title %}Contact types{% endblock %}
 {% block content %}
 <h1>Contact types</h1>
-<p class="muted">Types are per instance — e.g. Employee, Customer, Vendor at work; Family, Friend, Service provider at home.</p>
+<p class="muted">Types are per instance — e.g. Employee, Customer, Vendor at work; Family, Friend, Service provider at home. Every contact of a <strong>private</strong> type is left out while presenting.</p>
 {% if error %}<p class="error-summary" role="alert" data-testid="types-error">{{ error }}</p>{% endif %}
 
 <table class="contacts types-table" data-testid="types-table">
-  <thead><tr><th scope="col">Type</th><th scope="col">Contacts</th><th scope="col">Order</th><th scope="col">Delete</th></tr></thead>
+  <thead><tr><th scope="col">Type</th><th scope="col">Contacts</th><th scope="col">Private</th><th scope="col">Order</th><th scope="col">Delete</th></tr></thead>
   <tbody>
     {% for t, count in rows %}
       <tr data-testid="type-row">
@@ -18,6 +18,15 @@
           </form>
         </td>
         <td><a href="/?type={{ t.id }}">{{ count }}</a></td>
+        <td>{# P-08 #}
+          <form method="post" action="/settings/privacy/item">{{ m.csrf() }}
+            <input type="hidden" name="kind" value="type">
+            <input type="hidden" name="key" value="{{ t.id }}">
+            <input type="hidden" name="private" value="{{ '0' if t.is_private else '1' }}">
+            <input type="hidden" name="next" value="/settings/types">
+            <button type="submit" class="switch-button" aria-pressed="{{ 'true' if t.is_private else 'false' }}" aria-label="Private type: {{ t.name }}" title="A private type's contacts are left out while presenting" data-testid="private-type-{{ t.id }}">{{ "🔒 Private" if t.is_private else "Visible" }}</button>
+          </form>
+        </td>
         <td class="nowrap">
           {% if not loop.first %}<form method="post" action="/settings/types/{{ t.id }}/move" class="inline">{{ m.csrf() }}<input type="hidden" name="direction" value="up"><button type="submit" class="link" aria-label="Move {{ t.name }} up">↑</button></form>{% endif %}
           {% if not loop.last %}<form method="post" action="/settings/types/{{ t.id }}/move" class="inline">{{ m.csrf() }}<input type="hidden" name="direction" value="down"><button type="submit" class="link" aria-label="Move {{ t.name }} down">↓</button></form>{% endif %}

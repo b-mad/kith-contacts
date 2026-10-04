@@ -52,6 +52,8 @@ def to_vcard(contact: Contact) -> str:
         lines.append(f"ORG:{_escape(contact.company or '')};{_escape(contact.department or '')}")
     if contact.title:
         lines.append(f"TITLE:{_escape(contact.title)}")
+    if contact.birthday:  # C-20: "--MM-DD" when the year is unknown (vCard 4 / RFC 6350)
+        lines.append(f"BDAY:{contact.birthday}")
     for email in sorted(contact.emails, key=lambda e: not e.is_primary):
         kinds = ["INTERNET"]
         if email.label and email.label.lower() in {"work", "home"}:
@@ -114,6 +116,7 @@ class ParsedCard:
     addresses: list[dict[str, str]] = field(default_factory=list)  # C-19
     tags: list[str] = field(default_factory=list)
     linkedin_url: str = ""  # C-18
+    birthday: str = ""  # C-20: as written; the import reads it
 
 
 def _unescape(value: str) -> str:
@@ -226,6 +229,9 @@ def parse_vcards(text: str) -> list[ParsedCard]:
                     "country": country.strip(),
                 }
             )
+        elif name == "BDAY" and value.strip():
+            # Apple marks an unknown year with X-APPLE-OMIT-YEAR=1604, which the import ignores.
+            card.birthday = value.strip()
         elif name == "CATEGORIES":
             card.tags.extend(t.strip() for t in _split(value, ",") if t.strip())
     return cards

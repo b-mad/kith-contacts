@@ -15,9 +15,10 @@ You'll see a preview and can adjust the column mapping before anything is saved.
   <div class="row">
     <div class="field">
       <label for="default_type_id">Type for rows without one</label>
-      <select id="default_type_id" name="default_type_id">
-        {% for t in types %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+      <select id="default_type_id" name="default_type_id" aria-describedby="default-type-hint">
+        {% for t in types %}<option value="{{ t.id }}">{{ t.name }}{% if t.is_private %} (private){% endif %}</option>{% endfor %}
       </select>
+      <p class="hint" id="default-type-hint">Choose a private type to keep a whole import out of sight while presenting (Settings › Contact types).</p>
     </div>
     <div class="field">
       <label for="list_name">Also add everyone to a list (optional)</label>

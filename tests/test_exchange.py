@@ -197,7 +197,7 @@ def test_mapping_recognises_outlook_and_google_headers() -> None:
     ]  # fmt: skip
 
 
-@pytest.mark.req("D-01", "C-19")
+@pytest.mark.req("D-01", "C-19", "C-20")
 def test_mapping_recognises_the_current_google_export() -> None:
     mapped = {column: label for column, label in mapping_guide(GOOGLE_HEADERS) if label}
     assert mapped == {
@@ -215,7 +215,7 @@ def test_mapping_recognises_the_current_google_export() -> None:
         "Address 2 - Label": "Address 2 label", "Address 2 - Street": "Address 2 street",
         "Address 2 - City": "Address 2 city", "Address 2 - Region": "Address 2 state",
         "Address 2 - Postal Code": "Address 2 postal code",
-        "Address 2 - Country": "Address 2 country",
+        "Address 2 - Country": "Address 2 country", "Birthday": "Birthday",
     }  # fmt: skip
 
 

@@ -54,6 +54,8 @@ class ContactType(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(50), unique=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # P-08: while presenting, every contact of a private type is withheld (ADR-0022).
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
 
 list_tag = Table(
@@ -129,10 +131,17 @@ class Contact(Base):
     __tablename__ = "contact"
     __table_args__ = (
         CheckConstraint("manager_id <> id", name="not_own_manager"),
+        CheckConstraint(r"birthday ~ '^(\d{4}-|--)\d{2}-\d{2}$'", name="birthday_format"),
         CheckConstraint(
             "kit_interval IN ('2w', '1m', '3m', '6m', '1y')", name="kit_interval_known"
         ),
         Index("ix_contact_search_vector", "search_vector", postgresql_using="gin"),
+        # C-21: Reconnect looks birthdays up by month and day.
+        Index(
+            "ix_contact_birthday_month_day",
+            func.right(text("birthday"), 5),
+            postgresql_where=text("birthday IS NOT NULL"),
+        ),
         Index(
             "ix_contact_display_name_trgm",
             func.lower(text("display_name")),
@@ -163,6 +172,8 @@ class Contact(Base):
     slack_url: Mapped[str | None] = mapped_column(String(500))
     teams_url: Mapped[str | None] = mapped_column(String(500))
     linkedin_url: Mapped[str | None] = mapped_column(String(300))  # C-18, migration 0009
+    # C-20: "YYYY-MM-DD", or "--MM-DD" without a year (ADR-0022, migration 0011).
+    birthday: Mapped[str | None] = mapped_column(String(10))
     pronunciation: Mapped[str | None] = mapped_column(String(200))
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

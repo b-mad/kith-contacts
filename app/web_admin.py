@@ -25,6 +25,7 @@ from app.appearance import (
     save_appearance,
 )
 from app.backup import BackupError, backup, find_backup, list_backups, prune, restore
+from app.birthdays import month_first
 from app.contact_types import add_type, delete_type, move_type, rename_type, types_with_counts
 from app.contacts import ContactError, ContactNotFound, list_contact_types
 from app.exchange import (
@@ -353,7 +354,9 @@ async def _read_upload(form: FormData) -> tuple[str, str]:
     return str(form.get("kind", "csv")), raw
 
 
-def _plan(session: Session, form: FormData, kind: str, raw: str) -> dict[str, Any]:
+def _plan(
+    session: Session, form: FormData, kind: str, raw: str, region: str = "US"
+) -> dict[str, Any]:
     types = list_contact_types(session)
     default_type = str(form.get("default_type_id", ""))
     default_type_id = int(default_type) if default_type.isdigit() else types[0].id
@@ -376,7 +379,7 @@ def _plan(session: Session, form: FormData, kind: str, raw: str) -> dict[str, An
         else:
             mapping = guess_mapping(headers)
         records = rows_from_csv(body, mapping, headers)
-    planned = plan_import(session, records, default_type_id)
+    planned = plan_import(session, records, default_type_id, month_first=month_first(region))
     return _import_context(
         session,
         kind=kind,
@@ -394,7 +397,7 @@ async def import_preview(request: Request, session: SessionDep) -> HTMLResponse:
     form = await request.form()
     try:
         kind, raw = await _read_upload(form)
-        context = _plan(session, form, kind, raw)
+        context = _plan(session, form, kind, raw, _settings(request).phone_region)
     except ContactError as exc:
         return _render(
             request,
@@ -414,7 +417,7 @@ async def import_run(request: Request, session: SessionDep) -> Response:
     form = await request.form()
     try:
         kind, raw = await _read_upload(form)
-        context = _plan(session, form, kind, raw)
+        context = _plan(session, form, kind, raw, _settings(request).phone_region)
         result = run_import(
             session,
             context["planned"],

@@ -17,6 +17,7 @@ from pydantic import (
 )
 
 from app.appearance import Density, Palette, Theme
+from app.birthdays import parse_birthday
 from app.links import normalize_linkedin
 
 
@@ -35,6 +36,17 @@ def _https_only(value: str | None) -> str | None:
 
 def _linkedin(value: str | None) -> str | None:
     return normalize_linkedin(value) if value is not None else None
+
+
+def _birthday(value: str | None) -> str | None:
+    """C-20: any common form -> "YYYY-MM-DD" or "--MM-DD". Slashed dates are read month
+    first here; the form and the import convert day-first dates for their region first."""
+    if value is None:
+        return None
+    try:
+        return parse_birthday(value)
+    except ValueError:
+        raise ValueError("use a date like March 14, 1980-03-14 or 3/14") from None
 
 
 def _strip_at(value: str | None) -> str | None:
@@ -56,6 +68,9 @@ LinkedInUrl = Annotated[
     Annotated[str, StringConstraints(max_length=300)] | None,
     _Blank,
     AfterValidator(_linkedin),
+]
+BirthdayText = Annotated[
+    Annotated[str, StringConstraints(max_length=40)] | None, _Blank, AfterValidator(_birthday)
 ]
 SlackHandle = Annotated[
     Annotated[str, StringConstraints(max_length=100, pattern=r"^@?[\w.\-]+$")] | None,
@@ -158,6 +173,7 @@ class ContactFields(_Input):
     teams_url: HttpsUrl = None
     linkedin_url: LinkedInUrl = None  # C-18
     pronunciation: Text200 = None
+    birthday: BirthdayText = None  # C-20
     is_favorite: bool = False
 
 
@@ -293,6 +309,7 @@ class ContactOut(_Output):
     teams_url: str | None
     linkedin_url: str | None = None  # C-18
     pronunciation: str | None
+    birthday: str | None = None  # C-20
     is_favorite: bool
     emails: list[EmailOut]
     phones: list[PhoneOut]

@@ -29,6 +29,7 @@ from app import api, web, web_admin, web_depth, web_kit, web_lists, web_privacy
 from app.addresses import country_name, lines_of
 from app.appearance import THEME_CHOICES, current_appearance, text_on
 from app.backup import BackupFile, ensure_recent_backup
+from app.birthdays import describe
 from app.config import Settings, load_settings
 from app.contacts import ContactError, ContactNotFound
 from app.db import create_db_engine, make_session_factory
@@ -169,6 +170,7 @@ def build_templates(settings: Settings) -> Jinja2Templates:
     templates.env.filters["initials"] = initials
     templates.env.globals["other_names"] = other_names
     templates.env.globals["country_name"] = country_name
+    templates.env.globals["birthday_text"] = lambda value: describe(value, date.today())
     templates.env.globals["address_lines"] = lambda a: lines_of(a, settings.phone_region)
     templates.env.filters["search_summary"] = describe_query
     templates.env.filters["highlight"] = highlight
