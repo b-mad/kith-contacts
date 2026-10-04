@@ -2,13 +2,14 @@
 SHELL := /bin/bash
 UV := uv run
 PHASE ?= 0
+VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
 
 # Prerequisite checks with install hints (README: Prerequisites).
 ifeq ($(shell command -v uv 2>/dev/null),)
 $(error uv is not installed. Install it with `brew install uv` (or `curl -LsSf https://astral.sh/uv/install.sh | sh`), then open a new terminal)
 endif
 
-.PHONY: help install fmt lint typecheck test test-model e2e check trace db-up db-down instance migration seed backup backups restore copy-to-dev model reindex
+.PHONY: help install fmt lint typecheck test test-model e2e check trace db-up db-down instance migration seed backup backups restore copy-to-dev model reindex image container-test bundle move-to-containers
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -84,3 +85,16 @@ copy-to-dev: ## Copy an instance into a dev one: make copy-to-dev FROM=business-
 migration: ## New Alembic migration from model changes: make migration m="add tags" (uses the dev instance)
 	@test -n "$(m)" || (echo 'usage: make migration m="message"' && exit 2)
 	INSTANCE_ENV_FILE=instances/dev.env $(UV) alembic revision --autogenerate -m "$(m)"
+
+image: ## Build the app image contact-manager:<version> (ADR-0019)
+	docker build --build-arg APP_VERSION=$(VERSION) -t contact-manager:$(VERSION) .
+
+container-test: ## Build the image and check the whole container install on spare ports (I-10 to I-12)
+	$(UV) python -m scripts.container_test
+
+bundle: ## The zip people download: dist/Contact-Manager-<version>.zip (I-13)
+	$(UV) python -m scripts.bundle
+
+move-to-containers: ## Move ./run.sh instances into the container install: make move-to-containers WORK=business-prod PERSONAL=personal-prod [FORCE=1]
+	@test -n "$(WORK)$(PERSONAL)" || (echo "usage: make move-to-containers WORK=<instance> PERSONAL=<instance>" && exit 2)
+	$(UV) python -m scripts.move_to_containers $(if $(WORK),--work "$(WORK)") $(if $(PERSONAL),--personal "$(PERSONAL)") $(if $(FORCE),--force)

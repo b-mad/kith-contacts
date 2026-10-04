@@ -10,6 +10,7 @@
   <dl>
     <dt>Name</dt><dd>{{ instance.instance_name }}</dd>
     <dt>Environment</dt><dd>{{ instance.app_env }}</dd>
+    <dt>Version</dt><dd data-testid="app-version">{{ app_version() }}</dd>
     <dt>Contacts</dt><dd>{{ contact_count }}</dd>
     <dt>Contact types</dt><dd><a href="/settings/types">Manage contact types</a></dd>
     <dt>Data quality</dt><dd><a href="/duplicates" data-testid="duplicates-link">Find and merge duplicates</a></dd>
@@ -70,8 +71,13 @@
   {% elif semantic.enabled and not semantic.unavailable %}
     <p class="semantic-status" data-testid="semantic-status"><span class="pill">Starting</span> Loading the model…</p>
   {% else %}
+  {% if instance.install_kind == "container" %}
+    <p class="semantic-status" data-testid="semantic-status"><span class="pill muted">Off</span> {% if instance.semantic_search == "off" %}Turned off in settings.env.{% else %}The language model could not be downloaded when Contact Manager was built.{% endif %}</p>
+    <p class="muted small">Everything else works. The download is tried again with the next update; it needs access to huggingface.co. Nothing is sent anywhere; the model runs on this computer.</p>
+  {% else %}
     <p class="semantic-status" data-testid="semantic-status"><span class="pill muted">Off</span> {{ semantic.unavailable or "Not set up." }}</p>
     <p class="muted small">To turn it on: in the project folder run <code>make model</code> once (downloads about 90 MB and checks it), then restart this instance. Nothing is sent anywhere; the model runs on this computer.</p>
+  {% endif %}
   {% endif %}
 </section>
 

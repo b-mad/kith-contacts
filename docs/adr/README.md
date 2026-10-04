@@ -48,3 +48,4 @@ not change meaning — those are logged in the requirements change log only.
 | [0016](0016-keep-in-touch-reminders-and-presenting-mode.md) | Keep-in-touch reminders and a presenting mode that withholds private details | Accepted | C-15–C-17, S-11, P-01–P-07 |
 | [0017](0017-command-palette-and-search-polish.md) | Command palette; search-page keyboard and layout details | Accepted | S-12, S-02, S-11, N-09 |
 | [0018](0018-linkedin-profile-link.md) | LinkedIn profile as a validated link with a card action | Accepted | C-18 |
+| [0019](0019-container-deployment.md) | Container deployment with double-click start for Windows and Mac | Accepted | I-10–I-14, N-01, N-04, N-06 |

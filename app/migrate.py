@@ -6,9 +6,11 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, create_engine, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.backup import BackupError, BackupFile, backup
 from app.config import Settings
 from app.models import ContactType
 
@@ -27,14 +29,49 @@ def alembic_config(database_url: str) -> Config:
     return cfg
 
 
-def upgrade_to_head(settings: Settings) -> None:
-    """Apply all pending migrations; raise MigrationError on any failure."""
+def pending_from(settings: Settings) -> str | None:
+    """The revision an existing schema would be upgraded from, or None (new or up to date)."""
+    engine = create_engine(settings.sqlalchemy_url, pool_pre_ping=True)
+    try:
+        current = current_revision(engine)
+    finally:
+        engine.dispose()
+    if current is None or current == head_revision():
+        return None
+    return current
+
+
+def backup_before_upgrade(settings: Settings) -> BackupFile | None:
+    """I-11: a production instance backs up before migrating an existing schema.
+
+    Refuses (MigrationError) when that backup fails, so the upgrade never runs unprotected.
+    """
+    if not settings.is_production:
+        return None
+    try:
+        if pending_from(settings) is None:
+            return None
+        return backup(settings, label="before-upgrade")
+    except (BackupError, OSError, SQLAlchemyError) as exc:
+        raise MigrationError(
+            f"Not upgrading instance '{settings.instance_name}': "
+            f"the backup before upgrading failed: {exc}"
+        ) from exc
+
+
+def upgrade_to_head(settings: Settings) -> BackupFile | None:
+    """Apply all pending migrations; raise MigrationError on any failure.
+
+    Returns the before-upgrade backup when one was taken (I-11).
+    """
+    safety = backup_before_upgrade(settings)
     try:
         command.upgrade(alembic_config(settings.sqlalchemy_url), "head")
     except Exception as exc:
         raise MigrationError(
             f"Could not migrate database for instance '{settings.instance_name}': {exc}"
         ) from exc
+    return safety
 
 
 def ensure_contact_types(session: Session, names: tuple[str, ...]) -> int:

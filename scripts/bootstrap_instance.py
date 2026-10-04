@@ -16,7 +16,7 @@ import secrets
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import psycopg
 from psycopg import sql
@@ -29,6 +29,14 @@ ENVIRONMENTS = ("development", "production", "test")
 
 class BootstrapError(RuntimeError):
     pass
+
+
+def database_name(name: str) -> str:
+    return "contacts_" + name.replace("-", "_")
+
+
+def role_name(name: str) -> str:
+    return database_name(name) + "_app"
 
 
 @dataclass(frozen=True)
@@ -52,11 +60,11 @@ class InstanceSpec:
 
     @property
     def database(self) -> str:
-        return "contacts_" + self.name.replace("-", "_")
+        return database_name(self.name)
 
     @property
     def role(self) -> str:
-        return self.database + "_app"
+        return role_name(self.name)
 
     @property
     def title(self) -> str:
@@ -115,6 +123,45 @@ def create_database(spec: InstanceSpec, admin_url: str) -> str:
         f"postgresql://{spec.role}:{quote(password, safe='')}"
         f"@{_server_part(admin_url)}/{spec.database}"
     )
+
+
+def ensure_database(name: str, admin_url: str, saved_url: str | None = None) -> tuple[str, bool]:
+    """Create or repair an instance's role and database; return ``(DATABASE_URL, created)``.
+
+    Idempotent, for container installs (I-10, ADR-0019): run on every start. The saved URL's
+    password is kept (and re-applied, so a replaced volume still matches); without one a new
+    password is generated. Like ``create_database``, the role owns only its own database and
+    CONNECT is revoked from PUBLIC (I-02).
+    """
+    if not NAME_PATTERN.fullmatch(name):
+        raise BootstrapError(f"Invalid instance name {name!r}")
+    database, role = database_name(name), role_name(name)
+    saved = urlsplit(saved_url).password if saved_url else None
+    password = unquote(saved) if saved else secrets.token_urlsafe(24)
+    created = False
+    with psycopg.connect(admin_url, autocommit=True) as conn:
+        role_exists = conn.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)).fetchone()
+        verb = "ALTER" if role_exists else "CREATE"
+        conn.execute(
+            sql.SQL(verb + " ROLE {} WITH LOGIN PASSWORD {}").format(
+                sql.Identifier(role), sql.Literal(password)
+            )
+        )
+        if not conn.execute("SELECT 1 FROM pg_database WHERE datname = %s", (database,)).fetchone():
+            conn.execute(
+                sql.SQL("CREATE DATABASE {} OWNER {} TEMPLATE template0 ENCODING 'UTF8'").format(
+                    sql.Identifier(database), sql.Identifier(role)
+                )
+            )
+            conn.execute(
+                sql.SQL("REVOKE ALL ON DATABASE {} FROM PUBLIC").format(sql.Identifier(database))
+            )
+            created = True
+    instance_admin_url = urlsplit(admin_url)._replace(path="/" + database).geturl()
+    with psycopg.connect(instance_admin_url, autocommit=True) as conn:
+        conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+    url = f"postgresql://{role}:{quote(password, safe='')}@{_server_part(admin_url)}/{database}"
+    return url, created
 
 
 def drop_database(spec: InstanceSpec, admin_url: str) -> None:

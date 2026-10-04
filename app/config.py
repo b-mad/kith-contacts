@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     # Search by meaning (S-08, ADR-0013): on when the model is installed, unless "off".
     semantic_search: Literal["auto", "off"] = "auto"
     model_dir: Path | None = None  # default ~/.cache/contacts-app/models/all-MiniLM-L6-v2
+    # How this instance was installed: from the repository (./run.sh) or the container image
+    # (ADR-0019); only changes which instructions the app shows.
+    install_kind: Literal["source", "container"] = "source"
 
     @field_validator("contact_types", mode="before")
     @classmethod

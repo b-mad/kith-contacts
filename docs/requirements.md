@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.10 |
+| Version | 1.11 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
-| Last updated | 2026-10-03 |
+| Last updated | 2026-10-04 |
 | Change process | [ADR-0002](adr/0002-requirements-as-versioned-source-of-truth.md) |
 
 > **This file is the source of truth for what the application must do.**
@@ -176,6 +176,11 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | I-07 | Copy a production database into dev (optionally anonymized) to reproduce issues. | Should | 3 |
 | I-08 | Contact types are configurable per instance from the settings page. | Should | 3 |
 | I-09 | Move or copy a contact between instances via export/import (vCard or JSON). JSON keeps extra fields, activity, lists, photo, the keep-in-touch cadence and snooze, and private flags. | Could | 4 |
+| I-10 | Container deployment: one Compose file runs PostgreSQL and up to two instances (Work, Personal) built from the app image. Each instance's database and role are created automatically on first start (I-02 unchanged); passwords are generated then and kept in Docker volumes; the database has no published port; instances listen on 127.0.0.1 only and restart with Docker. | Must | 9 |
+| I-11 | Before applying migrations to a production instance that already has a schema, the app takes a backup (`…_before-upgrade.dump`) and refuses to migrate if the backup fails. | Must | 9 |
+| I-12 | A new container instance with an empty database restores the newest backup already in its backup folder on first start, so moving to a new computer is copying one folder. | Should | 9 |
+| I-13 | Double-click Start and Stop for macOS and Windows: Start checks Docker Desktop is installed and running, asks first-run questions, starts the stack, waits until it is healthy and opens the browser. A plain-language install guide covers install, update, backups, moving computers and troubleshooting. | Should | 9 |
+| I-14 | The running app version is shown in Settings and returned by `/healthz`. | Should | 9 |
 
 **Standard instance set**
 
@@ -213,12 +218,12 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 
 | ID | Area | Requirement |
 | --- | --- | --- |
-| N-01 | Hosting | PostgreSQL runs locally in Docker; each app instance starts with one command and serves at `http://localhost:<port>`. Binds to 127.0.0.1 by default; LAN access is opt-in. |
+| N-01 | Hosting | PostgreSQL runs locally in Docker; each app instance starts with one command and serves at `http://localhost:<port>`. Binds to 127.0.0.1 by default; LAN access is opt-in. A container install runs PostgreSQL and the instances together with Docker Desktop (I-10, ADR-0019). |
 | N-02 | Platforms | Runs on macOS, Windows and Linux with Docker Desktop; works in current Chrome, Edge, Safari and Firefox. |
 | N-03 | Performance | Search returns in < 200 ms and pages load in < 1 s with 10,000 contacts per instance. |
-| N-04 | Privacy | No telemetry, no third-party calls at runtime; all assets bundled. Database port 5432 is not exposed beyond localhost. The search-by-meaning model is downloaded once by the user (`make model`), verified, and loaded from disk (ADR-0013). |
+| N-04 | Privacy | No telemetry, no third-party calls at runtime; all assets bundled. Database port 5432 is not exposed beyond localhost. The search-by-meaning model is downloaded once by the user (`make model`), verified, and loaded from disk (ADR-0013). In a container install the model is downloaded when the image is built (ADR-0019). |
 | N-05 | Security | One database user per instance with rights only to its own database; credentials in env files excluded from git. Optional UI passcode per instance. Validate and escape all input; CSRF protection on writes. |
-| N-06 | Durability | Nightly `pg_dump` per production instance, 14-day retention, stored in a local folder outside Docker volumes; restore tested in CI. |
+| N-06 | Durability | Nightly `pg_dump` per production instance, 14-day retention, stored in a local folder outside Docker volumes; restore tested in CI. Container installs write backups to a host folder through a bind mount (ADR-0019). |
 | N-07 | Clipboard | Copy uses the browser Clipboard API (works on `localhost` as a secure context); a fallback shows the text to copy manually. |
 | N-08 | Email hand-off | `mailto:` links stay under ~2,000 characters; above that the app falls back to Copy emails and says why. |
 | N-09 | Usability | Keyboard-first: `/` focuses search, arrow keys move, space selects, `c` copies emails, Ctrl/⌘ + K opens the command palette and `?` lists every shortcut. Readable at 200% zoom; meets WCAG 2.2 Level AA, including contrast in every theme (A-04), visible focus and 24 × 24 px minimum targets; buttons and fields are at least 40 px tall (44 px at phone width) (ADR-0015, ADR-0017). |
@@ -276,6 +281,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 6 — Look and feel ✅ | Theme modes, three palettes, accessibility pass, layout refresh, command palette | A-01–A-06, N-09, S-12 | 8–10 days |
 | 7 — Relationships and privacy ✅ | Keep-in-touch reminders and presenting mode | C-15–C-17, S-11, P-01–P-07 | ~8 days |
 | 8 — Profiles | LinkedIn profile link on every card | C-18 | 1 day |
+| 9 — Containers | Container deployment, safer upgrades, double-click install for Windows and Mac | I-10–I-14 | 3–4 days |
 
 ### Phase 0 — Foundation
 
@@ -350,6 +356,15 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 **Done when:** importing LinkedIn's `Connections.csv` fills profile links for those people, and the card's LinkedIn action opens `https://www.linkedin.com/in/<name>` in a new tab.
 
+### Phase 9 — Containers
+
+- `Dockerfile` (Python 3.12 on Debian trixie, PostgreSQL 17 client, model fetched at build time) and `compose.yaml` (PostgreSQL, one-shot `secrets` and `setup`, `work` and `personal` instances by profile) (ADR-0019).
+- Before-upgrade backup for production instances; restore-on-empty for new container instances.
+- Start and Stop launchers for macOS (`.command`) and Windows (`.bat` + PowerShell); `~/Contact Manager/settings.env` and `~/Contact Manager/Backups/`.
+- `make image`, `make container-test`, `make bundle`; `docs/install-guide.md`, shipped as `Start here.html`.
+
+**Done when:** on a computer with only Docker Desktop installed, unzipping the bundle and double-clicking Start opens a working instance at `http://localhost:5170`; stopping and starting keeps the data; a newer version applies its migrations after a before-upgrade backup; copying `~/Contact Manager` to another computer and starting there brings the contacts back.
+
 ## 9. Open questions
 
 - [x] Build language → Python (ADR-0004).
@@ -375,6 +390,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.11 | 2026-10-04 | Phase 9 — Containers added: I-10 container deployment, I-11 backup before upgrade, I-12 restore on first start, I-13 double-click start for macOS and Windows with an install guide, I-14 version shown. N-01, N-04 and N-06 clarified for container installs. | 0019 |
 | 1.10 | 2026-10-03 | C-18 LinkedIn profile link added in a new Phase 8 — Profiles. Data model gains contact.linkedin_url. | 0018 |
 | 1.9.1 | 2026-10-03 | Phases 6 and 7 delivered. Clarified I-09: a JSON copy also carries the keep-in-touch cadence and snooze (C-15, C-16) and private flags (P-03). No requirement added or removed. | 0016, 0017 |
 | 1.9 | 2026-10-03 | S-12 command palette added to Phase 6; S-02 highlights matched words; S-11 adds Undo on Reconnect and an overdue marker in results; N-09 adds `?`, Ctrl/⌘ + K and 40/44 px controls. | 0017 |

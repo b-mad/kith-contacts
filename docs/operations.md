@@ -1,6 +1,13 @@
 # Operations: backups, restores and copies
 
-All commands run from the project folder. `I=` names an instance (`instances/<name>.env`).
+Two ways to run instances:
+
+- **From the repository** (development, and production until moved): `./run.sh <instance>`,
+  PostgreSQL from `docker-compose.db.yml`. The `make` commands below are for this setup;
+  `I=` names an instance (`instances/<name>.env`).
+- **Container install** (production, and other people's computers — ADR-0019): see
+  [Container installs](#container-installs) below and the plain-language
+  [install guide](install-guide.md), which ships as `Start here.html` in the zip.
 
 ## Backups (D-04, I-06, N-06 — ADR-0011)
 
@@ -70,3 +77,72 @@ preview with duplicate warnings, and can put everyone imported into a list.
 - Turn it off for one instance with `SEMANTIC_SEARCH=off` in its env file.
 - Embeddings live in the instance database (so backups include them) but are never
   exported, and an anonymized copy to dev rebuilds them from the anonymized text.
+
+## Container installs
+
+`Start Contact Manager` (macOS `.command`, Windows `.bat`) runs, from the program folder:
+
+```bash
+docker compose --project-name contact-manager --env-file ~/"Contact Manager/settings.env" \
+  -f compose.yaml up -d --build --wait
+```
+
+with `APP_VERSION` (from `pyproject.toml`) and `CONTACTS_BACKUPS=~/Contact Manager/Backups`
+exported. To run the commands below from a terminal, set the same two variables and use the
+same flags; `C` stands for that `docker compose …` prefix.
+
+| What | Where |
+| --- | --- |
+| Settings people may edit (names, colors, contact types, ports, `COMPOSE_PROFILES`) | `~/Contact Manager/settings.env` |
+| Backups (bind mount, outside Docker — N-06) | `~/Contact Manager/Backups/work`, `…/personal` |
+| Database | volume `contact-manager_pgdata` (PostgreSQL 17, no published port) |
+| Passwords (generated on first start) | volumes `contact-manager_db-secrets`, `…_work-instance`, `…_personal-instance` |
+
+| Task | Command |
+| --- | --- |
+| Back up now / list backups | `C exec work python -m app.container backup` / `… backups` |
+| Restore (production needs `--yes`) | `C exec work python -m app.container restore <file> --yes`, then `C restart work` |
+| Logs | `C logs -f work` (rotated at 3 × 10 MB) |
+| Status | `C ps` — instances report `healthy` from `/healthz` |
+| Build and check the whole stack on spare ports | `make container-test` |
+| The zip people download | `make bundle` → `dist/Contact-Manager-<version>.zip` |
+
+What happens on start:
+
+1. `secrets` (one-shot) creates the PostgreSQL admin password if it is missing.
+2. `db` starts; `setup` (one-shot) creates or repairs each chosen instance's database and role
+   (I-02) and hands each instance its own connection URL, plus its backup folder.
+3. Each instance waits for the database, then:
+   - **new, empty database and backups in its folder** → restores the newest one (I-12);
+   - **production with pending migrations** → takes `…_before-upgrade.dump` first and refuses
+     to migrate if that fails (I-11; this applies to `./run.sh` too);
+   - migrates (I-04), takes the daily backup if one is due (I-06), and serves on
+     `127.0.0.1:<port>`.
+
+### Upgrades and rollback
+
+Updating is unzipping the new version and starting it. If the new version fails to start
+because a migration failed, nothing was changed (migrations run in a transaction): start
+the previous version's folder again. To undo an upgrade that did complete:
+
+1. Start the previous version's folder. The instance stops with *"Could not migrate…"* because
+   the database is newer than that version.
+2. Restore the before-upgrade backup with the previous version's image:
+   `C run --rm work restore <instance>_<time>_before-upgrade.dump --yes`
+3. Start again.
+
+### Moving an instance from `./run.sh` into containers
+
+```bash
+make move-to-containers WORK=business-prod PERSONAL=personal-prod
+```
+
+takes a fresh backup of each instance, copies it into `~/Contact Manager/Backups/work` and
+`…/personal`, and writes `~/Contact Manager/settings.env` with the same names (so backup file
+names match), colors, contact types, ports, home company and phone region. Then:
+
+1. Stop `./run.sh` for those instances (changes made after the backup are not moved).
+2. Start the container install (`deploy/mac/start.sh` from the repository, or the zip's
+   launcher). Each instance finds its new database empty and restores the copied backup
+   (I-12).
+3. Check the contacts, then retire the old env files and the launchd job.

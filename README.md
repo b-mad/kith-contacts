@@ -9,7 +9,13 @@ context — team, manager, project, tags — even when you forget their name.
 
 **Status:** Phase 5 started: **search by meaning** — ask “the person who helped with the FDA submission” and get matches from notes, projects and activity, using a model that runs on your computer (`make model` once) — and by **when you last interacted**: a Contacted filter, a Last contact column, and phrases like “who did I meet last week”. Phase 4 (depth) complete: custom fields, activity log, duplicate finder and merge, saved searches, related tags, tags on lists, and copying a contact between instances. Phase 3 brought backups, import/export, org chart, photos and admin pages. Operations guide: [docs/operations.md](docs/operations.md).
 
-## Prerequisites
+## Install on Windows or Mac (no technical knowledge needed)
+
+Download the zip made by `make bundle`, unzip it and follow **Start here** — or read the same
+guide here: [docs/install-guide.md](docs/install-guide.md). It needs only Docker Desktop;
+everything else runs in containers (ADR-0019).
+
+## Prerequisites (development)
 
 - [uv](https://docs.astral.sh/uv/) (installs Python 3.12 for you)
 - Docker Desktop (for PostgreSQL), or a local PostgreSQL 16+ with `pg_trgm`

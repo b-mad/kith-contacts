@@ -48,6 +48,7 @@ from app.privacy import (
 from app.saved_searches import describe_query
 from app.search import highlight
 from app.semantic import SemanticService, mark_changed
+from app.version import app_version
 
 APP_DIR = Path(__file__).resolve().parent
 AUTO_BACKUP_INTERVAL_SECONDS = 3600
@@ -212,6 +213,7 @@ def create_app(
     app.state.privacy = None  # loaded on first request (P-03)
     app.state.templates.env.globals["presenting"] = presenting
     app.state.templates.env.globals["undo_offer"] = web.undo_offer
+    app.state.templates.env.globals["app_version"] = app_version
     app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 
     # Registered before security_and_csrf, so it runs inside it (CSRF token already set).
@@ -272,6 +274,7 @@ def create_app(
         body: dict[str, Any] = {
             "instance": settings.instance_name,
             "env": settings.app_env,
+            "version": app_version(),  # I-14
         }
         try:
             with engine.connect() as conn:

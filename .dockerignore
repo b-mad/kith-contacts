@@ -1,0 +1,10 @@
+# Only what the image needs. Never instance env files, backups or the dev environment.
+*
+!pyproject.toml
+!uv.lock
+!alembic.ini
+!app/
+!migrations/
+!scripts/
+**/__pycache__
+**/*.pyc

@@ -297,16 +297,15 @@ def ensure_recent_backup(settings: Settings, *, now: datetime | None = None) -> 
 DUMP_SIGNATURE = b"PGDMP"  # first bytes of every pg_dump -Fc file
 
 
-def restore(settings: Settings, source: Path) -> BackupFile:
-    """Replace the database with ``source``. Takes a safety backup first; returns it."""
+def _check_dump(source: Path) -> None:
     if not source.is_file():
         raise BackupError(f"Backup file not found: {source}")
     with source.open("rb") as f:
         if f.read(len(DUMP_SIGNATURE)) != DUMP_SIGNATURE:
             raise BackupError(f"Not a valid backup file (expected pg_dump custom format): {source}")
-    conn = Connection.from_settings(settings)
-    tool = resolve_tool(settings, conn)
-    safety = backup(settings, label="before-restore")
+
+
+def _restore(conn: Connection, tool: Tool, source: Path) -> None:
     if tool == "local":
         with tempfile.TemporaryDirectory() as tmp:
             listing = subprocess.run(  # noqa: S603
@@ -328,4 +327,50 @@ def restore(settings: Settings, source: Path) -> BackupFile:
     else:
         _run(restore_command(conn, tool, source, None), conn, stdin=source)
     log.info("restored %s from %s", conn.database, source)
+
+
+def restore(settings: Settings, source: Path) -> BackupFile:
+    """Replace the database with ``source``. Takes a safety backup first; returns it."""
+    _check_dump(source)
+    conn = Connection.from_settings(settings)
+    tool = resolve_tool(settings, conn)
+    safety = backup(settings, label="before-restore")
+    _restore(conn, tool, source)
     return safety
+
+
+def table_count(conn: Connection) -> int:
+    """Tables in the instance's ``public`` schema (0 for a database that was just created)."""
+    try:
+        with psycopg.connect(
+            host=conn.host,
+            port=conn.port,
+            user=conn.user,
+            password=conn.password,
+            dbname=conn.database,
+            connect_timeout=5,
+        ) as db:
+            row = db.execute(
+                "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'"
+            ).fetchone()
+    except psycopg.OperationalError as exc:
+        raise BackupError(f"Cannot connect to database {conn.database}: {exc}") from exc
+    return int(row[0]) if row else 0
+
+
+def restore_newest_into_empty(settings: Settings) -> BackupFile | None:
+    """I-12: fill a brand-new, empty database from the newest backup in its folder.
+
+    No safety backup is taken because there is nothing to lose; a database that already has
+    tables is left alone (returns None), as is an empty folder.
+    """
+    conn = Connection.from_settings(settings)
+    if table_count(conn):
+        return None
+    backups = list_backups(settings)
+    if not backups:
+        return None
+    newest = backups[0]
+    _check_dump(newest.path)
+    _restore(conn, resolve_tool(settings, conn), newest.path)
+    return newest

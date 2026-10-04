@@ -58,6 +58,10 @@ requirements, and do not silently deviate from an ADR.
   `contacts.to_out` (which redacts) or check `app.privacy.presenting()`. A new field on
   `ContactOut` must be classified in `app/privacy.py`; a new page is covered automatically
   by the canary test in `tests/test_presenting.py`, which must keep passing.
+- Container install (ADR-0019): scripts in `deploy/` must stay plain ASCII (Windows
+  PowerShell 5.1) and work in the bash 3.2 that ships with macOS; a new setting in
+  `compose.yaml` needs a line in both start scripts' `settings.env` template (or a default).
+  Changes to `Dockerfile`, `compose.yaml` or `app/container.py` need `make container-test`.
 - Browser-only behavior (clipboard, compose links, live search) is tested with
   Playwright in `tests/e2e/`; run `make e2e`.
 - Type everything; `mypy --strict` must pass. Prefer small pure functions that
@@ -129,6 +133,11 @@ delete a failing test to get a green run unless the requirement was withdrawn.
 | `app/static/js/app.js` | Vanilla JS: live search, selection + action bar (copy/compose for Outlook or Gmail), search preview pane and keyboard moves (↑ ↓, space, c), command palette (Ctrl/⌘ K, data from `GET /palette`), `?` shortcut list, filter-chip ×, pickers, form rows, ⇧P |
 | `app/migrate.py` | Runs Alembic on start-up; fails fast (I-04) |
 | `app/main.py` | FastAPI app factory, routes, templates |
+| `app/container.py` | Container entry point: `secrets`, `setup`, `serve`, `health`, `backup`/`restore` (I-10, I-12, ADR-0019) |
+| `app/version.py` | App version from `pyproject.toml` (I-14) |
+| `Dockerfile`, `compose.yaml` | App image and the container install: PostgreSQL, one-shot `secrets`/`setup`, `work`/`personal` instances (ADR-0019) |
+| `deploy/` | Start/Stop scripts for macOS (`mac/*.sh`) and Windows (`windows/*.ps1`), and the double-click launchers (`launchers/`) |
+| `scripts/bundle.py`, `scripts/container_test.py` | `make bundle` (the install zip) and `make container-test` (whole stack on spare ports) |
 | `app/templates/` | Jinja templates (HTMX/Alpine for interactivity) |
 | `migrations/` | Alembic migrations |
 | `scripts/bootstrap_instance.py` | Creates an instance's database, role and env file (I-02) |
@@ -136,6 +145,7 @@ delete a failing test to get a green run unless the requirement was withdrawn.
 | `scripts/seed.py` | Sample data for dev instances; refuses production (I-05) |
 | `tests/` | pytest suite; `conftest.py` creates a throwaway database |
 | `docs/requirements.md` | Requirements (source of truth) |
+| `docs/install-guide.md` | Plain-language install guide (ships as `Start here.html`) |
 | `docs/adr/` | Architecture decision records |
 
 ## 6. Common commands
@@ -152,4 +162,6 @@ make trace PHASE=5           # requirement coverage up to a phase
 make migration m="add tags"  # new Alembic migration
 make model                   # install the search-by-meaning model once
 make test-model              # tests with the real model
+make container-test          # build the image and check the container install
+make bundle                  # dist/Contact-Manager-<version>.zip
 ```

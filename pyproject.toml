@@ -1,6 +1,6 @@
 [project]
 name = "contacts-app"
-version = "0.1.0"
+version = "1.0.0"
 description = "Locally hosted contact manager for finding people by context."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -26,12 +26,14 @@ dependencies = [
 dev = [
     "axe-playwright-python>=0.1.8",
     "httpx2>=0.1",
+    "markdown>=3.11",
     "mypy>=1.13",
     "playwright>=1.49",
     "pre-commit>=4.0",
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "ruff>=0.8",
+    "types-markdown>=3.10.2.20260712",
 ]
 
 [tool.uv]

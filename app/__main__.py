@@ -7,8 +7,9 @@ import sys
 import uvicorn
 from pydantic import ValidationError
 
-from app.config import load_settings
+from app.config import Settings, load_settings
 from app.migrate import MigrationError, upgrade_to_head
+from app.version import app_version
 
 
 def main() -> int:
@@ -17,16 +18,22 @@ def main() -> int:
     except (FileNotFoundError, ValidationError) as exc:
         print(f"Invalid instance configuration:\n{exc}", file=sys.stderr)
         return 2
+    return run(settings)
 
+
+def run(settings: Settings) -> int:
+    """Migrate, then serve until stopped (also the container's ``serve``, ADR-0019)."""
     try:
-        upgrade_to_head(settings)  # I-04: refuse to start on migration failure
+        safety = upgrade_to_head(settings)  # I-04: refuse to start on migration failure
     except MigrationError as exc:
         print(str(exc), file=sys.stderr)
         return 1
+    if safety is not None:
+        print(f"Backed up before upgrading: {safety.path}")  # I-11
 
     print(
-        f"Starting '{settings.instance_name}' ({settings.app_env}) "
-        f"on http://{settings.host}:{settings.port}"
+        f"Starting '{settings.instance_name}' ({settings.app_env}, version {app_version()}) "
+        f"on http://{'localhost' if settings.host == '0.0.0.0' else settings.host}:{settings.port}"  # noqa: S104
     )
     uvicorn.run(
         "app.main:create_app",
