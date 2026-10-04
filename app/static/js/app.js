@@ -88,7 +88,9 @@ function initSearch() {
 function initSelection() {
   const bar = $("[data-action-bar]");
   if (!bar) return;
-  const selected = new Map(); // id -> {email, name}; survives live-search refreshes
+  const selected = new Map(); // id -> {email, name, address}; survives live-search refreshes
+  // places.js reads it for "Show on map" and Directions (S-13, M-06), in the order chosen.
+  bar.selection = selected;
   const status = $("[data-action-status]", bar);
   const fallback = $("[data-copy-fallback]", bar);
   const fallbackText = $("[data-copy-text]", bar);
@@ -113,7 +115,11 @@ function initSelection() {
 
   const toggle = (row, on) => {
     const id = row.dataset.contactId;
-    if (on) selected.set(id, { email: row.dataset.email || "", name: row.dataset.name || "" });
+    if (on) {
+      selected.set(id, {
+        email: row.dataset.email || "", name: row.dataset.name || "", address: row.dataset.address || "",
+      });
+    }
     else selected.delete(id);
   };
 

@@ -18,6 +18,7 @@ from sqlalchemy import (
     Column,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -291,6 +292,11 @@ class ContactAddress(Base):
     postal_code: Mapped[str | None] = mapped_column(String(20))
     country: Mapped[str | None] = mapped_column(String(100))
     country_code: Mapped[str | None] = mapped_column(String(2), index=True)
+    # C-22: where it is, from offline data (ADR-0023); NULL precision = not looked up yet.
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    time_zone: Mapped[str | None] = mapped_column(String(64))
+    place_precision: Mapped[str | None] = mapped_column(String(10))
 
     contact: Mapped[Contact] = relationship(back_populates="addresses")
 

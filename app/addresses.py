@@ -216,5 +216,31 @@ def country_name(code: str) -> str:
     return found.name if found else code
 
 
+def state_name(code: str | None) -> str | None:
+    """'KS' -> 'Kansas' (US states, for the map's outlines)."""
+    if not code:
+        return None
+    return {v: k for k, v in _us_state_names().items()}.get(code.upper())
+
+
+@cache
+def _us_state_names() -> dict[str, str]:
+    return {
+        str(sub.name): sub.code.split("-", 1)[1]
+        for sub in pycountry.subdivisions
+        if sub.country_code == "US"
+    }
+
+
+def country_number(code: str | None) -> str | None:
+    """'CA' -> '124': ISO 3166-1 numeric, as the world map's outlines are keyed."""
+    if not code:
+        return None
+    try:
+        return str(pycountry.countries.lookup(code).numeric)
+    except LookupError:
+        return None
+
+
 def one_line(lines: list[str]) -> str:
     return ", ".join(lines)

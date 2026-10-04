@@ -11,6 +11,9 @@
 {% if manager or filters.active %}
   <p class="chips" data-testid="filter-chips">
     {% if manager %}<a class="chip" href="/?{{ request.url.remove_query_params('manager').query }}" data-remove-filter="manager" aria-label="Remove filter Reports to {{ manager.display_name }}">Reports to {{ manager.display_name }} <span aria-hidden="true">×</span></a>{% endif %}
+    {% if near %}{# S-14 #}<a class="chip" href="/?{{ request.url.remove_query_params(['near', 'within']).query }}" aria-label="Remove the Near filter" data-testid="near-chip">{% if near.label %}Within {{ near.miles }} mi of {{ near.label }}{% else %}Couldn’t find “{{ near.text }}” — try a ZIP or “City, ST”{% endif %} <span aria-hidden="true">×</span></a>{% endif %}
+    {% if selected_ids %}<a class="chip" href="/?{{ request.url.remove_query_params('ids').query }}" aria-label="Show everyone again" data-testid="ids-chip">{{ selected_ids | length }} selected {{ "person" if selected_ids | length == 1 else "people" }} <span aria-hidden="true">×</span></a>{% endif %}
+    {% if filters.unplaced %}<a class="chip" href="/?{{ request.url.remove_query_params('unplaced').query }}" aria-label="Remove the Not on the map filter" data-testid="unplaced-chip">Not on the map — add a ZIP or city to place them <span aria-hidden="true">×</span></a>{% endif %}
     <a class="small" href="/{% if q %}?q={{ q | urlencode }}{% endif %}" data-testid="clear-filters">Clear all filters</a>
   </p>
 {% endif %}
@@ -34,7 +37,7 @@
 
 {% macro result_row(c, matched, fuzzy, why=None, hidden=[]) -%}
   {% set email = c.emails[0].email if c.emails else "" %}
-  <li class="result-card{% if c.archived %} archived{% endif %}" data-contact-id="{{ c.id }}" data-email="{{ email }}" data-name="{{ c.display_name }}" data-testid="{{ 'meaning-row' if why else 'result-row' }}">
+  <li class="result-card{% if c.archived %} archived{% endif %}" data-contact-id="{{ c.id }}" data-address="{{ go_address(c) }}" data-email="{{ email }}" data-name="{{ c.display_name }}" data-testid="{{ 'meaning-row' if why else 'result-row' }}">
     <input type="checkbox" class="select-contact" value="{{ c.id }}" aria-label="Select {{ c.display_name }}">
     {% if c.has_photo %}<img class="avatar" src="/contacts/{{ c.id }}/photo" alt="" width="36" height="36">{% else %}<span class="avatar initials" aria-hidden="true">{{ c.display_name | initials }}</span>{% endif %}
     <div class="person-text">
@@ -62,6 +65,8 @@
       {% endif %}
     </div>
     <div class="result-meta" data-testid="last-contact-cell">
+      {{ m.local_time(c, compact=True) }}
+      {% if distances.get(c.id) is not none %}<span class="distance small" data-testid="distance">{{ "%.0f" | format(distances[c.id]) }} mi</span>{% endif %}
       {% set lc = last_contact.get(c.id) %}
       {% set late = overdue.get(c.id) %}
       {% if lc or late is not none %}<span class="muted small">Last contact</span>{% endif %}

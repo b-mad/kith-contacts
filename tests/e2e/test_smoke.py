@@ -927,3 +927,82 @@ def test_address_rows_are_added_saved_and_removed(base_url: str) -> None:
         page.get_by_role("button", name="Save").click()
         expect(page.get_by_test_id("address")).to_have_count(1)
         browser.close()
+
+
+@pytest.mark.req("S-13", "M-06", "C-23", "N-04")
+def test_map_shows_people_offline_and_directions_follow_the_selection(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page(
+            viewport={"width": 1280, "height": 900}, timezone_id="America/Denver"
+        )
+        outside: list[str] = []
+        fetched: list[str] = []
+        page.on("request", lambda r: fetched.append(r.url))
+        page.on(
+            "request",
+            lambda r: (
+                outside.append(r.url)
+                if not r.url.startswith(base_url) and not r.url.startswith("data:")
+                else None
+            ),
+        )
+        page.add_init_script(
+            "window.__opened = []; window.open = (u) => { window.__opened.push(u); };"
+        )
+        types = page.request.get(base_url + "/api/contact-types").json()
+        for name, place in (
+            ("Qxmap One", {"label": "work", "street": "1 Main St", "city": "Olathe", "region": "KS", "postal_code": "66061"}),
+            ("Qxmap Two", {"label": "work", "street": "2 Elm St", "city": "Boston", "region": "MA"}),
+        ):  # fmt: skip
+            page.request.post(
+                base_url + "/api/contacts",
+                data={
+                    "display_name": name,
+                    "contact_type_id": types[0]["id"],
+                    "addresses": [place],
+                },
+            )
+
+        page.goto(base_url + "/?view=map&q=qxmap")
+        expect(page.get_by_test_id("contact-map")).to_be_visible()
+        expect(page.locator("[data-map-status]")).to_contain_text("2 people · 2 on the map")
+        expect(page.locator(".leaflet-marker-icon.map-dot")).to_have_count(2)
+        rows = page.get_by_test_id("result-row")
+        expect(rows.filter(has_text="Qxmap One").get_by_test_id("local-time")).to_contain_text(
+            "CDT"
+        )
+        expect(rows.filter(has_text="Qxmap Two").get_by_test_id("local-time")).to_contain_text(
+            "EDT"
+        )
+
+        rows.filter(has_text="Qxmap Two").locator(".select-contact").check()
+        rows.filter(has_text="Qxmap One").locator(".select-contact").check()
+        page.get_by_test_id("directions").click()
+        expect(page.get_by_test_id("action-status")).to_contain_text("from Qxmap Two to Qxmap One")
+        opened = page.evaluate("window.__opened")
+        assert opened[0].startswith("https://www.google.com/maps/dir/?api=1&origin=2+Elm+St")
+
+        # County outlines arrive only once zoomed in past state level (Olathe to Boston starts out).
+        assert not any("counties-10m" in u for u in fetched)
+        with page.expect_response(lambda r: "counties-10m.json" in r.url) as counties:
+            for _ in range(4):
+                page.locator(".leaflet-control-zoom-in").click()
+                page.wait_for_timeout(300)
+        assert counties.value.ok
+        # ...and they sit above the shaded states once the map settles, not only mid-pan.
+        page.wait_for_timeout(800)
+        on_top = page.evaluate(
+            """() => {
+                const box = document.querySelector("[data-testid=contact-map]").getBoundingClientRect();
+                const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+                return Boolean(hit && hit.closest(".leaflet-counties-pane"));
+            }"""
+        )
+        assert on_top
+        assert outside == []  # N-04: nothing loaded from outside the app
+        browser.close()

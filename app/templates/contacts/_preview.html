@@ -12,6 +12,7 @@
       {% set alt = other_names(c.display_name, c.first_name, c.last_name, c.nickname) %}
       {% if alt %}<p class="muted" data-testid="preview-other-names">{{ alt | join(" · ") }}</p>{% endif %}
       {% if c.title %}<p class="muted">{{ c.title }}</p>{% endif %}
+      {% if local_time_of(c) %}<p>{{ m.local_time(c, compact=True) }}</p>{% endif %}
       {% set org = [c.team, c.company] | select | list %}
       {% if org %}<p class="muted">{{ org | join(" · ") }}</p>{% endif %}
       <p><span class="pill">{{ c.contact_type.name }}</span>{% if c.archived %} <span class="pill muted">Archived</span>{% endif %}</p>

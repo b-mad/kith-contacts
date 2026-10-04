@@ -17,6 +17,7 @@
       {% set alt = other_names(c.display_name, c.first_name, c.last_name, c.nickname) %}
       {% if alt %}<p class="muted" data-testid="other-names">{{ alt | join(" · ") }}</p>{% endif %}
       {% if c.pronunciation %}<p class="muted">Pronounced “{{ c.pronunciation }}”</p>{% endif %}
+      {% if local_time_of(c) %}<p class="card-local-time">{{ m.local_time(c) }}</p>{% endif %}
       {% if reminder %}<p class="kit-line kit-{{ reminder.state }}" data-testid="kit-line"><a href="#kit-h">Keep in touch: {{ reminder.describe }}</a></p>{% endif %}
       <p class="subtitle">
         <span class="pill" data-testid="contact-type">{{ c.contact_type.name }}</span>
@@ -72,6 +73,7 @@
           <dt>{{ (a.label or "Address") | capitalize }}{% if a.label %} address{% endif %}</dt>
           <dd class="address" data-testid="address">{% for line in address_lines(a) %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd>
         {% endfor %}
+        {% if c.addresses | selectattr("latitude") | list %}<dt class="visually-hidden">Nearby</dt><dd><a class="small" href="/?near=contact:{{ c.id }}&amp;within=50" data-testid="people-near">People within 50 miles</a> · <a class="small" href="/?view=map&amp;near=contact:{{ c.id }}&amp;within=50">on the map</a></dd>{% endif %}
         {% if c.location %}<dt>Location</dt><dd>{{ c.location }}</dd>{% endif %}
         {% if c.birthday %}<dt>Birthday</dt><dd data-testid="birthday">{{ birthday_text(c.birthday) }}</dd>{% endif %}
       </dl>

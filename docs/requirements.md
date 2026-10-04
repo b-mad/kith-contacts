@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.14 |
+| Version | 1.15 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-04 |
@@ -108,6 +108,8 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | C-19 | Zero or more postal addresses per contact, each with a label (home, work…), street, city, state or region, postal code and country. The country is stored with its ISO 3166-1 code and the state as its ISO 3166-2 code where recognised; an address with a state but no country takes the instance's home country when the state belongs to it. Shown on the card, editable on the form, searchable by city, state, postal code and country, and carried by CSV, vCard and JSON import and export (ADR-0021). | Should | 10 |
 | C-20 | Optional birthday per contact, with or without the year, stored as `YYYY-MM-DD` or `--MM-DD`; typed or imported dates are read in common forms (ISO, month names, slashed dates in the instance's order); shown on the card with the age; carried by CSV, vCard and JSON (ADR-0022). | Should | 11 |
 | C-21 | Reconnect lists birthdays in the next 14 days, today first, with the age they turn; 29 February falls on 28 February in other years (ADR-0022). | Should | 11 |
+| C-22 | Each address is placed from offline data when saved: latitude, longitude, IANA time zone and how precisely it was placed (ZIP, city, state, country), US ZIP first; existing addresses are placed at start-up (ADR-0023). | Should | 12 |
+| C-23 | The card, search preview and search results show a contact's local time and time zone (from their first placed address), how far ahead or behind the viewer it is, and whether it is a good time to reach them (working hours, edges of the day, night or weekend) in words, not color alone (ADR-0023). | Should | 12 |
 
 ### Search and discovery
 
@@ -125,6 +127,8 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | S-10 | Time phrases in the search box ("recently", "last week", "in September", "since June 1", "yesterday") limit results to people with an interaction in that period, newest first, showing that interaction; "met", "called", "emailed", "messaged" narrow the kind (ADR-0014). | Could | 5 |
 | S-11 | **Reconnect** page and a "Due to reconnect" filter: overdue contacts first (most overdue at the top), then those due within 7 days; the count shows in the navigation; Log and Snooze offer Undo; search results mark overdue contacts, not by color alone (ADR-0016, ADR-0017). | Should | 7 |
 | S-12 | Command palette (Ctrl/⌘ + K): jump to a person, list, tag or saved search, or run a common action (add a contact, Reconnect, Present, theme); presenting mode applies (ADR-0017). | Should | 6 |
+| S-13 | **Map** view of any search, list, tag or selection: states shaded by how many contacts are there, zooming to clustered points at ZIP or city level; home, work or all addresses; a count of contacts that could not be placed; offline — no map tiles or other outside requests; presenting mode applies (ADR-0023). | Should | 12 |
+| S-14 | "Near" filter: contacts within a chosen number of miles of a city, ZIP code or another contact (ADR-0023). | Could | 12 |
 
 ### Tags
 
@@ -155,6 +159,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | M-03 | **Compose**: opens a new message to the selected recipients in **Gmail**, **Outlook on the web** or the **default mail app** (`mailto:`), with a To / Cc choice (ADR-0009). | Should | 2 |
 | M-04 | One-click Slack DM, Teams chat, `tel:` and `mailto:` on each card. | Must | 1 |
 | M-05 | Teams group chat link for selected contacts (`users=a@x.com,b@y.com`). | Could | 3 |
+| M-06 | **Directions** links: from the device's location to a contact (card and selection of one), from one selected contact to another, or a route through 3–11 selected contacts; opens Google Maps, or Apple Maps when the instance prefers it (routes always open in Google Maps) (ADR-0023). | Should | 12 |
 
 ### Data in and out
 
@@ -226,7 +231,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | N-01 | Hosting | PostgreSQL runs locally in Docker; each app instance starts with one command and serves at `http://localhost:<port>`. Binds to 127.0.0.1 by default; LAN access is opt-in. A container install runs PostgreSQL and the instances together with Docker Desktop (I-10, ADR-0019). |
 | N-02 | Platforms | Runs on macOS, Windows and Linux with Docker Desktop; works in current Chrome, Edge, Safari and Firefox. |
 | N-03 | Performance | Search returns in < 200 ms and pages load in < 1 s with 10,000 contacts per instance. |
-| N-04 | Privacy | No telemetry, no third-party calls at runtime; all assets bundled. Database port 5432 is not exposed beyond localhost. The search-by-meaning model is downloaded once by the user (`make model`), verified, and loaded from disk (ADR-0013). In a container install the model is downloaded when the image is built (ADR-0019). |
+| N-04 | Privacy | No telemetry, no third-party calls at runtime; all assets bundled. Database port 5432 is not exposed beyond localhost. The search-by-meaning model is downloaded once by the user (`make model`), verified, and loaded from disk (ADR-0013). In a container install the model is downloaded when the image is built (ADR-0019). Links the user clicks (Teams, LinkedIn, Google or Apple Maps directions) send their contents only on that click (ADR-0023). |
 | N-05 | Security | One database user per instance with rights only to its own database; credentials in env files excluded from git. Optional UI passcode per instance. Validate and escape all input; CSRF protection on writes. |
 | N-06 | Durability | Nightly `pg_dump` per production instance, 14-day retention, stored in a local folder outside Docker volumes; restore tested in CI. Container installs write backups to a host folder through a bind mount (ADR-0019). |
 | N-07 | Clipboard | Copy uses the browser Clipboard API (works on `localhost` as a secure context); a fallback shows the text to copy manually. |
@@ -246,6 +251,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | `contact_phone` | id, contact_id, number, label | Stored as E.164 when parseable, using the instance's `PHONE_REGION` (ADR-0008). |
 | `contact` (Phase 11 column) | birthday | Phase 11 (C-20, ADR-0022). `YYYY-MM-DD`, or `--MM-DD` without a year. |
 | `contact_type` (Phase 11 column) | is_private | Phase 11 (P-08, ADR-0022). |
+| `contact_address` (Phase 12 columns) | latitude, longitude, time_zone, place_precision | Phase 12 (C-22, ADR-0023). From offline data; `place_precision` ∈ zip, city, state, country, none. |
 | `contact_address` | id, contact_id, label, street, city, region, postal_code, country, country_code | Phase 10 (C-19, ADR-0021). `country_code` is ISO 3166-1 alpha-2; `region` is the ISO 3166-2 subdivision code (without the country prefix) when recognised. |
 | `tag` | id, name (unique, case-insensitive), color | Phase 2. |
 | `contact_tag` | contact_id, tag_id | Phase 2. Composite key. |
@@ -292,6 +298,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 9 — Containers | Container deployment, safer upgrades, double-click install for Windows and Mac | I-10–I-14 | 3–4 days |
 | 10 — Places | Postal addresses, groundwork for a contact map and time zones | C-19 | 2 days |
 | 11 — Birthdays and private types | Birthdays with reminders; private contact types | C-20, C-21, P-08 | 1–2 days |
+| 12 — Map and local time | Offline map, local time, near search, directions | C-22, C-23, S-13, S-14, M-06 | 4–5 days |
 
 ### Phase 0 — Foundation
 
@@ -390,6 +397,15 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 **Done when:** importing a Google export fills birthdays (with and without years); Reconnect shows those coming up in the next two weeks; marking the import's type private hides all of its contacts while presenting.
 
+### Phase 12 — Map and local time
+
+- Place lookup from offline data (`zipcodes`; GeoNames cities extract in `app/data/`), migration 0012, start-up fill for existing addresses.
+- Local time, time zone and good-time-to-reach on the card, preview and search results.
+- `/map` for any search, list, tag or selection: vendored Leaflet, markercluster and state/country outlines; no tiles.
+- Near filter (miles from a city, ZIP or contact); directions and routes to Google Maps or Apple Maps (Settings › Maps).
+
+**Done when:** a Google export's contacts appear on the map by state and, zoomed in, by town; a western-Kansas contact shows Mountain time and an Olathe contact Central; two selected contacts open Google Maps driving directions between them; the browser makes no request outside the app while using the map.
+
 ## 9. Open questions
 
 - [x] Build language → Python (ADR-0004).
@@ -398,7 +414,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 - [x] Default mail client → both are used; the user chooses Outlook or Gmail when copying or composing (ADR-0009).
 - [ ] Is any contact data subject to company data-handling policy? Affects where the business instance may run.
 - [ ] Is a directory export (Outlook / Entra ID CSV) available to seed the business instance in Phase 3?
-- [ ] Contact map and time-zone offsets (planned after Phase 10): which offline source turns an address into coordinates and an IANA time zone without calling an outside service (N-04)?
+- [x] Contact map and time-zone offsets → offline ZIP and city data (`zipcodes`, GeoNames extract) and a tile-free map (ADR-0023).
 
 ## 10. Risks
 
@@ -416,6 +432,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.15 | 2026-10-04 | C-22 place lookup, C-23 local time, S-13 map, S-14 near filter and M-06 directions added in a new Phase 12. Data model gains place columns on `contact_address`. N-04 clarified (links the user clicks). Open question on map data closed. | 0023 |
 | 1.14 | 2026-10-04 | C-20 birthdays, C-21 birthday reminders on Reconnect and P-08 private contact types added in a new Phase 11. Data model gains `contact.birthday` and `contact_type.is_private`. Clarified P-02 (birthdays are personal) and D-01, D-02, D-03, I-09 (birthdays included). | 0022 |
 | 1.13 | 2026-10-04 | C-19 postal addresses added in a new Phase 10 — Places. Data model gains `contact_address`. Clarified D-01 (Google's per-value email and phone labels, fax numbers skipped, `:::` cells split, address columns), D-02, D-03 and I-09 (addresses included). | 0021 |
 | 1.12 | 2026-10-04 | D-06 in-app import help added (Phase 3). Clarified D-01: Google Contacts' current export columns (Organization Name, Organization Title, Organization Department, Address 1 - City) are recognised, and a row with a company but no person's name uses the company as display name. | 0020 |

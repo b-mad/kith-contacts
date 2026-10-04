@@ -10,6 +10,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.addresses import normalize_address
+from app.geo import place_of
 from app.links import contact_teams_url, mailto_url, slack_handle_display, tel_url
 from app.links import normalize_phone as _normalize_phone
 from app.models import (
@@ -220,7 +221,31 @@ def address_row(item: AddressIn, region: str) -> ContactAddress:
         country=item.country,
         home_region=region,
     )
-    return ContactAddress(label=item.label, **vars(norm))
+    row = ContactAddress(label=item.label, **vars(norm))
+    place_address(row)
+    return row
+
+
+def place_address(row: ContactAddress) -> None:
+    """C-22: coordinates, time zone and precision from offline data (ADR-0023)."""
+    found = place_of(
+        city=row.city, region=row.region, postal_code=row.postal_code, country_code=row.country_code
+    )
+    row.latitude = found.latitude if found else None
+    row.longitude = found.longitude if found else None
+    row.time_zone = found.time_zone if found else None
+    row.place_precision = found.precision if found else "none"
+
+
+def place_missing(session: Session, limit: int = 5000) -> int:
+    """C-22: look up addresses saved before places existed (start-up; cheap when done)."""
+    rows = session.scalars(
+        select(ContactAddress).where(ContactAddress.place_precision.is_(None)).limit(limit)
+    ).all()
+    for row in rows:
+        place_address(row)
+    session.flush()
+    return len(rows)
 
 
 def _apply_addresses(contact: Contact, addresses: list[AddressIn], region: str) -> None:
@@ -486,6 +511,8 @@ __all__ = [
     "list_contact_types",
     "list_contacts",
     "lookup_contacts",
+    "place_address",
+    "place_missing",
     "primary_email",
     "restore_contact",
     "slack_handle_display",

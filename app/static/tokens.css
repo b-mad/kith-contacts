@@ -89,6 +89,11 @@
   --warning-soft: light-dark(#fdf1d3, #33270c);
   --shadow-color: light-dark(rgb(16 24 40 / 0.15), rgb(0 0 0 / 0.5));
 
+  /* S-13: the contact map (outlines only; places are drawn in --accent) */
+  --map-water: light-dark(#e3ecf5, #0f1722);
+  --map-land: light-dark(#f7f8fa, #1c2430);
+  --map-line: light-dark(#aeb8c3, #4b5666);
+
   /* Tag colors (T-04): background and border. Text on them is --fg. */
   --t-red: light-dark(#fde8e6, #3a1a18);
   --t-red-b: light-dark(#e8857c, #a5453c);

@@ -763,3 +763,47 @@ body.env-production .palette-open:hover { background: var(--surface-2); }
 body.env-production .present-toggle:not([aria-pressed="true"]):hover { background: var(--surface-2); }
 .palette-item:hover { background: var(--surface-2); }
 .palette-item[aria-selected="true"]:hover { background: var(--accent-soft); }
+
+/* ---------------------------------------------------------------- Phase 12: places (ADR-0023) */
+/* C-23: local time and the good-time mark (the label always says it in words) */
+.local-time { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 0.35rem; }
+.local-time.compact { font-size: 0.85rem; }
+.local-time .tz-abbr { color: var(--muted); }
+.local-time .reach-label { color: var(--muted); }
+.local-time .reach-label::before { content: "· "; }
+.local-time.compact .reach-label { font-size: 0.8rem; }
+.reach { width: 0.6rem; height: 0.6rem; border-radius: 50%; flex: none; border: 1.5px solid currentColor; }
+.reach-work { background: var(--success); color: var(--success); }
+.reach-edge { background: var(--warning); color: var(--warning); }
+.reach-weekend { background: transparent; color: var(--accent); }
+.reach-night { background: transparent; color: var(--muted); }
+.card-local-time { margin: 0.1rem 0 0.2rem; }
+.result-meta .local-time { justify-content: flex-end; }
+
+/* S-13: the map — outlines only, no tiles (N-04); its colors are in tokens.css */
+.view-toggle { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 999px; overflow: hidden; }
+.view-toggle a { padding: 0.3rem 0.9rem; text-decoration: none; color: var(--fg); }
+.view-toggle a[aria-current="page"] { background: var(--accent); color: var(--on-accent); }
+.map-panel { padding: 0.75rem; margin-bottom: 1rem; }
+.map-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
+.map-tools [data-map-status] { margin: 0; }
+.seg { display: inline-flex; gap: 0.25rem; }
+.seg a { padding: 0.2rem 0.7rem; border-radius: 999px; border: 1px solid var(--border); text-decoration: none; color: var(--fg); font-size: 0.9rem; }
+.seg a[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.contact-map { height: min(60vh, 34rem); border-radius: 8px; border: 1px solid var(--border); }
+.contact-map.leaflet-container { background: var(--map-water); font: inherit; }
+.map-credit { margin: 0.4rem 0 0; }
+.leaflet-marker-icon.map-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--accent); }
+.leaflet-marker-icon.map-dot.precision-state, .leaflet-marker-icon.map-dot.precision-country { background: var(--surface); border-style: dashed; }
+.leaflet-marker-icon.map-cluster { display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 0.8rem; box-shadow: 0 0 0 4px var(--accent-soft); }
+.map-popup p { margin: 0.15rem 0; }
+.leaflet-marker-icon.map-centre { border-radius: 50%; background: var(--fg); border: 2px solid var(--surface); }
+.leaflet-tooltip.map-centre-label { font-weight: 600; }
+.map-popup-name { font-weight: 600; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip, .leaflet-tooltip { background: var(--surface); color: var(--fg); }
+.leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
+/* S-14 */
+.near-field { display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.near-field input { width: 12rem; }
+.near-field.on input { border-color: var(--accent); }
+.distance { color: var(--muted); }

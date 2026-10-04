@@ -31,11 +31,13 @@ from app.appearance import THEME_CHOICES, current_appearance, text_on
 from app.backup import BackupFile, ensure_recent_backup
 from app.birthdays import describe
 from app.config import Settings, load_settings
-from app.contacts import ContactError, ContactNotFound
+from app.contacts import ContactError, ContactNotFound, place_missing
 from app.db import create_db_engine, make_session_factory
 from app.embedder import Embedder
+from app.geo import local_time_for
 from app.keep_in_touch import INTERVAL_LABELS, count_due
 from app.links import display_phone, linkedin_name, slack_handle_display
+from app.maps import PROVIDERS, address_text, best_address, current_provider, directions_url
 from app.migrate import current_revision, ensure_contact_types, upgrade_to_head
 from app.privacy import (
     COOKIE,
@@ -161,6 +163,18 @@ def other_names(
     return parts
 
 
+def _go_address(c: Any) -> str:
+    """M-06: the one-line address directions go to ("" when none)."""
+    best = best_address(c.addresses)
+    return address_text(best) if best else ""
+
+
+def _directions_to(app: FastAPI, c: Any) -> str | None:
+    """M-06: from the device's own location to the contact (the maps app finds "here")."""
+    where = _go_address(c)
+    return directions_url([where], current_provider(app.state)) if where else None
+
+
 def build_templates(settings: Settings) -> Jinja2Templates:
     templates = Jinja2Templates(directory=APP_DIR / "templates")
     templates.env.globals["instance"] = settings
@@ -171,6 +185,7 @@ def build_templates(settings: Settings) -> Jinja2Templates:
     templates.env.globals["other_names"] = other_names
     templates.env.globals["country_name"] = country_name
     templates.env.globals["birthday_text"] = lambda value: describe(value, date.today())
+    templates.env.globals["local_time_of"] = lambda c: local_time_for(c.addresses)  # C-23
     templates.env.globals["address_lines"] = lambda a: lines_of(a, settings.phone_region)
     templates.env.filters["search_summary"] = describe_query
     templates.env.filters["highlight"] = highlight
@@ -206,6 +221,8 @@ def create_app(
             upgrade_to_head(settings)  # I-04: raises -> the instance does not start
             with session_factory() as session:
                 ensure_contact_types(session, settings.contact_types)
+                if place_missing(session):  # C-22: addresses saved before places existed
+                    session.commit()
         tasks = []
         if settings.auto_backup_enabled:
             tasks.append(asyncio.create_task(auto_backup_loop(settings, app.state.backup_status)))
@@ -240,6 +257,12 @@ def create_app(
     app.state.templates.env.globals["presenting"] = presenting
     app.state.templates.env.globals["undo_offer"] = web.undo_offer
     app.state.templates.env.globals["app_version"] = app_version
+    # M-06: directions and routes open in the instance's maps app (ADR-0023).
+    app.state.maps_provider = None
+    app.state.templates.env.globals["maps_provider"] = lambda: current_provider(app.state)
+    app.state.templates.env.globals["maps_providers"] = PROVIDERS
+    app.state.templates.env.globals["go_address"] = _go_address
+    app.state.templates.env.globals["directions_to"] = lambda c: _directions_to(app, c)
     app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 
     # Registered before security_and_csrf, so it runs inside it (CSRF token already set).

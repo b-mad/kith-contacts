@@ -33,10 +33,21 @@
   {# C-18: opens the profile on linkedin.com; the app itself never contacts LinkedIn (N-04). #}
   {% if c.linkedin_url %}<a class="action" href="{{ c.linkedin_url }}" target="_blank" rel="noopener noreferrer" title="LinkedIn: {{ c.linkedin_url | linkedin_name }}" data-testid="action-linkedin">LinkedIn<span class="visually-hidden"> profile (opens in a new tab)</span></a>
   {% else %}<span class="action disabled" aria-disabled="true" title="No LinkedIn profile saved" data-testid="action-linkedin-none">LinkedIn</span>{% endif %}
+  {# M-06: the maps app starts from the device's own location; this app never asks for it. #}
+  {% set go = directions_to(c) %}
+  {% if go %}<a class="action" href="{{ go }}" target="_blank" rel="noopener noreferrer" title="Directions from where you are (opens {{ 'Apple' if maps_provider() == 'apple' else 'Google' }} Maps)" data-testid="action-directions">Directions<span class="visually-hidden"> (opens in a new tab)</span></a>
+  {% else %}<span class="action disabled" aria-disabled="true" title="No address saved" data-testid="action-directions-none">Directions</span>{% endif %}
 </nav>
 {%- endmacro %}
 
 {# D-06: an information icon that opens a help page in a new tab, so a form in progress is kept. #}
 {% macro help_icon(href, label) -%}
 <a class="help-icon" href="{{ href }}" target="_blank" rel="noopener" title="{{ label }}" data-testid="help-icon"><span aria-hidden="true">i</span><span class="visually-hidden">{{ label }} (opens in a new tab)</span></a>
+{%- endmacro %}
+
+{# C-23: local time where the contact is; app.js keeps it current and adds "1 hour behind you".
+   The good-time mark is said in words (data-reach-label), never by color alone. #}
+{% macro local_time(c, compact=False) -%}
+{% set lt = local_time_of(c) %}
+{% if lt %}<span class="local-time{% if compact %} compact{% endif %}" data-local-time data-tz="{{ lt.zone }}" data-testid="local-time" title="Local time for {{ c.display_name }} ({{ lt.zone | replace('_', ' ') }})"><span class="reach reach-{{ lt.reach }}" data-reach aria-hidden="true"></span><span class="visually-hidden">Local time </span><time data-clock>{{ lt.text }}</time> <span class="tz-abbr" data-tz-abbr>{{ lt.abbreviation }}</span>{% if lt.approximate %} <span class="muted" title="This state or country spans several time zones; add a ZIP or city to be sure">approx.</span>{% endif %} <span class="reach-label" data-reach-label>{{ lt.reach_label }}</span>{% if not compact %}<span class="muted" data-tz-offset></span>{% endif %}</span>{% endif %}
 {%- endmacro %}

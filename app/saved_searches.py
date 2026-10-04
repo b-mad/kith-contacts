@@ -14,7 +14,7 @@ from app.privacy import presenting, private_refs
 
 SAVED_PARAMS = (
     "q", "type", "company", "team", "manager", "tag", "list", "favorites", "archived", "contacted",
-    "due",
+    "due", "near", "within",  # near: S-14
 )  # fmt: skip
 MAX_NAME = 100
 MAX_QUERY = 1000

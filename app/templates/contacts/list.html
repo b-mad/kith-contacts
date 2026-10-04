@@ -1,9 +1,20 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
 {% block title %}{{ "Search: " ~ q if q else "All contacts" }}{% endblock %}
+{% block head %}{% if view == "map" %}{# S-13: vendored, served from this origin (N-04) #}
+  <link rel="stylesheet" href="{{ url_for('static', path='vendor/leaflet/leaflet.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='vendor/leaflet/MarkerCluster.css') }}">
+  <script src="{{ url_for('static', path='vendor/leaflet/leaflet.js') }}" defer></script>
+  <script src="{{ url_for('static', path='vendor/leaflet/leaflet.markercluster.js') }}" defer></script>
+  <script src="{{ url_for('static', path='vendor/topojson-client.min.js') }}" defer></script>
+{% endif %}{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>Contacts</h1>
+  <nav class="view-toggle" aria-label="View" data-testid="view-toggle">
+    <a href="/{% if list_query %}?{{ list_query }}{% endif %}"{% if view == "list" %} aria-current="page"{% endif %} data-testid="view-list">List</a>
+    <a href="/?{{ map_query }}"{% if view == "map" %} aria-current="page"{% endif %} data-testid="view-map">Map</a>
+  </nav>
   <a class="button primary" href="/contacts/new">Add contact</a>
 </div>
 
@@ -37,7 +48,7 @@
       <button type="submit" name="clear" value="{{ name }}" class="chip-x" aria-label="Remove {{ label }} filter" title="Remove {{ label }} filter" data-chip-clear data-testid="clear-{{ name }}"{% if not active %} hidden{% endif %}>×</button>
     </span>
   {%- endmacro %}
-  {% set more_on = (filters.list_id is not none) + (contacted is not none) + filters.include_archived %}
+  {% set more_on = (filters.list_id is not none) + (contacted is not none) + filters.include_archived + (near is not none) %}
   <div class="filters" role="group" aria-label="Filters" data-testid="filters">
     {% call chip("type", "Type", filters.type_id is not none) %}{% for t in types %}<option value="{{ t.id }}"{% if filters.type_id == t.id %} selected{% endif %}>{{ t.name }}</option>{% endfor %}{% endcall %}
     {% call chip("company", "Company", filters.company) %}{% for c in companies %}<option{% if filters.company and filters.company|lower == c|lower %} selected{% endif %}>{{ c }}</option>{% endfor %}{% endcall %}
@@ -51,6 +62,17 @@
         {% call chip("list", "List", filters.list_id is not none) %}{% for l in lists %}<option value="{{ l.id }}"{% if filters.list_id == l.id %} selected{% endif %}>{{ l.name }}</option>{% endfor %}{% endcall %}
         {% call chip("contacted", "Last contacted", contacted is not none) %}{% for n in contacted_choices %}<option value="{{ n }}"{% if contacted == n %} selected{% endif %}>Contacted in the last {{ n }} days</option>{% endfor %}{% endcall %}
         <label class="filter-chip filter-toggle"><input type="checkbox" name="archived" value="1"{% if filters.include_archived %} checked{% endif %} data-testid="filter-archived"> Include archived</label>
+        {# S-14 #}
+        <span class="near-field{% if near %} on{% endif %}">
+          <label for="near">Near</label>
+          <input id="near" name="near" value="{{ near.text if near and not near.text.startswith('contact:') else '' }}" placeholder="City, ZIP or state" autocomplete="off" data-testid="filter-near">
+          {% if near and near.text.startswith('contact:') %}<input type="hidden" name="near" value="{{ near.text }}">{% endif %}
+          <label for="within" class="visually-hidden">Within</label>
+          <select id="within" name="within" data-testid="filter-within">
+            {# 50 is the default and sends nothing, so plain searches keep plain URLs #}
+            {% for n in near_miles %}<option value="{{ '' if n == 50 else n }}"{% if (near.miles if near else 50) == n %} selected{% endif %}>within {{ n }} mi</option>{% endfor %}
+          </select>
+        </span>
       </div>
     </details>
     <label class="sort-control">Sort
@@ -59,9 +81,28 @@
       </select>
     </label>
     {% if manager %}<input type="hidden" name="manager" value="{{ manager.id }}">{% endif %}
+    {% if view == "map" %}<input type="hidden" name="view" value="map">{% if request.query_params.get("addr") in ("home", "work") %}<input type="hidden" name="addr" value="{{ request.query_params.get('addr') }}">{% endif %}{% endif %}
+    {% if selected_ids %}<input type="hidden" name="ids" value="{{ selected_ids | join(',') }}">{% endif %}
+    {% if filters.unplaced %}<input type="hidden" name="unplaced" value="1">{% endif %}
     <noscript><button type="submit">Search</button></noscript>
   </div>
 </form>
+
+{% if view == "map" %}{# S-13 #}
+<section class="panel map-panel" aria-label="Map" data-testid="map-panel">
+  <div class="map-tools">
+    {% set addr = request.query_params.get("addr", "all") %}
+    <nav class="seg" aria-label="Which addresses">
+      {% for value, label in (("all", "All addresses"), ("home", "Home"), ("work", "Work")) %}
+        <a href="/?{{ request.url.include_query_params(addr=value).query }}"{% if addr == value or (value == "all" and addr not in ("home", "work")) %} aria-current="true"{% endif %} data-testid="map-addr-{{ value }}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <p class="muted small" data-map-status role="status" aria-live="polite">Loading the map…</p>
+  </div>
+  <div class="contact-map" data-map data-map-src="/map/data?{{ map_query }}" data-testid="contact-map"></div>
+  <p class="map-credit muted small">Outlines: US Census Bureau, Natural Earth · Places: GeoNames (CC BY 4.0). Nothing is loaded from outside this app.</p>
+</section>
+{% endif %}
 
 <div id="results" data-results aria-live="polite">
   {% include "contacts/_results.html" %}

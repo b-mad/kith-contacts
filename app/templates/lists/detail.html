@@ -10,6 +10,7 @@
   </div>
   <div class="card-tools">
     <a class="button" href="/?list={{ cl.id }}">Search in list</a>
+    <a class="button" href="/?view=map&amp;list={{ cl.id }}" data-testid="list-map">Map</a>
     {% if cl.status == "archived" %}
       <form method="post" action="/lists/{{ cl.id }}/restore">{{ m.csrf() }}<button type="submit">Restore</button></form>
     {% else %}

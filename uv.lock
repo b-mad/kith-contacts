@@ -184,7 +184,9 @@ dependencies = [
     { name = "python-multipart" },
     { name = "sqlalchemy" },
     { name = "tokenizers" },
+    { name = "tzdata" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "zipcodes" },
 ]
 
 [package.dev-dependencies]
@@ -217,7 +219,9 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "sqlalchemy", specifier = ">=2.0.36" },
     { name = "tokenizers", specifier = ">=0.23.2" },
+    { name = "tzdata", specifier = ">=2025.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
+    { name = "zipcodes", specifier = ">=3.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1907,4 +1911,17 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2c/84/77599922ab441bfe61508f97dab2c71f8e114d31793993ea54011db16199/websockets-17.1-cp315-cp315t-win_amd64.whl", hash = "sha256:ad68c28a27246fed109a4409393d677b7e1388345cbbd2f5aee5c182d8506110", size = 217448, upload-time = "2026-08-26T14:58:21.382Z" },
     { url = "https://files.pythonhosted.org/packages/ce/3c/8b9a225b523f06a9389be81f1b0ab07c49bec6014742e6aa359c1f920f1f/websockets-17.1-cp315-cp315t-win_arm64.whl", hash = "sha256:e552e0037230ac16e5f568de7012041344d1b18c9feed30ec2891b8eba55af81", size = 217372, upload-time = "2026-08-26T14:58:22.807Z" },
     { url = "https://files.pythonhosted.org/packages/41/63/23572870e01836a98346075b9e17a8bc24a6ddd9800a3204ceee58677f3c/websockets-17.1-py3-none-any.whl", hash = "sha256:f221081107b8c48184d99f7019604486376e7ef826037e70aad6b02540732c23", size = 211134, upload-time = "2026-08-26T17:25:31.397Z" },
+]
+
+[[package]]
+name = "zipcodes"
+version = "3.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fd/a6/4f0b4666c54eccffe057124b63e4385b80598dd94a967d6d5eb0a6363ae7/zipcodes-3.0.0.tar.gz", hash = "sha256:9a9426527f1288d334444a4de7d1960d9f6670bb26b843b274234fcf95ce4497", size = 734493, upload-time = "2026-06-14T19:15:04.83Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a0/0c/5c001eb2ee68cd143d57e2c23f47bc6eb88ed8bb8bd73876bd0541c626d3/zipcodes-3.0.0-cp39-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:70b1d5687930c186c883ef1c05cf76c3d05a68191162e2f3f47a132dc81571a7", size = 2032980, upload-time = "2026-06-14T19:14:57.465Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/6b/4ef5c0a557c042c18d87bcb8a00708083c9ab4d3d5660bc911134a9ef6bd/zipcodes-3.0.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:6cb450f427d5568530e4c6a6a497c0d572eaacc987c6f75f8a92b206d6056280", size = 1031320, upload-time = "2026-06-14T19:14:59.025Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/0d/46a183b1c500f81d3013c423557a469b1a3daf2a08627f71fc718a9b94a0/zipcodes-3.0.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:862d8f6b6b82b50f5268ae2651cf08af1892526ea929fbe658d3872ebe395b1a", size = 1039810, upload-time = "2026-06-14T19:15:00.541Z" },
+    { url = "https://files.pythonhosted.org/packages/33/75/225120a686fb32df12719f1cdf363b701a0471507960f2393933677c3224/zipcodes-3.0.0-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:2f2ce64cd478f753ac9cda90095889e25b6f66cc3b1ebc0f30809d87e40d19a6", size = 1250571, upload-time = "2026-06-14T19:15:01.882Z" },
+    { url = "https://files.pythonhosted.org/packages/37/a0/9ab7dc8b1884141de27cc9677b25e98061eb5b46e9a2eabc3e748765e8b4/zipcodes-3.0.0-cp39-abi3-win_amd64.whl", hash = "sha256:57e61aa5182aaeec2a1f44af3d0358c54c0495aaa0c08f8aebb022c94aed5682", size = 930228, upload-time = "2026-06-14T19:15:03.291Z" },
 ]

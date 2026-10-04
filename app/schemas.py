@@ -254,6 +254,10 @@ class AddressOut(_Output):
     postal_code: str | None
     country: str | None
     country_code: str | None
+    latitude: float | None = None  # C-22
+    longitude: float | None = None
+    time_zone: str | None = None
+    place_precision: str | None = None
 
 
 class TagOut(_Output):

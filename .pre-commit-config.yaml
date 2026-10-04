@@ -5,9 +5,11 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
+        exclude: ^app/static/vendor/  # vendored files stay byte-for-byte as released
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files
+        exclude: ^app/(data|static/vendor)/  # bundled offline data and libraries (N-04)
       - id: detect-private-key
       - id: check-merge-conflict
 

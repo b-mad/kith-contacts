@@ -1,6 +1,6 @@
 {# Sticky bar for multi-select actions (M-01 to M-03, T-01, L-02). Needs JavaScript. #}
 {% import "_macros.html" as m with context %}
-<div class="action-bar" data-action-bar hidden data-testid="action-bar" role="region" aria-label="Selected contacts">
+<div class="action-bar" data-action-bar hidden data-testid="action-bar" role="region" aria-label="Selected contacts" data-maps-provider="{{ maps_provider() }}">
   <span class="selected-count" data-selected-count>0 selected</span>
 
   <div class="menu-wrap">
@@ -67,6 +67,10 @@
       <button type="submit" class="primary" data-testid="kit-bulk-submit">Set</button>
     </form>
   </div>
+
+  {# S-13, M-06: built by places.js from the selected rows' addresses (in the order chosen). #}
+  <a class="button" href="/?view=map" data-map-selection data-testid="map-selection">Show on map</a>
+  <button type="button" data-directions title="1 person: from where you are. 2: from the first chosen to the second. 3–11: one route, in the order chosen (a phone opens up to 5 stops)." data-testid="directions">Directions</button>
 
   <button type="button" class="link" data-clear-selection>Clear</button>
   <p class="action-status" data-action-status role="status" aria-live="polite" data-testid="action-status"></p>

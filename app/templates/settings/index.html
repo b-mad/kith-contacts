@@ -52,6 +52,20 @@
   </form>
 </section>
 
+<section class="panel" aria-labelledby="maps-h" data-testid="maps-settings">{# M-06 #}
+  <h2 id="maps-h">Maps and directions</h2>
+  <p class="muted small">Directions open in a new tab. Nothing is sent until you click: then the addresses in that link go to the maps app you choose here. With no starting point it uses your device’s location itself; this app never asks for it.</p>
+  <form method="post" action="/settings/maps">{{ m.csrf() }}
+    <fieldset class="choice-group">
+      <legend>Open directions in</legend>
+      {% for value, label, hint in maps_providers %}
+        <label class="choice"><input type="radio" name="provider" value="{{ value }}"{% if maps_provider() == value %} checked{% endif %} data-testid="maps-provider-{{ value }}"> <span><strong>{{ label }}</strong> <span class="muted">— {{ hint }}</span></span></label>
+      {% endfor %}
+    </fieldset>
+    <button type="submit" class="primary" data-testid="maps-save">Save</button>
+  </form>
+</section>
+
 <section class="panel" aria-labelledby="privacy-h" data-testid="privacy">
   <h2 id="privacy-h">Privacy and presenting</h2>
   <p class="muted small">Choose what stays hidden while you share your screen, mark tags, lists, fields and contacts private, and decide what {{ instance.instance_name }} shows while presenting.</p>

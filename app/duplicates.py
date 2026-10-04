@@ -257,6 +257,10 @@ def merge_contacts(
                     postal_code=a.postal_code,
                     country=a.country,
                     country_code=a.country_code,
+                    latitude=a.latitude,
+                    longitude=a.longitude,
+                    time_zone=a.time_zone,
+                    place_precision=a.place_precision,
                 )
             )
             places.add(_place_key(a))

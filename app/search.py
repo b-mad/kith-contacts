@@ -15,6 +15,7 @@ all words don't match, and to trigram similarity on names for typos ("Mria").
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
@@ -35,6 +36,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Session, selectinload
 
+from app.geo import EARTH_MILES
 from app.models import Activity, Contact, ContactAddress, ContactList, ListMember, Tag, contact_tag
 from app.privacy import Presenting, presenting
 from app.timephrase import INTERACTION_KINDS, TimeQuery, parse_time_query
@@ -132,6 +134,18 @@ class SearchFilters:
     kinds: tuple[str, ...] = ()
     # S-11: people whose keep-in-touch reminder is due on or before this date.
     due_by: date | None = None
+    # S-13: exactly these people (a selection shown on the map).
+    ids: tuple[int, ...] = ()
+    # S-14: within ``near_miles`` of a point (an address of theirs, not just any mention).
+    near_lat: float | None = None
+    near_lon: float | None = None
+    near_miles: float = 50
+    # S-13: people with no address that could be placed on the map.
+    unplaced: bool = False
+
+    @property
+    def has_near(self) -> bool:
+        return self.near_lat is not None and self.near_lon is not None
 
     @property
     def has_period(self) -> bool:
@@ -185,7 +199,33 @@ class SearchFilters:
                 .where(Activity.contact_id == Contact.id, *self.interactions())
                 .exists()
             )
+        if self.ids:
+            stmt = stmt.where(Contact.id.in_(self.ids))
+        if self.near_lat is not None and self.near_lon is not None:
+            stmt = stmt.where(Contact.id.in_(self._near_ids(self.near_lat, self.near_lon)))
+        if self.unplaced:
+            placed = select(ContactAddress.id).where(
+                ContactAddress.contact_id == Contact.id, ContactAddress.latitude.is_not(None)
+            )
+            stmt = stmt.where(~placed.exists())
         return stmt
+
+    def _near_ids(self, lat: float, lon: float) -> Any:
+        """Addresses within ``near_miles`` (haversine); a bounding box first keeps it quick.
+        While presenting, hidden (personal) addresses don't count (P-02)."""
+        miles = self.near_miles
+        dlat = miles / 69.0
+        dlon = miles / max(1.0, 69.0 * math.cos(math.radians(lat)))
+        a = ContactAddress
+        rad = func.radians
+        hav = func.power(func.sin(rad(a.latitude - lat) / 2), 2) + func.cos(rad(lat)) * func.cos(
+            rad(a.latitude)
+        ) * func.power(func.sin(rad(a.longitude - lon) / 2), 2)
+        return select(a.contact_id).where(
+            a.latitude.between(lat - dlat, lat + dlat),
+            a.longitude.between(lon - dlon, lon + dlon),
+            2 * EARTH_MILES * func.asin(func.sqrt(func.least(1.0, hav))) <= miles,
+        )
 
     @property
     def active(self) -> bool:
@@ -200,6 +240,9 @@ class SearchFilters:
                 self.favorites,
                 self.has_period,
                 self.due_by is not None,
+                bool(self.ids),
+                self.has_near,
+                self.unplaced,
             )
         )
 

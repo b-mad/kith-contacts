@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
   <link rel="stylesheet" href="{{ url_for('instance_css') }}">
   <script src="{{ url_for('static', path='js/app.js') }}" defer></script>
+  <script src="{{ url_for('static', path='js/places.js') }}" defer></script>
+  {% block head %}{% endblock %}
 </head>
 <body class="env-{{ instance.app_env }}{% if pv %} is-presenting{% endif %}">
   <header class="instance-bar" data-testid="instance-bar">
@@ -18,6 +20,7 @@
     <nav class="bar-nav" aria-label="Main">
       {% set due_n = reconnect_count() %}
       <a href="/reconnect" data-testid="nav-reconnect">Reconnect{% if due_n %} <span class="nav-count" data-testid="reconnect-count">{{ due_n }}<span class="visually-hidden"> due</span></span>{% endif %}</a>
+      <a href="/?view=map" data-testid="nav-map">Map</a>
       <a href="/lists" data-testid="nav-lists">Lists</a>
       <a href="/tags" data-testid="nav-tags">Tags</a>
       <a href="/org" data-testid="nav-org">Org</a>

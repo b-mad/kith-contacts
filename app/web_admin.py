@@ -47,6 +47,7 @@ from app.exchange import (
     rows_from_vcards,
     run_import,
 )
+from app.maps import PROVIDERS, save_provider
 from app.migrate import upgrade_to_head
 from app.models import Contact, ContactPhoto, Tag
 from app.org import build_org
@@ -119,6 +120,22 @@ def settings_page(request: Request, session: SessionDep) -> HTMLResponse:
             "palette_choices": PALETTE_CHOICES,
             "density_choices": DENSITY_CHOICES,
         },
+    )
+
+
+@router.post("/settings/maps", dependencies=CsrfChecked)
+async def save_maps_form(request: Request, session: SessionDep) -> Response:
+    """M-06: Google Maps or Apple Maps for directions (ADR-0023)."""
+    form = await request.form()
+    try:
+        saved = save_provider(session, str(form.get("provider", "")))
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown maps app") from None
+    session.commit()
+    request.app.state.maps_provider = saved
+    name = next(label for value, label, _ in PROVIDERS if value == saved)
+    return RedirectResponse(
+        with_notice("/settings", "maps", name=name) + "#maps-h", status.HTTP_303_SEE_OTHER
     )
 
 

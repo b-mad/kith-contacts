@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import contextlib
 import secrets
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from typing import Annotated, Any
 from urllib.parse import quote
@@ -21,6 +22,7 @@ from sqlalchemy.orm import Session
 from starlette.datastructures import FormData
 
 from app.activity import KIND_LABELS, add_activity, delete_activity, parse_date
+from app.addresses import country_number, state_name
 from app.birthdays import Birthday, month_first, parse_birthday
 from app.config import Settings
 from app.contacts import (
@@ -40,6 +42,7 @@ from app.contacts import (
     update_contact,
 )
 from app.db import get_session
+from app.geo import find_place, local_time_for, miles_between
 from app.keep_in_touch import (
     DUE_SOON_DAYS,
     INTERVAL_LABELS,
@@ -48,11 +51,12 @@ from app.keep_in_touch import (
     reminder_for,
 )
 from app.lists import add_members, all_lists, find_or_create_list, remove_member
+from app.maps import address_text, current_provider, directions_url
 from app.models import Activity, Contact, Tag
 from app.privacy import hidden_counts, presenting, shown_summary, shows_dates, unfiltered
 from app.related import related_contacts
 from app.saved_searches import clean_query, list_saved_searches
-from app.schemas import ContactCreate, ContactUpdate
+from app.schemas import ContactCreate, ContactOut, ContactUpdate
 from app.search import (
     SORT_KEYS,
     SearchFilters,
@@ -162,6 +166,7 @@ NOTICES = {
     "kit_bulk_off": "Keep in touch turned off for {n} contact(s).",
     "logged": "Logged. The next reminder for {name} starts from today.",
     "privacy": "Privacy and presenting settings saved.",
+    "maps": "Directions now open in {name}.",
     "private_on": "Marked private: hidden while presenting.",
     "private_off": "No longer private.",
     "undone": "Undone.",
@@ -287,11 +292,66 @@ def _private_count(session: Session, words: str, filters: SearchFilters) -> int:
         return sum(1 for h in search(other, words, filters) if p.private_contact(h.contact))
 
 
+NEAR_MILES = (10, 25, 50, 100, 250)  # S-14
+
+
+@dataclass(frozen=True)
+class Near:
+    """S-14: where "near" is, as typed and as found."""
+
+    text: str
+    miles: int
+    label: str | None = None  # "Denver, CO" or a contact's name; None when not found
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+def _near(session: Session, text: str, miles_raw: str | None) -> Near | None:
+    text = " ".join(text.split())[:100]
+    if not text:
+        return None
+    miles = int(miles_raw) if miles_raw and miles_raw.isdigit() else 50
+    miles = miles if miles in NEAR_MILES else 50
+    if text.startswith("contact:") and text[8:].isdigit():  # "People near" on a card
+        try:
+            out = to_out(get_contact(session, int(text[8:])))
+        except ContactNotFound:
+            return Near(text, miles)
+        place = next((a for a in out.addresses if a.latitude is not None), None)
+        if place is None or place.longitude is None:
+            return Near(text, miles)
+        return Near(text, miles, out.display_name, place.latitude, place.longitude)
+    found = find_place(text)
+    if found is None:
+        return Near(text, miles)
+    return Near(text, miles, text, found.latitude, found.longitude)
+
+
+def _ids(raw: str | None) -> tuple[int, ...]:
+    """S-13: "3,5,8" -> (3, 5, 8); at most 500, the rest ignored."""
+    return tuple(int(v) for v in (raw or "").split(",") if v.strip().isdigit())[:500]
+
+
+def _distance(c: ContactOut, near: Near) -> float | None:
+    if near.latitude is None or near.longitude is None:
+        return None
+    miles = [
+        miles_between(near.latitude, near.longitude, a.latitude, a.longitude)
+        for a in c.addresses
+        if a.latitude is not None and a.longitude is not None
+    ]
+    return min(miles) if miles else None
+
+
 def _search_context(request: Request, session: Session) -> dict[str, Any]:
     # A chip's remove button submits clear=<filter> (works without JavaScript): drop it.
     cleared = set(request.query_params.getlist("clear"))
+    if "near" in cleared:
+        cleared.add("within")
     p = {k: v for k, v in request.query_params.items() if k not in cleared and k != "clear"}
     q = p.get("q", "").strip()[:200]
+    view = "map" if p.get("view") == "map" else "list"  # S-13
+    near = _near(session, p.get("near", ""), p.get("within"))  # S-14
     manager_id = _int(p.get("manager"))
     list_id = _int(p.get("list"))
     contacted = _int(p.get("contacted"))
@@ -308,13 +368,21 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         include_archived=p.get("archived") == "1",
         active_from=contacted_since(contacted) if contacted else None,
         due_by=date.today() + timedelta(days=DUE_SOON_DAYS) if due else None,
+        ids=_ids(p.get("ids")),
+        near_lat=near.latitude if near else None,
+        near_lon=near.longitude if near else None,
+        near_miles=near.miles if near else 50,
+        unplaced=p.get("unplaced") == "1",
     )
+    if near is not None and near.label is None:  # not found: match nobody, and say so
+        filters = replace(filters, ids=(-1,))
     # S-10: a time phrase ("recently", "last week") becomes a period filter.
     words, period_filters, time_query = apply_time_query(q, filters)
     sort_raw = p.get("sort", "")
     default_sort: SortKey = "relevance" if words else "last_contact" if time_query else "name"
     sort: SortKey = next((k for k in SORT_KEYS if k == sort_raw), default_sort)
-    hits = search(session, words, period_filters, sort=sort)
+    # The map shows everyone who matches; the list is enough with the first 200 (N-03).
+    hits = search(session, words, period_filters, sort=sort, limit=2000 if view == "map" else 200)
     meaning, meaning_first = _meaning(request, session, words, period_filters, hits)
     if meaning_first:  # keywords only matched some words: show the meaning matches first
         shown = {m.contact.id for m in meaning}
@@ -337,14 +405,27 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
     list_name = next(
         (cl.name for cl, _ in all_lists(session, include_archived=True) if cl.id == list_id), None
     )
+    rows = [(to_out(h.contact), h.matched, h.fuzzy, h.hidden) for h in hits]
+    distances: dict[int, float] = {}
+    if near is not None and near.label is not None:
+        distances = {c.id: d for c, *_ in rows if (d := _distance(c, near)) is not None}
+        if not sort_raw:  # nearest first unless a sort was chosen
+            rows.sort(key=lambda row: distances.get(row[0].id, float("inf")))
     return {
         "q": q,
+        "view": view,
+        "near": near,
+        "near_miles": NEAR_MILES,
+        "distances": distances,
+        "selected_ids": filters.ids if filters.ids != (-1,) else (),
+        "map_query": request.url.include_query_params(view="map").query,
+        "list_query": request.url.remove_query_params("view").query,
         "filters": filters,
         "sort": sort,
         "sort_choice": sort_raw if sort_raw in SORT_KEYS else "",
         "sort_choices": SORT_CHOICES,
         "terms": query_terms(words),
-        "hits": [(to_out(h.contact), h.matched, h.fuzzy, h.hidden) for h in hits],
+        "hits": rows,
         "private_count": _private_count(session, words, period_filters),
         "last_contact": last_contact,
         "overdue": overdue_days(session, listed, today=date.today()),  # S-11
@@ -373,6 +454,81 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
 @router.get("/contacts", response_class=HTMLResponse)
 def contact_list(request: Request, session: SessionDep) -> HTMLResponse:
     return _render(request, "contacts/list.html", _search_context(request, session))
+
+
+HOME_LABELS = frozenset({"home", "personal"})
+WORK_LABELS = frozenset({"work", "business", "office"})
+
+
+def _kind_matches(label: str | None, kind: str) -> bool:
+    name = (label or "").strip().lower()
+    if kind == "home":
+        return name in HOME_LABELS
+    if kind == "work":
+        return name in WORK_LABELS
+    return True
+
+
+@router.get("/map/data")
+def map_data(request: Request, session: SessionDep) -> JSONResponse:
+    """S-13: the people of a search (same filters as the list) as map points, with counts by
+    state and country. Built from ``to_out``, so presenting mode applies (P-02)."""
+    context = _search_context(request, session)
+    kind = request.query_params.get("addr", "all")
+    kind = kind if kind in {"home", "work"} else "all"
+    points: list[dict[str, Any]] = []
+    states: Counter[str] = Counter()
+    countries: Counter[str] = Counter()
+    unplaced = 0
+    provider = current_provider(request.app.state)
+    for c, *_ in context["hits"]:
+        mine = [a for a in c.addresses if _kind_matches(a.label, kind)]
+        placed = [a for a in mine if a.latitude is not None and a.longitude is not None]
+        if not placed:
+            unplaced += 1
+            continue
+        for region in {state_name(a.region) for a in placed if a.country_code == "US"} - {None}:
+            states[str(region)] += 1
+        for numeric in {country_number(a.country_code) for a in placed} - {None}:
+            countries[str(numeric)] += 1
+        local = local_time_for(c.addresses)
+        for a in placed:
+            text = address_text(a)
+            points.append(
+                {
+                    "id": c.id,
+                    "name": c.display_name,
+                    "url": f"/contacts/{c.id}",
+                    "lat": a.latitude,
+                    "lon": a.longitude,
+                    "label": a.label or "",
+                    "place": ", ".join(p for p in (a.city, a.region) if p) or a.country or "",
+                    "precision": a.place_precision,
+                    "time": f"{local.text} {local.abbreviation}" if local else "",
+                    "directions": directions_url([text], provider),
+                }
+            )
+    return JSONResponse(
+        {
+            "points": points,
+            "states": dict(states),
+            "countries": dict(countries),
+            "people": len(context["hits"]),
+            "unplaced": unplaced,
+            "kind": kind,
+            "near": (
+                {
+                    "lat": near.latitude,
+                    "lon": near.longitude,
+                    "miles": near.miles,
+                    "label": near.label,
+                }
+                if (near := context["near"]) is not None and near.label is not None
+                else None
+            ),
+        },
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/contacts/results", response_class=HTMLResponse)
