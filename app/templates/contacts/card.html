@@ -67,6 +67,10 @@
         {% else %}
           <dt>Phone</dt><dd class="muted">None</dd>
         {% endfor %}
+        {% for a in c.addresses %}{# C-19 #}
+          <dt>{{ (a.label or "Address") | capitalize }}{% if a.label %} address{% endif %}</dt>
+          <dd class="address" data-testid="address">{% for line in address_lines(a) %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd>
+        {% endfor %}
         {% if c.location %}<dt>Location</dt><dd>{{ c.location }}</dd>{% endif %}
       </dl>
       {% if hidden.personal %}<p class="redacted" data-testid="hidden-personal">{{ hidden.personal }} personal address{{ "" if hidden.personal == 1 else "es" }} or number{{ "" if hidden.personal == 1 else "s" }} hidden while presenting</p>{% endif %}

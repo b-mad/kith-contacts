@@ -87,6 +87,27 @@ class PhoneIn(_Input):
     label: Label = None
 
 
+Text20 = Annotated[Annotated[str, StringConstraints(max_length=20)] | None, _Blank]
+Text300 = Annotated[Annotated[str, StringConstraints(max_length=300)] | None, _Blank]
+
+
+class AddressIn(_Input):
+    """C-19: a postal address; country and region are normalised on save (ADR-0021)."""
+
+    label: Label = None
+    street: Text300 = None
+    city: Text100 = None
+    region: Text100 = None
+    postal_code: Text20 = None
+    country: Text100 = None
+
+    @model_validator(mode="after")
+    def _not_empty(self) -> Self:
+        if not any((self.street, self.city, self.region, self.postal_code, self.country)):
+            raise ValueError("an address needs a street, city, state, postal code or country")
+        return self
+
+
 class CustomFieldIn(_Input):
     """C-11: one key/value pair, e.g. ("Epic role", "Beaker analyst")."""
 
@@ -145,6 +166,7 @@ class ContactCreate(ContactFields):
     contact_type_id: int
     emails: list[EmailIn] = Field(default_factory=list, max_length=20)
     phones: list[PhoneIn] = Field(default_factory=list, max_length=20)
+    addresses: list[AddressIn] = Field(default_factory=list, max_length=10)  # C-19
     custom_fields: list[CustomFieldIn] = Field(default_factory=list, max_length=30)
 
     @model_validator(mode="after")
@@ -161,6 +183,7 @@ class ContactUpdate(ContactFields):
     contact_type_id: int | None = None
     emails: list[EmailIn] | None = Field(default=None, max_length=20)
     phones: list[PhoneIn] | None = Field(default=None, max_length=20)
+    addresses: list[AddressIn] | None = Field(default=None, max_length=10)  # C-19
     custom_fields: list[CustomFieldIn] | None = Field(default=None, max_length=30)
 
     @model_validator(mode="after")
@@ -205,6 +228,16 @@ class EmailOut(_Output):
 class PhoneOut(_Output):
     number: str
     label: str | None
+
+
+class AddressOut(_Output):
+    label: str | None
+    street: str | None
+    city: str | None
+    region: str | None
+    postal_code: str | None
+    country: str | None
+    country_code: str | None
 
 
 class TagOut(_Output):
@@ -263,6 +296,7 @@ class ContactOut(_Output):
     is_favorite: bool
     emails: list[EmailOut]
     phones: list[PhoneOut]
+    addresses: list[AddressOut] = []  # C-19
     tags: list[TagOut]
     lists: list[ListRef]
     links: ContactLinks

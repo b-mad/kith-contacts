@@ -15,16 +15,17 @@
 
   {% if kind == "csv" %}
   <fieldset>
-    <legend>Column mapping</legend>
-    <p class="muted small">Recognised columns are matched automatically. Change any mapping and press “Update preview”.</p>
+    <legend>Column mapping {{ m.help_icon("/import/help#mapping", "Help with the column mapping") }}</legend>
+    <p class="muted small">Each line reads from left to right: a column in your file → the field it goes into. Recognised columns are matched automatically; choose Ignore to leave one out. Change any mapping and press “Update preview”.</p>
     <div class="mapping">
       {% for header in headers %}
         {% set idx = loop.index0 %}
         <label class="mapping-row">
           <span class="mapping-header">{{ header or "(blank)" }}</span>
+          <span class="mapping-arrow" aria-hidden="true">→</span><span class="visually-hidden">goes into</span>
           <select name="map_{{ idx }}" data-testid="map-{{ idx }}">
             <option value="">Ignore</option>
-            {% for key, label in field_labels.items() %}<option value="{{ key }}"{% if mapping.get(idx) == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+            {% for group, keys in field_groups %}<optgroup label="{{ group }}">{% for key in keys %}<option value="{{ key }}"{% if mapping.get(idx) == key %} selected{% endif %}>{{ field_labels[key] }}</option>{% endfor %}</optgroup>{% endfor %}
           </select>
         </label>
       {% endfor %}
@@ -47,7 +48,7 @@
 
   <div class="table-wrap">
   <table class="contacts" data-testid="import-preview-table">
-    <thead><tr><th scope="col">Row</th><th scope="col">Name</th><th scope="col">Company</th><th scope="col">Title</th><th scope="col">Email</th><th scope="col">Manager</th><th scope="col">Tags</th>{% if kind == "json" %}<th scope="col">Also</th>{% endif %}<th scope="col">Status</th></tr></thead>
+    <thead><tr><th scope="col">Row</th><th scope="col">Name</th><th scope="col">Company</th><th scope="col">Title</th><th scope="col">Email</th><th scope="col">Address</th><th scope="col">Manager</th><th scope="col">Tags</th>{% if kind == "json" %}<th scope="col">Also</th>{% endif %}<th scope="col">Status</th></tr></thead>
     <tbody>
       {% for r in preview %}
         <tr data-testid="import-row" class="{{ 'row-error' if not r.ok else ('row-dup' if r.duplicate_of else '') }}">
@@ -56,6 +57,7 @@
           <td>{{ r.data.company or "" }}</td>
           <td>{{ r.data.title or "" }}</td>
           <td>{{ r.data.emails | map(attribute="email") | join(", ") }}</td>
+          <td>{% for a in r.data.addresses %}{{ [a.city, a.region] | select | join(", ") or a.street or a.country }}{% if not loop.last %}; {% endif %}{% endfor %}</td>
           <td>{{ r.manager_name or "" }}</td>
           <td>{{ r.tags | join(", ") }}</td>
           {% if kind == "json" %}<td class="small" data-testid="import-extras">{{ r.extras_summary }}</td>{% endif %}

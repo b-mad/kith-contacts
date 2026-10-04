@@ -49,3 +49,5 @@ not change meaning — those are logged in the requirements change log only.
 | [0017](0017-command-palette-and-search-polish.md) | Command palette; search-page keyboard and layout details | Accepted | S-12, S-02, S-11, N-09 |
 | [0018](0018-linkedin-profile-link.md) | LinkedIn profile as a validated link with a card action | Accepted | C-18 |
 | [0019](0019-container-deployment.md) | Container deployment with double-click start for Windows and Mac | Accepted | I-10–I-14, N-01, N-04, N-06 |
+| [0020](0020-in-app-import-help.md) | In-app help for the import column mapping, generated from the importer's rules | Accepted | D-06, D-01 |
+| [0021](0021-postal-addresses.md) | Postal addresses as structured rows with ISO country and state codes | Accepted | C-19, D-01, D-02, D-03, I-09 |

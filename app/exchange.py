@@ -22,6 +22,7 @@ from pydantic import ValidationError
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
+from app.addresses import lines_of
 from app.contacts import ContactError, check_manager, create_contact, resolve_company
 from app.links import normalize_linkedin
 from app.lists import add_members, find_or_create_list
@@ -52,6 +53,7 @@ def _all_contacts(session: Session) -> list[Contact]:
                 selectinload(Contact.contact_type),
                 selectinload(Contact.emails),
                 selectinload(Contact.phones),
+                selectinload(Contact.addresses),
                 selectinload(Contact.manager),
                 selectinload(Contact.tags),
                 selectinload(Contact.memberships).selectinload(ListMember.contact_list),
@@ -109,6 +111,18 @@ def contact_record(contact: Contact, *, include_photo: bool = False) -> dict[str
             {"email": e.email, "label": e.label, "is_primary": e.is_primary} for e in c.emails
         ],
         "phones": [{"number": p.number, "label": p.label} for p in c.phones],
+        "addresses": [  # C-19
+            {
+                "label": a.label,
+                "street": a.street,
+                "city": a.city,
+                "region": a.region,
+                "postal_code": a.postal_code,
+                "country": a.country,
+                "country_code": a.country_code,
+            }
+            for a in c.addresses
+        ],
         "tags": [t.name for t in c.tags],
         "private_tags": [t.name for t in c.tags if t.is_private],  # P-03
         "lists": [
@@ -181,7 +195,8 @@ CSV_COLUMNS = [
     "display_name", "first_name", "last_name", "nickname", "type", "company", "title", "team",
     "department", "location", "manager", "primary_email", "emails", "phones", "slack_handle",
     "slack_url", "teams_url", "works_on", "notes", "tags", "lists", "favorite", "archived",
-    "linkedin",
+    "linkedin", "address_label", "street", "city", "state", "postal_code", "country",
+    "more_addresses",
 ]  # fmt: skip
 
 _FORMULA = re.compile(r"^[=@\t\r]|^[+-](?!\d)")
@@ -191,6 +206,15 @@ def _cell(value: object) -> str:
     """CSV-injection guard: a spreadsheet must never run a cell as a formula."""
     text = "" if value is None else str(value)
     return "'" + text if _FORMULA.match(text) else text
+
+
+def _first_address(c: Contact) -> list[str | None]:
+    """C-19: the first address in columns (they import back), the rest on one line each."""
+    if not c.addresses:
+        return [None] * 7
+    a, *more = c.addresses
+    rest = " | ".join(": ".join(filter(None, [m.label, ", ".join(lines_of(m, ""))])) for m in more)
+    return [a.label, a.street, a.city, a.region, a.postal_code, a.country, rest]
 
 
 def export_csv(session: Session) -> str:
@@ -227,6 +251,7 @@ def export_csv(session: Session) -> str:
                     "yes" if c.is_favorite else "",
                     "yes" if c.archived_at else "",
                     c.linkedin_url,
+                    *_first_address(c),
                 )
             ]
         )
@@ -235,7 +260,17 @@ def export_csv(session: Session) -> str:
 
 # ---------------------------------------------------------------- import: reading CSV (D-01)
 
-# Target fields and header spellings seen in Outlook, Google and hand-made CSVs.
+# Outlook's address columns: "Business Street", "Home City", "Other Postal Code"...
+_PLACE_PREFIXES = {"business": "work", "home": "home", "other": "other"}
+_OUTLOOK_PLACE = {
+    part: tuple(prefix + part for prefix in _PLACE_PREFIXES)
+    for part in ("street", "city", "state", "postalcode", "countryregion", "country")
+}
+ADDRESS_GROUPS = ("address", "address2")
+ADDRESS_KEYS = ("street", "city", "region", "postal_code", "country")
+
+# Target fields and header spellings seen in Outlook, Google and hand-made CSVs. Google's
+# current export says "Organization Name"; older ones said "Organization 1 - Name".
 FIELDS: dict[str, tuple[str, ...]] = {
     "display_name": ("name", "fullname", "displayname", "contact", "contactname"),
     "first_name": ("firstname", "givenname", "first"),
@@ -244,16 +279,23 @@ FIELDS: dict[str, tuple[str, ...]] = {
     "email": ("email", "emailaddress", "email1", "email1value", "primaryemail", "workemail"),
     "email2": ("email2", "email2address", "email2value", "personalemail", "otheremail"),
     "email3": ("email3", "email3address", "email3value"),
+    # Google gives every email and phone its own label column (D-01, ADR-0021).
+    "email_label": ("email1label", "emaillabel"),
+    "email2_label": ("email2label",),
+    "email3_label": ("email3label",),
     "phone": ("phone", "mobilephone", "mobile", "cell", "cellphone", "phone1value", "telephone",
               "primaryphone", "phonenumber"),
     "phone2": ("businessphone", "workphone", "phone2value", "businessphone2", "officephone"),
     "phone3": ("homephone", "phone3value", "otherphone"),
-    "company": ("company", "organization", "organisation", "organization1name", "employer",
-                "companyname"),
-    "title": ("title", "jobtitle", "organization1title", "position", "role"),
-    "department": ("department", "organization1department", "dept"),
+    "phone_label": ("phone1label", "phonelabel"),
+    "phone2_label": ("phone2label",),
+    "phone3_label": ("phone3label",),
+    "company": ("company", "organization", "organisation", "organization1name", "organizationname",
+                "employer", "companyname"),
+    "title": ("title", "jobtitle", "organization1title", "organizationtitle", "position", "role"),
+    "department": ("department", "organization1department", "organizationdepartment", "dept"),
     "team": ("team", "group", "squad"),
-    "location": ("location", "city", "officelocation", "businesscity", "office"),
+    "location": ("location", "officelocation", "office"),
     "manager": ("manager", "managername", "reportsto", "managersname", "supervisor"),
     "works_on": ("workson", "projects", "responsibilities", "focus"),
     "notes": ("notes", "note", "comments", "description"),
@@ -263,6 +305,25 @@ FIELDS: dict[str, tuple[str, ...]] = {
     # C-18: LinkedIn's own Connections.csv calls the profile link "URL".
     "linkedin_url": ("linkedin", "linkedinurl", "linkedinprofile", "linkedinprofileurl",
                      "profileurl", "url"),
+    # C-19: two addresses. Google says "Address 1 - City"; Outlook says "Business City" and
+    # "Home City" (the second group found goes to Address 2, and the word implies the label).
+    "address_label": ("addresslabel", "address1label"),
+    "address_street": ("street", "streetaddress", "address", "address1", "addressline1",
+                       "address1street", *_OUTLOOK_PLACE["street"]),
+    "address_city": ("city", "town", "address1city", *_OUTLOOK_PLACE["city"]),
+    "address_region": ("state", "region", "province", "stateprovince", "stateorprovince",
+                       "address1region", *_OUTLOOK_PLACE["state"]),
+    "address_postal_code": ("zip", "zipcode", "postalcode", "postcode", "address1postalcode",
+                            *_OUTLOOK_PLACE["postalcode"]),
+    "address_country": ("country", "countryregion", "address1country",
+                        *_OUTLOOK_PLACE["countryregion"], *_OUTLOOK_PLACE["country"]),
+    "address2_label": ("address2label",),
+    "address2_street": ("address2street", *_OUTLOOK_PLACE["street"]),
+    "address2_city": ("address2city", *_OUTLOOK_PLACE["city"]),
+    "address2_region": ("address2region", *_OUTLOOK_PLACE["state"]),
+    "address2_postal_code": ("address2postalcode", *_OUTLOOK_PLACE["postalcode"]),
+    "address2_country": ("address2country", *_OUTLOOK_PLACE["countryregion"],
+                         *_OUTLOOK_PLACE["country"]),
 }  # fmt: skip
 
 FIELD_LABELS = {
@@ -272,7 +333,30 @@ FIELD_LABELS = {
     "title": "Title", "department": "Department", "team": "Team", "location": "Location",
     "manager": "Manager (name)", "works_on": "Works on", "notes": "Notes", "tags": "Tags",
     "type": "Type", "slack_handle": "Slack handle", "linkedin_url": "LinkedIn profile",
+    "email_label": "Email label", "email2_label": "Email 2 label",
+    "email3_label": "Email 3 label", "phone_label": "Phone label",
+    "phone2_label": "Phone 2 label", "phone3_label": "Phone 3 label",
+    "address_label": "Address label", "address_street": "Street",
+    "address_city": "City", "address_region": "State / region",
+    "address_postal_code": "Postal code", "address_country": "Country",
+    "address2_label": "Address 2 label", "address2_street": "Address 2 street",
+    "address2_city": "Address 2 city", "address2_region": "Address 2 state",
+    "address2_postal_code": "Address 2 postal code", "address2_country": "Address 2 country",
 }  # fmt: skip
+
+# The mapping's field list, grouped so the longer list stays easy to scan.
+FIELD_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Name", ("display_name", "first_name", "last_name", "nickname")),
+    ("Work", ("company", "title", "department", "team", "location", "manager", "works_on",
+              "type")),
+    ("Email", ("email", "email_label", "email2", "email2_label", "email3", "email3_label")),
+    ("Phone", ("phone", "phone_label", "phone2", "phone2_label", "phone3", "phone3_label")),
+    ("Address", ("address_label", "address_street", "address_city", "address_region",
+                 "address_postal_code", "address_country")),
+    ("Address 2", ("address2_label", "address2_street", "address2_city", "address2_region",
+                   "address2_postal_code", "address2_country")),
+    ("Other", ("notes", "tags", "slack_handle", "linkedin_url")),
+)  # fmt: skip
 
 
 def _norm(header: str) -> str:
@@ -291,6 +375,87 @@ def guess_mapping(headers: Sequence[str]) -> dict[int, str]:
                 used.add(target)
                 break
     return mapping
+
+
+# D-06: what each field holds and how the import treats it, for the help page.
+FIELD_HELP = {
+    "display_name": "The name shown everywhere. When no column is mapped here, the first and "
+    "last name are joined; failing that, the company; failing that, the part of the email "
+    "before the @.",
+    "first_name": "Given name. Shown on the card when it differs from the display name.",
+    "last_name": "Family name.",
+    "nickname": "What they go by. Shown on the card as \u201cGoes by\u201d.",
+    "email": "Main email address. It becomes the primary address and is labelled work "
+    "unless a label column says otherwise.",
+    "email2": "A second email address.",
+    "email3": "A third email address.",
+    "email_label": "The label for Email, e.g. Google\u2019s \u201c* Home\u201d (home). A "
+    "leading * marks the primary address.",
+    "email2_label": "The label for Email 2.",
+    "email3_label": "The label for Email 3.",
+    "phone": "Main phone number, without a label unless a label column gives one.",
+    "phone2": "A second phone number, labelled work unless a label column says otherwise.",
+    "phone3": "A third phone number, labelled home unless a label column says otherwise.",
+    "phone_label": "The label for Phone, e.g. Mobile. A number labelled fax is left out.",
+    "phone2_label": "The label for Phone 2.",
+    "phone3_label": "The label for Phone 3.",
+    "company": "Company or organization.",
+    "title": "Job title.",
+    "department": "Department within the company.",
+    "team": "Team within the company.",
+    "location": "Where they are: an office or a city.",
+    "manager": "The manager\u2019s name. It is linked to a contact with exactly that name, "
+    "already in the app or in the same file.",
+    "works_on": "Projects or responsibilities \u2014 searchable context.",
+    "notes": "Free text, searchable.",
+    "tags": "Several tags separated by ; , or ::: (Google). Google\u2019s own myContacts "
+    "and starred labels are left out.",
+    "type": "Contact type by name (for example Employee). Rows with no match use the type "
+    "chosen under \u201cType for rows without one\u201d.",
+    "slack_handle": "Slack user name, for the Slack action.",
+    "linkedin_url": "Link to a LinkedIn profile. Other links are left out.",
+    "address_label": "The label for the address, e.g. home or work. Outlook\u2019s Home and "
+    "Business columns set it for you.",
+    "address_street": "Street, on one or more lines.",
+    "address_city": "City or town.",
+    "address_region": "State, province or region. Tidied to its code (Kansas \u2192 KS).",
+    "address_postal_code": "ZIP or postal code.",
+    "address_country": "Country, stored with its two-letter code. Left blank, a state in the "
+    "instance\u2019s home country means that country.",
+    "address2_label": "The label for the second address.",
+    "address2_street": "Street of the second address.",
+    "address2_city": "City of the second address.",
+    "address2_region": "State or region of the second address.",
+    "address2_postal_code": "Postal code of the second address.",
+    "address2_country": "Country of the second address.",
+}  # fmt: skip
+
+# The columns of a Google Contacts \u201cGoogle CSV\u201d export (2024 format), for the help page.
+GOOGLE_HEADERS = (
+    "First Name", "Middle Name", "Last Name", "Phonetic First Name", "Phonetic Middle Name",
+    "Phonetic Last Name", "Name Prefix", "Name Suffix", "Nickname", "File As",
+    "Organization Name", "Organization Title", "Organization Department", "Birthday", "Notes",
+    "Photo", "Labels", "E-mail 1 - Label", "E-mail 1 - Value", "E-mail 2 - Label",
+    "E-mail 2 - Value", "E-mail 3 - Label", "E-mail 3 - Value", "Phone 1 - Label",
+    "Phone 1 - Value", "Phone 2 - Label", "Phone 2 - Value", "Phone 3 - Label",
+    "Phone 3 - Value", "Address 1 - Label", "Address 1 - Formatted", "Address 1 - Street",
+    "Address 1 - City", "Address 1 - PO Box", "Address 1 - Region", "Address 1 - Postal Code",
+    "Address 1 - Country", "Address 1 - Extended Address", "Address 2 - Label",
+    "Address 2 - Formatted", "Address 2 - Street", "Address 2 - City", "Address 2 - PO Box",
+    "Address 2 - Region", "Address 2 - Postal Code", "Address 2 - Country",
+    "Address 2 - Extended Address", "Relation 1 - Label",
+    "Relation 1 - Value", "Website 1 - Label", "Website 1 - Value", "Event 1 - Label",
+    "Event 1 - Value",
+)  # fmt: skip
+
+
+def mapping_guide(headers: Sequence[str]) -> list[tuple[str, str | None]]:
+    """(column, field label or None when ignored) as the automatic mapping would set it."""
+    mapping = guess_mapping(headers)
+    return [
+        (header, FIELD_LABELS[mapping[i]] if i in mapping else None)
+        for i, header in enumerate(headers)
+    ]
 
 
 def read_csv(data: bytes) -> tuple[list[str], list[list[str]]]:
@@ -325,13 +490,34 @@ def _skip_preamble(text: str) -> str:
     return text
 
 
-def rows_from_csv(body: Sequence[Sequence[str]], mapping: dict[int, str]) -> list[dict[str, str]]:
+def implied_labels(headers: Sequence[str], mapping: dict[int, str]) -> dict[str, str]:
+    """C-19: Outlook's "Home Street" means a home address -> {"address": "home"}."""
+    out: dict[str, str] = {}
+    for index, target in mapping.items():
+        group = target.split("_", 1)[0]
+        if group in ADDRESS_GROUPS and index < len(headers) and not target.endswith("_label"):
+            key = _norm(headers[index])
+            label = next((v for k, v in _PLACE_PREFIXES.items() if key.startswith(k)), None)
+            if label:
+                out.setdefault(group, label)
+    return out
+
+
+def rows_from_csv(
+    body: Sequence[Sequence[str]],
+    mapping: dict[int, str],
+    headers: Sequence[str] = (),
+) -> list[dict[str, str]]:
+    implied = implied_labels(headers, mapping)
     records = []
     for row in body:
         record: dict[str, str] = {}
         for index, target in mapping.items():
             if index < len(row) and row[index].strip():
                 record[target] = row[index].strip()
+        for group, label in implied.items():
+            if any(record.get(f"{group}_{k}") for k in ADDRESS_KEYS):
+                record.setdefault(f"{group}_label", label)
         records.append(record)
     return records
 
@@ -357,6 +543,7 @@ def rows_from_vcards(cards: Sequence[ParsedCard]) -> list[dict[str, Any]]:
         }
         record["_emails"] = card.emails
         record["_phones"] = card.phones
+        record["_addresses"] = card.addresses
         records.append(record)
     return records
 
@@ -404,6 +591,11 @@ def rows_from_json(raw: str) -> list[dict[str, Any]]:
             (p["number"], _text(p.get("label")) or "")
             for p in c.get("phones") or []
             if isinstance(p, dict) and _text(p.get("number"))
+        ]
+        record["_addresses"] = [  # C-19
+            {k: _text(a.get(k)) for k in ("label", *ADDRESS_KEYS)}
+            for a in c.get("addresses") or []
+            if isinstance(a, dict) and any(_text(a.get(k)) for k in ADDRESS_KEYS)
         ]
         record["_custom_fields"] = [
             {"name": f.get("name"), "value": f.get("value")}
@@ -491,6 +683,57 @@ def _split_tags(raw: str) -> list[str]:
     return tags
 
 
+def _parts(value: str, *, keep_empty: bool = False) -> list[str]:
+    """Google packs several values into one cell: "a ::: b" -> ["a", "b"] (D-01)."""
+    parts = [p.strip() for p in value.split(":::")]
+    return parts if keep_empty else [p for p in parts if p]
+
+
+def _label(raw: str) -> tuple[str, bool]:
+    """Google's "* Home" -> ("home", True): the leading * marks the primary value."""
+    text = raw.strip()
+    return text.lstrip("*").strip().lower(), text.startswith("*")
+
+
+def _labelled(
+    record: dict[str, Any], keys: Sequence[tuple[str, str]], *, primary: bool = False
+) -> list[tuple[str, str, bool]]:
+    """(value, label, is_primary) for email or phone columns and their label columns.
+
+    A label column wins over the field's default label; ``:::`` cells become several
+    values. With ``primary``, a starred label marks the primary value, else the first one.
+    """
+    found: list[tuple[str, str, bool]] = []
+    for key, default in keys:
+        values = _parts(str(record.get(key, "")))
+        raw = record.get(f"{key}_label")
+        labels = [_label(part) for part in _parts(str(raw), keep_empty=True)] if raw else []
+        for i, value in enumerate(values):
+            label, star = labels[min(i, len(labels) - 1)] if labels else (default, False)
+            found.append((value, label, star))
+    if not primary:
+        return found
+    starred = any(star for _, _, star in found)
+    return [(v, label, star if starred else i == 0) for i, (v, label, star) in enumerate(found)]
+
+
+def _addresses(record: dict[str, Any]) -> list[dict[str, str]]:
+    """C-19: Address 1 and 2 from CSV columns; ``:::`` cells hold one part per address."""
+    out: list[dict[str, str]] = []
+    for group in ADDRESS_GROUPS:
+        parts = {
+            k: _parts(str(record.get(f"{group}_{k}", "")), keep_empty=True) for k in ADDRESS_KEYS
+        }
+        count = max(len(v) for v in parts.values())
+        labels = _parts(str(record.get(f"{group}_label", "")), keep_empty=True)
+        for i in range(count):
+            item = {k: (v[i] if i < len(v) else "") for k, v in parts.items()}
+            if any(item.values()):
+                label = labels[min(i, len(labels) - 1)] if labels else ""
+                out.append({"label": _label(label)[0], **item})
+    return out
+
+
 def plan_import(
     session: Session, records: Sequence[dict[str, Any]], default_type_id: int
 ) -> list[PlannedRow]:
@@ -507,16 +750,26 @@ def plan_import(
         name = record.get("display_name") or " ".join(
             p for p in (record.get("first_name"), record.get("last_name")) if p
         )
-        emails = list(record.get("_emails", []))
-        for key in ("email", "email2", "email3"):
-            if record.get(key):
-                emails.append((record[key], "work" if key == "email" else "", key == "email"))
+        emails = list(record.get("_emails", [])) + _labelled(
+            record, (("email", "work"), ("email2", ""), ("email3", "")), primary=True
+        )
+        if not name and record.get("company"):  # a business, e.g. a Google row with no person
+            name = str(record["company"])
         if not name and emails:
             name = emails[0][0].split("@")[0]
-        phones = list(record.get("_phones", []))
-        for key, label in (("phone", ""), ("phone2", "work"), ("phone3", "home")):
-            if record.get(key):
-                phones.append((record[key], label))
+        phones = [
+            (number, label)
+            for number, label in [
+                *record.get("_phones", []),
+                *(
+                    (value, label)
+                    for value, label, _ in _labelled(
+                        record, (("phone", ""), ("phone2", "work"), ("phone3", "home"))
+                    )
+                ),
+            ]
+            if "fax" not in (label or "").lower()  # D-01: a fax number is not a phone to call
+        ]
         type_name = (record.get("type") or "").lower()
         data: dict[str, Any] = {
             "display_name": name,
@@ -543,6 +796,7 @@ def plan_import(
             },
             "emails": [],
             "phones": [{"number": n, "label": label or None} for n, label in phones],
+            "addresses": [*record.get("_addresses", []), *_addresses(record)],  # C-19
         }
         seen: set[str] = set()
         primary_set = False

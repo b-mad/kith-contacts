@@ -18,6 +18,7 @@ _STATEMENTS = (
     """UPDATE contact_email
          SET email = 'contact' || contact_id || '-' || id || '@example.invalid'""",
     "DELETE FROM contact_phone",
+    "DELETE FROM contact_address",  # C-19: a street address identifies a person
     "DELETE FROM contact_photo",
     # Phase 4 free text can name people too (C-11, C-12, C-13).
     "UPDATE activity SET summary = initcap(kind) || ' ' || id",

@@ -159,6 +159,19 @@ input:not([type]), input[type="text"], input[type="email"], input[type="tel"], i
 .rows { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0; }
 .row-item { display: grid; grid-template-columns: 2fr 1fr auto auto; gap: 0.5rem; align-items: center; }
 .row-item:not(:has(input[type="radio"])) { grid-template-columns: 2fr 1fr auto; }
+/* C-19: label, street, city, state, postal code, country, remove — one line on wide screens.
+   ".rows" outranks the ":not(:has(radio))" rule above. */
+.rows .row-item.address-item { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+.address-item textarea { grid-column: span 2; min-height: 2.4rem; resize: vertical; }
+.address-item [data-remove-row] { justify-self: start; align-self: center; }
+@media (min-width: 64rem) {
+  .rows .row-item.address-item { grid-template-columns: 7rem minmax(10rem, 2fr) minmax(7rem, 1.2fr) 5.5rem 7rem minmax(7rem, 1fr) auto; }
+  .address-item textarea { grid-column: auto; }
+}
+@media (max-width: 40rem) {
+  .rows .row-item.address-item { grid-template-columns: 1fr 1fr; }
+  .address-item textarea { grid-column: 1 / -1; }
+}
 .picker { display: flex; gap: 0.5rem; }
 .manager-picker { position: relative; }
 .options {
@@ -316,10 +329,28 @@ details.restore summary, td details summary { cursor: pointer; color: var(--acce
 .org-tree details > summary { cursor: pointer; margin-left: 0.25rem; }
 .org-chain { margin-bottom: 0.75rem; }
 
-.mapping { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.4rem 1rem; }
+.mapping { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(22rem, 100%), 1fr)); gap: 0.4rem 1.25rem; }
 .mapping-row { display: flex; gap: 0.5rem; align-items: center; font-weight: normal; }
-.mapping-header { flex: 1; font-family: ui-monospace, monospace; font-size: 0.85rem; overflow-wrap: anywhere; }
-.mapping-row select { width: 11rem; flex: none; }
+.mapping-header { flex: 1; min-width: 0; font-family: ui-monospace, monospace; font-size: 0.85rem; overflow-wrap: break-word; }
+.mapping-row select { width: 10.5rem; flex: none; }
+/* D-06: columns left on Ignore recede, so the mapped ones are easy to scan */
+.mapping-row:has(select option[value=""]:checked) .mapping-header { color: var(--muted); }
+.mapping-arrow { color: var(--muted); flex: none; }
+
+/* D-06: information icon and the import help page */
+.help-icon {
+  display: inline-flex; align-items: center; justify-content: center; width: 1.15rem; height: 1.15rem;
+  border: 1.5px solid currentColor; border-radius: 50%; color: var(--accent);
+  font-size: 0.75rem; font-weight: 700; line-height: 1; text-decoration: none; vertical-align: 0.1em;
+}
+a.help-icon:hover, a.help-icon:focus-visible { background: var(--accent-soft); }
+.help { max-width: 52rem; }
+.help h2 { margin-top: 1.5rem; }
+.help li { margin: 0.2rem 0; }
+.help-example { display: flex; gap: 0.5rem; align-items: center; }
+.help-example .mapping-header { flex: none; }
+.help table.contacts td:first-child { white-space: normal; }
+.help-ignored summary { cursor: pointer; color: var(--accent); }
 .pill.ok { background: var(--success-soft); color: var(--success); }
 .pill.warn { background: var(--warning-soft); color: var(--warning); }
 .pill.bad { background: var(--danger-soft); color: var(--danger); }

@@ -28,12 +28,17 @@ from app.backup import BackupError, backup, find_backup, list_backups, prune, re
 from app.contact_types import add_type, delete_type, move_type, rename_type, types_with_counts
 from app.contacts import ContactError, ContactNotFound, list_contact_types
 from app.exchange import (
+    FIELD_GROUPS,
+    FIELD_HELP,
     FIELD_LABELS,
+    FIELDS,
+    GOOGLE_HEADERS,
     PlannedRow,
     export_contact_json,
     export_csv,
     export_json,
     guess_mapping,
+    mapping_guide,
     plan_import,
     read_csv,
     rows_from_csv,
@@ -283,6 +288,7 @@ def _import_context(
         "headers": headers,
         "mapping": mapping,
         "field_labels": FIELD_LABELS,
+        "field_groups": FIELD_GROUPS,
         "planned": planned,
         "preview": planned[:25],
         "counts": {
@@ -303,6 +309,23 @@ def import_page(request: Request, session: SessionDep) -> HTMLResponse:
         request,
         "import/upload.html",
         {"types": list_contact_types(session), "error": None, "lists": active_lists(session)},
+    )
+
+
+@router.get("/import/help", response_class=HTMLResponse)
+def import_help(request: Request) -> HTMLResponse:
+    """D-06: what the column mapping means and where each export's columns go."""
+    guide = mapping_guide(GOOGLE_HEADERS)
+    return _render(
+        request,
+        "import/help.html",
+        {
+            "fields": [
+                (FIELD_LABELS[key], FIELD_HELP[key], spellings) for key, spellings in FIELDS.items()
+            ],
+            "google_mapped": [(column, label) for column, label in guide if label],
+            "google_ignored": [column for column, label in guide if not label],
+        },
     )
 
 
@@ -352,7 +375,7 @@ def _plan(session: Session, form: FormData, kind: str, raw: str) -> dict[str, An
             }
         else:
             mapping = guess_mapping(headers)
-        records = rows_from_csv(body, mapping)
+        records = rows_from_csv(body, mapping, headers)
     planned = plan_import(session, records, default_type_id)
     return _import_context(
         session,

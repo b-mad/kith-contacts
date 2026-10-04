@@ -59,7 +59,9 @@ Load it once with `launchctl load ~/Library/LaunchAgents/com.contacts.backup.bus
 Settings → Export offers CSV (spreadsheets), vCard (Outlook / Google / Apple
 Contacts) and JSON (complete, including lists, roles and tags). Settings → Import
 accepts CSV (Outlook and Google export columns are recognised) or vCard, shows a
-preview with duplicate warnings, and can put everyone imported into a list.
+preview with duplicate warnings, and can put everyone imported into a list. The
+information icon on the Import page opens help on the column mapping and on Google,
+Outlook and LinkedIn exports (`/import/help`).
 
 ## Search by meaning (S-08 — ADR-0013)
 

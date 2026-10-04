@@ -52,6 +52,9 @@ def get_list(session: Session, list_id: int) -> ContactList:
             .selectinload(Contact.phones),
             selectinload(ContactList.members)
             .selectinload(ListMember.contact)
+            .selectinload(Contact.addresses),
+            selectinload(ContactList.members)
+            .selectinload(ListMember.contact)
             .selectinload(Contact.contact_type),
             selectinload(ContactList.tags),
         )

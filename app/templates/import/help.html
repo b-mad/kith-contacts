@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Importing contacts — help{% endblock %}
+{% block content %}
+{# D-06: in-app help for import. The Google table and the field list are built from the
+   importer's own mapping rules, so they always say what the app really does. #}
+<article class="help" data-testid="import-help">
+<h1>Importing contacts</h1>
+<p>Bring people in from Google Contacts, Outlook, LinkedIn or a spreadsheet in three steps:</p>
+<ol>
+  <li>Export your contacts from the other app (see below for <a href="#google">Google</a>, <a href="#outlook">Outlook</a> and <a href="#linkedin">LinkedIn</a>).</li>
+  <li>Upload the file on the <a href="/import">Import</a> page and check the preview.</li>
+  <li>Press <strong>Import</strong>. Nothing is saved before that.</li>
+</ol>
+
+<section aria-labelledby="mapping">
+<h2 id="mapping">Reading the column mapping</h2>
+<p>A CSV file has a header row with a name for each column. The mapping shows one line per column, and reads from left to right:</p>
+<p class="help-example"><span class="mapping-header">Organization Name</span> <span aria-hidden="true">→</span><span class="visually-hidden">goes into</span> <strong>Company</strong></p>
+<ul>
+  <li><strong>Left:</strong> the column name exactly as it appears in your file.</li>
+  <li><strong>Right:</strong> the Contact Manager field that column goes into. Columns the app recognises are chosen for you; the rest say <strong>Ignore</strong> and are left out.</li>
+  <li>To change one, pick another field from its list and press <strong>Update preview</strong>. The table underneath shows the first rows as they will be saved.</li>
+  <li>Give each field one column. If two columns go into the same field, the one later in the file wins.</li>
+  <li>A column you don't need — a fax number, a photo link — can stay on <strong>Ignore</strong>.</li>
+</ul>
+<p>Rows marked <strong>Error</strong> are skipped (usually a row with no name, company or email). Rows marked <strong>Duplicate?</strong> share an email address, or a name and company, with someone already here or earlier in the file; they are skipped unless you tick <strong>Import possible duplicates too</strong>.</p>
+<p><strong>Tip:</strong> fill in <strong>Also add everyone to a list</strong> — for example “Imported from Google” — so you can find and review the whole batch afterwards.</p>
+</section>
+
+<section aria-labelledby="google">
+<h2 id="google">From Google Contacts</h2>
+<ol>
+  <li>Open Google Contacts in a browser and choose <strong>Export</strong>.</li>
+  <li>Pick all contacts, or one label to start small.</li>
+  <li>Choose <strong>Google CSV</strong> and export. Upload the downloaded <code>contacts.csv</code> here.</li>
+</ol>
+<div class="table-wrap">
+<table class="contacts" data-testid="google-mapping">
+  <caption class="visually-hidden">Google Contacts columns and the field each goes into</caption>
+  <thead><tr><th scope="col">Column in Google’s file</th><th scope="col">Goes into</th></tr></thead>
+  <tbody>
+    {% for column, label in google_mapped %}<tr><td><span class="mapping-header">{{ column }}</span></td><td>{{ label }}</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+<p>Good to know:</p>
+<ul>
+  <li>Google <strong>labels</strong> become tags. Google’s built-in “myContacts” and “starred” are left out.</li>
+  <li>Google’s label on each email, phone and address (Home, Mobile, Work…) comes along. The email whose label starts with <code>*</code> becomes the primary one.</li>
+  <li>Numbers labelled as a fax (Work Fax, Home Fax) are left out.</li>
+  <li>When a person has two values in one cell, Google separates them with <code>:::</code> — for example two mobile numbers, or two addresses spread over the address columns. Each becomes its own entry.</li>
+  <li>Addresses keep their street, city, state, ZIP and country. States are stored as their code (“Kansas” and “Kan” become KS), countries get their two-letter code, and an address with a US state but no country is taken to be in your home country.</li>
+  <li>A row with a company but no person’s name — a doctor’s office, a restaurant — uses the company as its name.</li>
+  <li>If you kept context in a name field — say, a child’s name in Name Suffix — map that column to an unused field such as <strong>Works on</strong> so it stays searchable.</li>
+  <li>Photos aren’t imported: Google’s photo links point to Google’s servers, and this app never contacts outside services. Add a photo on the card.</li>
+</ul>
+<details class="help-ignored" data-testid="google-ignored">
+  <summary>Columns that are left out ({{ google_ignored | length }})</summary>
+  <p class="small">{{ google_ignored | join(", ") }}</p>
+  <p class="small">Birthdays, relations, events and websites have no field of their own, and an address’s PO box and extended address (apartment or suite) aren’t imported. Map one to <strong>Notes</strong> if you want to keep it.</p>
+</details>
+</section>
+
+<section aria-labelledby="outlook">
+<h2 id="outlook">From Outlook</h2>
+<p>In Outlook on the web open <strong>People</strong>, then <strong>Manage contacts › Export contacts</strong>, and choose CSV. In the Outlook desktop app use <strong>File › Open &amp; Export › Import/Export › Export to a file</strong>. Outlook’s column names (First Name, E-mail Address, Business Phone, Company, Job Title, Manager’s Name, Categories…) are recognised. Its business address becomes a work address and its home address a home address.</p>
+</section>
+
+<section aria-labelledby="linkedin">
+<h2 id="linkedin">From LinkedIn</h2>
+<p>In LinkedIn open <strong>Settings › Data privacy › Get a copy of your data</strong> and ask for <strong>Connections</strong>. Upload <code>Connections.csv</code> as it is; the note at the top of the file is skipped, and the profile link goes into <strong>LinkedIn profile</strong>.</p>
+</section>
+
+<section aria-labelledby="other-files">
+<h2 id="other-files">vCard and JSON files</h2>
+<p>A vCard (<code>.vcf</code>) file from Apple Contacts, Outlook or Google, or a JSON file from “Copy to another instance”, needs no mapping: every field goes to its place, addresses included.</p>
+</section>
+
+<section aria-labelledby="fields">
+<h2 id="fields">The fields</h2>
+<p>Column names are matched without regard to capitals, spaces or punctuation, so “E-mail 1 - Value” matches <code>email1value</code>.</p>
+<div class="table-wrap">
+<table class="contacts" data-testid="field-help">
+  <thead><tr><th scope="col">Field</th><th scope="col">What it holds</th><th scope="col">Recognised column names</th></tr></thead>
+  <tbody>
+    {% for label, help, spellings in fields %}<tr><td>{{ label }}</td><td>{{ help }}</td><td class="small"><code>{{ spellings | join(", ") }}</code></td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+</section>
+
+<p><a class="button" href="/import">Go to Import</a></p>
+</article>
+{% endblock %}

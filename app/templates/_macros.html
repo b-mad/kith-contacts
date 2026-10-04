@@ -35,3 +35,8 @@
   {% else %}<span class="action disabled" aria-disabled="true" title="No LinkedIn profile saved" data-testid="action-linkedin-none">LinkedIn</span>{% endif %}
 </nav>
 {%- endmacro %}
+
+{# D-06: an information icon that opens a help page in a new tab, so a form in progress is kept. #}
+{% macro help_icon(href, label) -%}
+<a class="help-icon" href="{{ href }}" target="_blank" rel="noopener" title="{{ label }}" data-testid="help-icon"><span aria-hidden="true">i</span><span class="visually-hidden">{{ label }} (opens in a new tab)</span></a>
+{%- endmacro %}

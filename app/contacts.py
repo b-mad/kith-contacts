@@ -9,10 +9,12 @@ from typing import Any, Literal
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.addresses import normalize_address
 from app.links import contact_teams_url, mailto_url, slack_handle_display, tel_url
 from app.links import normalize_phone as _normalize_phone
 from app.models import (
     Contact,
+    ContactAddress,
     ContactEmail,
     ContactPhone,
     ContactType,
@@ -21,6 +23,7 @@ from app.models import (
 )
 from app.privacy import presenting, redact
 from app.schemas import (
+    AddressIn,
     ContactCreate,
     ContactLinks,
     ContactOut,
@@ -57,6 +60,7 @@ def _with_details(stmt: Select[tuple[Contact]]) -> Select[tuple[Contact]]:
         selectinload(Contact.contact_type),
         selectinload(Contact.emails),
         selectinload(Contact.phones),
+        selectinload(Contact.addresses),
         selectinload(Contact.manager),
         selectinload(Contact.reports),
         selectinload(Contact.tags),
@@ -206,6 +210,23 @@ def _apply_phones(contact: Contact, phones: list[PhoneIn], region: str) -> None:
     ]
 
 
+def address_row(item: AddressIn, region: str) -> ContactAddress:
+    """C-19: an address as stored, with country and region normalised (ADR-0021)."""
+    norm = normalize_address(
+        street=item.street,
+        city=item.city,
+        region=item.region,
+        postal_code=item.postal_code,
+        country=item.country,
+        home_region=region,
+    )
+    return ContactAddress(label=item.label, **vars(norm))
+
+
+def _apply_addresses(contact: Contact, addresses: list[AddressIn], region: str) -> None:
+    contact.addresses = [address_row(a, region) for a in addresses]
+
+
 def _apply_custom_fields(session: Session, contact: Contact, fields: list[CustomFieldIn]) -> None:
     """C-11: replace the fields, reusing rows by name so the unique index never sees a clash."""
     wanted = {f.name.lower() for f in fields}
@@ -320,6 +341,7 @@ def create_contact(
     session.flush()
     _apply_emails(session, contact, data.emails)
     _apply_phones(contact, data.phones, phone_region)
+    _apply_addresses(contact, data.addresses, phone_region)
     if data.custom_fields:
         _apply_custom_fields(session, contact, data.custom_fields)
     session.flush()
@@ -347,6 +369,8 @@ def update_contact(
         _apply_emails(session, contact, data.emails)
     if data.phones is not None:
         _apply_phones(contact, data.phones, phone_region)
+    if data.addresses is not None:
+        _apply_addresses(contact, data.addresses, phone_region)
     if data.custom_fields is not None:
         _apply_custom_fields(session, contact, data.custom_fields)
     contact.updated_at = datetime.now(UTC)
@@ -422,6 +446,7 @@ def to_out(contact: Contact, *, detail: bool = False) -> ContactOut:
         ),
         "emails": sorted(contact.emails, key=lambda e: (not e.is_primary, e.id or 0)),
         "phones": contact.phones,
+        "addresses": contact.addresses,
         "tags": contact.tags,
         "lists": sorted(
             (
@@ -450,6 +475,7 @@ __all__ = [
     "ContactError",
     "ContactNotFound",
     "SortKey",
+    "address_row",
     "archive_contact",
     "contact_links",
     "create_contact",

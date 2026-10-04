@@ -5,6 +5,7 @@
 <h1>Import contacts</h1>
 <p>Upload a <strong>CSV</strong> (for example exported from Outlook, Google Contacts or a spreadsheet), a <strong>vCard (.vcf)</strong> file, or a <strong>JSON</strong> file exported from this app — for example a contact copied from another instance with “Copy to another instance”.
 You'll see a preview and can adjust the column mapping before anything is saved.</p>
+<p><a href="/import/help" data-testid="import-help-link"><span class="help-icon" aria-hidden="true">i</span> How importing and the column mapping work</a></p>
 {% if error %}<p class="error-summary" role="alert" data-testid="import-error">{{ error }}</p>{% endif %}
 <form method="post" action="/import/preview" enctype="multipart/form-data" class="contact-form" data-testid="import-form">{{ m.csrf() }}
   <div class="field">

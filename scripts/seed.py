@@ -48,6 +48,30 @@ class Sample:
 
 ACME = "Acme Health"
 
+# C-19: one (made-up) office per company, spread over time zones for a future map.
+OFFICES: dict[str, dict[str, str]] = {
+    ACME: {"street": "200 Commerce Pkwy, Suite 400", "city": "Atlanta", "region": "GA",
+           "postal_code": "30303"},
+    "Northside Clinic": {"street": "51 Northside Dr", "city": "Atlanta", "region": "GA",
+                         "postal_code": "30318"},
+    "Peachtree Labs": {"street": "3100 Industrial Blvd", "city": "Duluth", "region": "GA",
+                       "postal_code": "30096"},
+    "Buford Family Medicine": {"street": "12 Main St", "city": "Buford", "region": "GA",
+                               "postal_code": "30518"},
+    "Gwinnett Health Partners": {"street": "700 Hospital Ave", "city": "Lawrenceville",
+                                 "region": "GA", "postal_code": "30046"},
+    "InterLink HL7 Services": {"street": "1600 Market St", "city": "Denver", "region": "CO",
+                               "postal_code": "80202"},
+    "CloudVault Hosting": {"street": "400 Harbor Way", "city": "Seattle", "region": "WA",
+                           "postal_code": "98101"},
+    "SecureScan Audits": {"street": "88 Congress Ave", "city": "Austin", "region": "TX",
+                          "postal_code": "78701"},
+    "LabSupply Direct": {"street": "2200 Lake St", "city": "Chicago", "region": "IL",
+                         "postal_code": "60601"},
+    "UX Research Co": {"street": "150 King St W", "city": "Toronto", "region": "ON",
+                       "postal_code": "M5H 1J9", "country": "Canada"},
+}  # fmt: skip
+
 
 def _employees() -> list[Sample]:
     eng, prod = "Engineering", "Product"
@@ -539,6 +563,9 @@ def seed(session: Session, *, phone_region: str = "US") -> int:
                     "notes": s.notes,
                     "emails": emails,
                     "phones": [{"number": s.phone, "label": "work"}] if s.phone else [],
+                    "addresses": (
+                        [{"label": "work", **OFFICES[s.company]}] if s.company in OFFICES else []
+                    ),
                     "slack_handle": s.name.split()[0].lower() if s.slack else None,
                 }
             ),

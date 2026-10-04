@@ -884,3 +884,46 @@ def test_linkedin_action_opens_the_profile_in_a_new_tab(base_url: str) -> None:
         page.get_by_role("link", name="Lin Kedin").click()
         expect(page.get_by_test_id("preview").get_by_test_id("action-linkedin")).to_be_visible()
         browser.close()
+
+
+@pytest.mark.req("C-19")
+def test_address_rows_are_added_saved_and_removed(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        types = page.request.get(base_url + "/api/contact-types").json()
+        person = page.request.post(
+            base_url + "/api/contacts",
+            data={"display_name": "Addy Ress", "contact_type_id": types[0]["id"]},
+        ).json()
+
+        page.goto(base_url + f"/contacts/{person['id']}/edit")
+        page.get_by_label("Address 1 label").fill("home")
+        page.get_by_label("Address 1 street").fill("12 Elm St\nApt 4")
+        page.get_by_label("Address 1 city").fill("Olathe")
+        page.get_by_label("Address 1 state or region").fill("Kansas")
+        page.get_by_label("Address 1 postal code").fill("66061")
+        page.get_by_role("button", name="+ Add address").click()
+        rows = page.get_by_test_id("address-rows").locator(".address-item")
+        expect(rows).to_have_count(2)
+        second = rows.nth(1)
+        expect(second.get_by_label("Address label")).to_be_focused()
+        second.get_by_label("Address label").fill("work")
+        second.get_by_label("Address city").fill("Toronto")
+        second.get_by_label("Address country").fill("Canada")
+        page.get_by_role("button", name="Save").click()
+
+        addresses = page.get_by_test_id("address")
+        expect(addresses).to_have_count(2)
+        expect(addresses.nth(0)).to_have_text("12 Elm StApt 4Olathe, KS 66061")
+        expect(addresses.nth(1)).to_have_text("TorontoCanada")
+
+        page.goto(base_url + f"/contacts/{person['id']}/edit")
+        page.get_by_role("button", name="Remove address 2").click()
+        page.get_by_role("button", name="Save").click()
+        expect(page.get_by_test_id("address")).to_have_count(1)
+        browser.close()

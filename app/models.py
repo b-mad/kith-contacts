@@ -198,6 +198,9 @@ class Contact(Base):
     phones: Mapped[list[ContactPhone]] = relationship(
         back_populates="contact", cascade="all, delete-orphan"
     )
+    addresses: Mapped[list[ContactAddress]] = relationship(
+        back_populates="contact", cascade="all, delete-orphan", order_by="ContactAddress.id"
+    )
     custom_fields: Mapped[list[CustomField]] = relationship(
         cascade="all, delete-orphan", order_by="CustomField.sort_order, CustomField.id"
     )
@@ -259,6 +262,26 @@ class ContactPhone(Base):
     label: Mapped[str | None] = mapped_column(String(50))
 
     contact: Mapped[Contact] = relationship(back_populates="phones")
+
+
+class ContactAddress(Base):
+    """C-19: a postal address; country and region normalised on save (ADR-0021)."""
+
+    __tablename__ = "contact_address"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    contact_id: Mapped[int] = mapped_column(
+        ForeignKey("contact.id", ondelete="CASCADE"), index=True
+    )
+    label: Mapped[str | None] = mapped_column(String(50))
+    street: Mapped[str | None] = mapped_column(String(300))
+    city: Mapped[str | None] = mapped_column(String(100))
+    region: Mapped[str | None] = mapped_column(String(100))
+    postal_code: Mapped[str | None] = mapped_column(String(20))
+    country: Mapped[str | None] = mapped_column(String(100))
+    country_code: Mapped[str | None] = mapped_column(String(2), index=True)
+
+    contact: Mapped[Contact] = relationship(back_populates="addresses")
 
 
 class CustomField(Base):

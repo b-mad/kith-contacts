@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.11.1 |
+| Version | 1.13 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-04 |
@@ -105,6 +105,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | C-16 | Snooze a keep-in-touch reminder to a date; logging an interaction clears the snooze. | Should | 7 |
 | C-17 | After Email, Call or Compose from the app, offer one-click logging of that interaction. | Could | 7 |
 | C-18 | Optional LinkedIn profile per contact, entered as a profile URL or name and stored as `https://www.linkedin.com/in/<name>`; a LinkedIn action on the card and search preview opens it in a new tab; CSV import (including LinkedIn's Connections export), vCard and JSON carry it (ADR-0018). | Should | 8 |
+| C-19 | Zero or more postal addresses per contact, each with a label (home, work…), street, city, state or region, postal code and country. The country is stored with its ISO 3166-1 code and the state as its ISO 3166-2 code where recognised; an address with a state but no country takes the instance's home country when the state belongs to it. Shown on the card, editable on the form, searchable by city, state, postal code and country, and carried by CSV, vCard and JSON import and export (ADR-0021). | Should | 10 |
 
 ### Search and discovery
 
@@ -162,6 +163,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | D-03 | Export all data (contacts, tags, lists) to CSV and JSON. | Must | 3 |
 | D-04 | One-click backup and restore of the instance's database (`pg_dump` / `pg_restore`). | Must | 3 |
 | D-05 | Optional directory sync from Microsoft Graph or Slack to prefill employees (title, manager, team). | Could | 5 |
+| D-06 | In-app import help: an information icon on the import pages opens a help page explaining the column mapping (column in the file → field), what each field holds, and where the columns of a Google Contacts, Outlook or LinkedIn export go (ADR-0020). | Should | 3 |
 
 ### Instances and environments
 
@@ -239,6 +241,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | `contact_email` | id, contact_id, email, label, is_primary | Unique (contact_id, lower(email)); at most one primary per contact. |
 | `contact_photo` | contact_id, content_type, data, updated_at | Phase 3. ≤ 512 px, EXIF stripped; stored in the database so backups include it (ADR-0011). |
 | `contact_phone` | id, contact_id, number, label | Stored as E.164 when parseable, using the instance's `PHONE_REGION` (ADR-0008). |
+| `contact_address` | id, contact_id, label, street, city, region, postal_code, country, country_code | Phase 10 (C-19, ADR-0021). `country_code` is ISO 3166-1 alpha-2; `region` is the ISO 3166-2 subdivision code (without the country prefix) when recognised. |
 | `tag` | id, name (unique, case-insensitive), color | Phase 2. |
 | `contact_tag` | contact_id, tag_id | Phase 2. Composite key. |
 | `contact_list` | id, name, description, status, created_at | Phase 2. The "project list". |
@@ -255,7 +258,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | `contact` (Phase 7 columns) | kit_interval, kit_started_on, kit_snoozed_until, is_private | Phase 7 (C-15, C-16, P-03, ADR-0016). Due date is computed, not stored. |
 | `contact` (Phase 8 column) | linkedin_url | Phase 8 (C-18, ADR-0018). Canonical `https://www.linkedin.com/in/<name>`. |
 | `tag`, `contact_list`, `custom_field` (Phase 7) | is_private | Phase 7 (P-03, ADR-0016). |
-| `contact.search_vector` | Weighted tsvector: name (A); team, company, manager, tags (B); title, department, works_on, lists, emails, custom fields (C); notes, location, activities (D) | Maintained by the application (`app/search.py`, ADR-0010); GIN index; plus `pg_trgm` GIN index on names. |
+| `contact.search_vector` | Weighted tsvector: name (A); team, company, manager, tags (B); title, department, works_on, lists, emails, custom fields (C); notes, location, activities, address city, region, postal code and country (D) | Maintained by the application (`app/search.py`, ADR-0010); GIN index; plus `pg_trgm` GIN index on names. |
 
 Each instance has its own database, so no table carries an instance column.
 
@@ -275,13 +278,14 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 0 — Foundation ✅ | Repo, PostgreSQL, instance config; dev instance on localhost | N-01, N-02, N-10, I-01, I-02, I-04 | 3–4 days |
 | 1 — Contact core ✅ | Store and edit rich contacts | C-01–C-08, M-04, I-03, I-05 | 1 week |
 | 2 — Find and act (MVP) ✅ | Context search, tags, lists, copy emails | S-01–S-05, T-01–T-02, L-01–L-04, M-01–M-03, C-10, C-14 | 2 weeks |
-| 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, T-03–T-04, C-09, M-05, D-01–D-04, N-06, I-06–I-08 | 1–2 weeks |
+| 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, T-03–T-04, C-09, M-05, D-01–D-04, D-06, N-06, I-06–I-08 | 1–2 weeks |
 | 4 — Depth ✅ | Power-user features | C-11–C-13, S-07, T-05, L-05 (list tags), I-09 | 1–2 weeks |
 | 5 — Smart | Semantic search, recent interactions and directory sync | S-08–S-10, D-05 | 2+ weeks |
 | 6 — Look and feel ✅ | Theme modes, three palettes, accessibility pass, layout refresh, command palette | A-01–A-06, N-09, S-12 | 8–10 days |
 | 7 — Relationships and privacy ✅ | Keep-in-touch reminders and presenting mode | C-15–C-17, S-11, P-01–P-07 | ~8 days |
 | 8 — Profiles | LinkedIn profile link on every card | C-18 | 1 day |
 | 9 — Containers | Container deployment, safer upgrades, double-click install for Windows and Mac | I-10–I-14 | 3–4 days |
+| 10 — Places | Postal addresses, groundwork for a contact map and time zones | C-19 | 2 days |
 
 ### Phase 0 — Foundation
 
@@ -365,6 +369,13 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 **Done when:** on a computer with only Docker Desktop installed, unzipping the bundle and double-clicking Start opens a working instance at `http://localhost:5170`; stopping and starting keeps the data; a newer version applies its migrations after a before-upgrade backup; copying `~/ContactManager` to another computer and starting there brings the contacts back.
 
+### Phase 10 — Places
+
+- `contact_address` (migration 0010) with country and state normalised on save (`pycountry`); address rows on the edit form; addresses on the card; presenting mode withholds personal-labelled addresses, and all of them when location is hidden; search document gains address city, region, postal code and country.
+- Import reads Google's per-value labels, skips fax numbers, splits `:::` cells, and maps Google, Outlook and hand-made address columns; vCard `ADR`, CSV and JSON export and import carry addresses; duplicate merge and anonymised copies handle them (ADR-0021).
+
+**Done when:** importing a Google Contacts export gives each person their addresses with labels, a two-letter country code and a state code; a card shows them; searching a city finds the people there; presenting hides home addresses.
+
 ## 9. Open questions
 
 - [x] Build language → Python (ADR-0004).
@@ -373,6 +384,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 - [x] Default mail client → both are used; the user chooses Outlook or Gmail when copying or composing (ADR-0009).
 - [ ] Is any contact data subject to company data-handling policy? Affects where the business instance may run.
 - [ ] Is a directory export (Outlook / Entra ID CSV) available to seed the business instance in Phase 3?
+- [ ] Contact map and time-zone offsets (planned after Phase 10): which offline source turns an address into coordinates and an IANA time zone without calling an outside service (N-04)?
 
 ## 10. Risks
 
@@ -390,6 +402,8 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.13 | 2026-10-04 | C-19 postal addresses added in a new Phase 10 — Places. Data model gains `contact_address`. Clarified D-01 (Google's per-value email and phone labels, fax numbers skipped, `:::` cells split, address columns), D-02, D-03 and I-09 (addresses included). | 0021 |
+| 1.12 | 2026-10-04 | D-06 in-app import help added (Phase 3). Clarified D-01: Google Contacts' current export columns (Organization Name, Organization Title, Organization Department, Address 1 - City) are recognised, and a row with a company but no person's name uses the company as display name. | 0020 |
 | 1.11.1 | 2026-10-04 | Clarified C-01: the card and search preview show the first and last name and nickname when they differ from the display name. No requirement added or removed. | — |
 | 1.11 | 2026-10-04 | Phase 9 — Containers added: I-10 container deployment, I-11 backup before upgrade, I-12 restore on first start, I-13 double-click start for macOS and Windows with an install guide, I-14 version shown. N-01, N-04 and N-06 clarified for container installs. | 0019 |
 | 1.10 | 2026-10-03 | C-18 LinkedIn profile link added in a new Phase 8 — Profiles. Data model gains contact.linkedin_url. | 0018 |

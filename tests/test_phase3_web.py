@@ -216,6 +216,27 @@ def test_import_csv_preview_then_run(seeded_client: TestClient) -> None:
     assert sorted(t["name"] for t in ola["tags"]) == ["Backend", "Launch"]
 
 
+@pytest.mark.req("D-06")
+def test_import_pages_link_to_the_mapping_help(seeded_client: TestClient) -> None:
+    upload = seeded_client.get("/import").text
+    preview = post(
+        seeded_client, "/import/preview", files={"file": ("people.csv", CSV.encode(), "text/csv")}
+    ).text
+    page = seeded_client.get("/import/help")
+
+    assert 'href="/import/help" data-testid="import-help-link"' in upload
+    assert 'class="help-icon" href="/import/help#mapping" target="_blank"' in preview
+    assert preview.count('class="mapping-arrow"') == preview.count('class="mapping-row"')
+    assert page.status_code == 200
+    assert 'id="mapping"' in page.text
+    assert (
+        '<td><span class="mapping-header">Organization Name</span></td><td>Company</td>'
+        in page.text
+    )
+    assert "Birthday" in page.text  # listed under the columns that are left out
+    assert page.text.count("<tr><td>") >= 23  # one row per field, plus the Google table
+
+
 @pytest.mark.req("D-02")
 def test_import_vcard_file(seeded_client: TestClient) -> None:
     vcf = b"BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Vera Card\r\nORG:Initech\r\nEMAIL:vera@initech.example\r\nEND:VCARD\r\n"

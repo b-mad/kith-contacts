@@ -13,11 +13,16 @@ from sqlalchemy.orm import Session
 from app.contacts import ContactError, get_contact
 from app.exchange import (
     CSV_COLUMNS,
+    FIELD_HELP,
+    FIELD_LABELS,
+    FIELDS,
     FORMAT,
+    GOOGLE_HEADERS,
     _cell,
     export_csv,
     export_json,
     guess_mapping,
+    mapping_guide,
     plan_import,
     read_csv,
     rows_from_csv,
@@ -190,6 +195,46 @@ def test_mapping_recognises_outlook_and_google_headers() -> None:
     assert [google.get(i) for i in range(len(google_headers))] == [
         "display_name", "first_name", "last_name", "email", "phone", "company", "title", "tags",
     ]  # fmt: skip
+
+
+@pytest.mark.req("D-01", "C-19")
+def test_mapping_recognises_the_current_google_export() -> None:
+    mapped = {column: label for column, label in mapping_guide(GOOGLE_HEADERS) if label}
+    assert mapped == {
+        "First Name": "First name", "Last Name": "Last name", "Nickname": "Nickname",
+        "Organization Name": "Company", "Organization Title": "Title",
+        "Organization Department": "Department", "Notes": "Notes", "Labels": "Tags",
+        "E-mail 1 - Value": "Email", "E-mail 2 - Value": "Email 2", "E-mail 3 - Value": "Email 3",
+        "Phone 1 - Value": "Phone", "Phone 2 - Value": "Phone 2", "Phone 3 - Value": "Phone 3",
+        "E-mail 1 - Label": "Email label", "E-mail 2 - Label": "Email 2 label",
+        "E-mail 3 - Label": "Email 3 label", "Phone 1 - Label": "Phone label",
+        "Phone 2 - Label": "Phone 2 label", "Phone 3 - Label": "Phone 3 label",
+        "Address 1 - Label": "Address label", "Address 1 - Street": "Street",
+        "Address 1 - City": "City", "Address 1 - Region": "State / region",
+        "Address 1 - Postal Code": "Postal code", "Address 1 - Country": "Country",
+        "Address 2 - Label": "Address 2 label", "Address 2 - Street": "Address 2 street",
+        "Address 2 - City": "Address 2 city", "Address 2 - Region": "Address 2 state",
+        "Address 2 - Postal Code": "Address 2 postal code",
+        "Address 2 - Country": "Address 2 country",
+    }  # fmt: skip
+
+
+@pytest.mark.req("D-01")
+def test_a_business_row_takes_the_company_as_its_name(seeded: Session) -> None:
+    records = [
+        {"company": "Harbor Dental", "phone": "+19135550100"},
+        {"first_name": "Ana", "company": "Harbor Dental"},
+        {"company": "Acme Bakery", "email": "info@bakery.example"},
+    ]
+    planned = plan_import(seeded, records, employee_type(seeded))
+    assert [r.data["display_name"] for r in planned] == ["Harbor Dental", "Ana", "Acme Bakery"]
+    assert all(r.ok for r in planned)
+
+
+@pytest.mark.req("D-06")
+def test_every_import_field_has_a_label_and_help() -> None:
+    assert set(FIELD_HELP) == set(FIELDS) == set(FIELD_LABELS)
+    assert all(text.endswith(".") for text in FIELD_HELP.values())
 
 
 def test_read_csv_handles_semicolons_bom_and_latin1() -> None:

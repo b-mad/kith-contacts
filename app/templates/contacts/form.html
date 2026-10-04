@@ -131,6 +131,38 @@
   </fieldset>
 
   <fieldset>
+    <legend>Address</legend>
+    <p class="hint">States and countries are tidied when you save (“Kansas” → KS); a state without a country is taken to be in {{ country_name(instance.phone_region) }}.</p>
+    <div class="rows" data-rows="address" data-testid="address-rows">
+      {% for a in addresses %}{% set an = "Address " ~ loop.index %}
+      <div class="row-item address-item">
+        <input type="text" name="address_label" value="{{ a.label }}" aria-label="{{ an }} label" placeholder="home, work…" class="label-input">
+        <textarea name="address_street" rows="2" aria-label="{{ an }} street" placeholder="Street">{{ a.street }}</textarea>
+        <input type="text" name="address_city" value="{{ a.city }}" aria-label="{{ an }} city" placeholder="City" autocomplete="off">
+        <input type="text" name="address_region" value="{{ a.region }}" aria-label="{{ an }} state or region" placeholder="State" autocomplete="off">
+        <input type="text" name="address_postal_code" value="{{ a.postal_code }}" aria-label="{{ an }} postal code" placeholder="ZIP / postal code" autocomplete="off">
+        <input type="text" name="address_country" value="{{ a.country }}" aria-label="{{ an }} country" placeholder="Country" autocomplete="off">
+        <button type="button" class="link" data-remove-row aria-label="Remove {{ an | lower }}">Remove</button>
+      </div>
+      {% endfor %}
+    </div>
+    <template id="address-row">
+      {% set a = {"label": "", "street": "", "city": "", "region": "", "postal_code": "", "country": ""} %}{% set an = "Address" %}
+      <div class="row-item address-item">
+        <input type="text" name="address_label" value="{{ a.label }}" aria-label="{{ an }} label" placeholder="home, work…" class="label-input">
+        <textarea name="address_street" rows="2" aria-label="{{ an }} street" placeholder="Street">{{ a.street }}</textarea>
+        <input type="text" name="address_city" value="{{ a.city }}" aria-label="{{ an }} city" placeholder="City" autocomplete="off">
+        <input type="text" name="address_region" value="{{ a.region }}" aria-label="{{ an }} state or region" placeholder="State" autocomplete="off">
+        <input type="text" name="address_postal_code" value="{{ a.postal_code }}" aria-label="{{ an }} postal code" placeholder="ZIP / postal code" autocomplete="off">
+        <input type="text" name="address_country" value="{{ a.country }}" aria-label="{{ an }} country" placeholder="Country" autocomplete="off">
+        <button type="button" class="link" data-remove-row aria-label="Remove {{ an | lower }}">Remove</button>
+      </div>
+    </template>
+    <button type="button" class="link" data-add-row="address">+ Add address</button>
+    {{ m.field_error(errors, "addresses") }}
+  </fieldset>
+
+  <fieldset>
     <legend>Chat and LinkedIn</legend>
     <div class="row three">
       {{ m.text_input("Slack handle", "slack_handle", values, errors, hint="e.g. @maria") }}

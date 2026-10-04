@@ -5,7 +5,7 @@ Each contact has a weighted ``search_vector``:
     A  display, first, last and nick names
     B  team, company, manager's name, tags
     C  title, department, works on, list names, emails, custom fields
-    D  notes, location, activity summaries
+    D  notes, location, activity summaries, address city/region/postal code/country
 
 ``refresh_search`` rebuilds it for given contacts; every write that changes
 any of those inputs must call it (the service layer does). Queries use prefix
@@ -35,7 +35,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Activity, Contact, ContactList, ListMember, Tag, contact_tag
+from app.models import Activity, Contact, ContactAddress, ContactList, ListMember, Tag, contact_tag
 from app.privacy import Presenting, presenting
 from app.timephrase import INTERACTION_KINDS, TimeQuery, parse_time_query
 
@@ -46,7 +46,7 @@ SORT_KEYS: tuple[SortKey, ...] = (
     "relevance", "name", "company", "team", "type", "updated", "last_contact",
 )  # fmt: skip
 
-# Kept in sync with the newest migration that embeds a frozen copy (0004).
+# Kept in sync with the newest migration that embeds a frozen copy (0010).
 _DOCUMENT_SQL = """
     setweight(to_tsvector('simple', concat_ws(' ', c.display_name, c.first_name, c.last_name,
         c.nickname)), 'A')
@@ -62,7 +62,9 @@ _DOCUMENT_SQL = """
         (SELECT string_agg(cf.name || ' ' || cf.value, ' ')
            FROM custom_field cf WHERE cf.contact_id = c.id))), 'C')
     || setweight(to_tsvector('simple', concat_ws(' ', c.notes, c.location,
-        (SELECT string_agg(a.summary, ' ') FROM activity a WHERE a.contact_id = c.id))), 'D')
+        (SELECT string_agg(a.summary, ' ') FROM activity a WHERE a.contact_id = c.id),
+        (SELECT string_agg(concat_ws(' ', ad.city, ad.region, ad.postal_code, ad.country), ' ')
+           FROM contact_address ad WHERE ad.contact_id = c.id))), 'D')
 """
 
 # The f-string only inserts the constant _DOCUMENT_SQL; ids are a bound parameter.
@@ -223,6 +225,7 @@ def _with_details(stmt: Select[tuple[Contact]]) -> Select[tuple[Contact]]:
         selectinload(Contact.contact_type),
         selectinload(Contact.emails),
         selectinload(Contact.phones),
+        selectinload(Contact.addresses),
         selectinload(Contact.manager),
         selectinload(Contact.reports),
         selectinload(Contact.tags),
@@ -372,10 +375,21 @@ def _field_values(contact: Contact) -> list[tuple[str, str]]:
         ],
         *[("email", e.email) for e in contact.emails if p is None or not p.personal(e.label)],
         ("location", None if p and p.hides("location") else contact.location),
+        *[
+            ("address", _place(a))
+            for a in contact.addresses
+            if p is None or (not p.hides("location") and not p.personal(a.label))
+        ],
         ("notes", None if p and p.hides("notes") else contact.notes),
         ("aka", " ".join(filter(None, [contact.first_name, contact.last_name, contact.nickname]))),
     ]
     return [(label, v) for label, v in values if v]
+
+
+def _place(address: ContactAddress) -> str:
+    """C-19: the searchable part of an address, e.g. "Olathe KS 66061 United States"."""
+    parts = (address.city, address.region, address.postal_code, address.country)
+    return " ".join(p for p in parts if p)
 
 
 def _private(item: Contact | Tag | ContactList, p: Presenting | None) -> bool:
@@ -406,7 +420,9 @@ def hidden_matches(
     if not pending or (not every and len(pending) < len(terms)):
         return []  # "some words" matches: one visible match explains the result
     named: list[str] = []
-    for label, private in (("notes", contact.notes), ("location", contact.location)):
+    places = " ".join(_place(a) for a in contact.addresses)
+    location = " ".join(filter(None, [contact.location, places]))
+    for label, private in (("notes", contact.notes), ("location", location)):
         if private and p.hides(label):
             words = [w.lower() for w in _WORD.findall(private)]
             if any(any(w.startswith(t) for w in words) for t in pending):

@@ -423,6 +423,10 @@ async def list_selection(request: Request, session: SessionDep) -> Response:
 # ---------------------------------------------------------------- form helpers
 
 
+# C-19: one address row on the form, in display order.
+ADDRESS_PARTS = ("label", "street", "city", "region", "postal_code", "country")
+
+
 def _row_values(form: FormData, prefix: str, fields: tuple[str, ...]) -> list[dict[str, str]]:
     columns = {f: [str(v) for v in form.getlist(f"{prefix}_{f}")] for f in fields}
     count = max((len(v) for v in columns.values()), default=0)
@@ -467,9 +471,11 @@ def parse_contact_form(form: FormData) -> tuple[dict[str, Any], dict[str, Any]]:
     for i, row in enumerate(emails):
         row["is_primary"] = str(i) == primary_index  # type: ignore[assignment]
     phones = _row_values(form, "phone", ("number", "label"))
+    addresses = _row_values(form, "address", ADDRESS_PARTS)
     fields = _row_values(form, "field", ("name", "value"))
     values["emails"] = emails
     values["phones"] = phones
+    values["addresses"] = addresses
     values["fields"] = fields
 
     data: dict[str, Any] = {f: values[f] for f in scalar}
@@ -483,6 +489,10 @@ def parse_contact_form(form: FormData) -> tuple[dict[str, Any], dict[str, Any]]:
     ]
     data["phones"] = [
         {"number": r["number"], "label": r["label"]} for r in phones if r["number"].strip()
+    ]
+    # C-19: a row with only a label is dropped; anything else is validated.
+    data["addresses"] = [
+        dict(r) for r in addresses if any(r[k].strip() for k in ADDRESS_PARTS if k != "label")
     ]
     # C-11: a row with only a name or only a value is sent so validation can flag it.
     data["custom_fields"] = [
@@ -500,6 +510,7 @@ FIELD_LABELS = {
     "contact_type_id": "Type",
     "emails": "Email",
     "phones": "Phone",
+    "addresses": "Address",
     "custom_fields": "Field",
     "manager_id": "Manager",
     "slack_handle": "Slack handle",
@@ -516,7 +527,7 @@ def errors_from_validation(exc: ValidationError) -> dict[str, str]:
         field = str(loc[0]) if loc else "__all__"
         msg = err["msg"].removeprefix("Value error, ")
         if (
-            field in {"emails", "phones", "custom_fields"}
+            field in {"emails", "phones", "addresses", "custom_fields"}
             and len(loc) > 1
             and isinstance(loc[1], int)
         ):
@@ -554,6 +565,7 @@ def _form_context(
         "values": values,
         "emails": emails or [{"address": "", "label": "", "is_primary": True}],
         "phones": phones or [{"number": "", "label": ""}],
+        "addresses": values.get("addresses") or [dict.fromkeys(ADDRESS_PARTS, "")],
         "fields": values.get("fields") or [{"name": "", "value": ""}],
         "field_names": custom_field_names(session),
         "types": list_contact_types(session),
@@ -593,6 +605,7 @@ def _values_from_contact(contact: Contact) -> dict[str, Any]:
         {"address": e.email, "label": e.label or "", "is_primary": e.is_primary} for e in out.emails
     ]
     values["phones"] = [{"number": p.number, "label": p.label or ""} for p in out.phones]
+    values["addresses"] = [{k: getattr(a, k) or "" for k in ADDRESS_PARTS} for a in out.addresses]
     values["fields"] = [{"name": f.name, "value": f.value} for f in out.custom_fields or []]
     return values
 

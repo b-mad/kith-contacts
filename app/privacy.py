@@ -35,6 +35,7 @@ from app.links import contact_teams_url, mailto_url, tel_url
 from app.models import (
     AppSetting,
     Contact,
+    ContactAddress,
     ContactEmail,
     ContactList,
     ContactPhone,
@@ -52,9 +53,9 @@ Choices = tuple[tuple[str, str, str], ...]  # (value, label, hint)
 CATEGORY_CHOICES: Final[Choices] = (
     ("notes", "Notes", "Memory cues, how you met, anything personal"),
     ("activity", "Activity details", "The kind and date stay; what was said is hidden"),
-    ("personal", "Personal emails and phones", "Any address or number with a personal label"),
+    ("personal", "Personal emails, phones and addresses", "Anything with a personal label"),
     ("fields", "Extra fields marked private", "Birthday, family, anything you flag"),
-    ("location", "Location", "City or office"),
+    ("location", "Location and addresses", "City or office, and every postal address"),
     ("photo", "Photos", "Profile pictures"),
     ("last_contact", "Last contact dates", "Dates in results, on cards and on Reconnect"),
 )
@@ -293,6 +294,17 @@ def _withhold_private_records(state: ORMExecuteState) -> None:
                 include_aliases=True,
             )
         )
+        options.append(
+            with_loader_criteria(
+                ContactAddress,
+                lambda ad: func.lower(func.coalesce(ad.label, "")).not_in(labels),
+                include_aliases=True,
+            )
+        )
+    if p.hides("location"):  # C-19: an address is a location
+        options.append(
+            with_loader_criteria(ContactAddress, lambda ad: ad.id.is_(None), include_aliases=True)
+        )
     if p.hides("photo"):
         options.append(
             with_loader_criteria(
@@ -310,8 +322,8 @@ WORK_FIELDS: Final = frozenset(
         "id", "display_name", "first_name", "last_name", "nickname", "contact_type", "company",
         "title", "team", "department", "location", "manager", "reports", "works_on",
         "slack_handle", "slack_url", "teams_url", "linkedin_url", "pronunciation", "is_favorite",
-        "emails", "phones", "tags", "lists", "links", "archived", "has_photo", "custom_fields",
-        "activities", "last_contact", "created_at", "updated_at",
+        "emails", "phones", "addresses", "tags", "lists", "links", "archived", "has_photo",
+        "custom_fields", "activities", "last_contact", "created_at", "updated_at",
     }
 )  # fmt: skip
 NAME_FIELDS: Final = frozenset(
@@ -360,6 +372,9 @@ def redact(data: dict[str, Any], p: Presenting) -> dict[str, Any]:
             out[name] = _blank(info.annotation)
     out["emails"] = [e for e in out["emails"] if not p.personal(e.label)]
     out["phones"] = [ph for ph in out["phones"] if not p.personal(ph.label)]
+    out["addresses"] = [
+        a for a in out["addresses"] if not p.hides("location") and not p.personal(a.label)
+    ]
     out["tags"] = [t for t in out["tags"] if not t.is_private]
     out["lists"] = [cl for cl in out["lists"] if not cl.is_private]
     if out.get("manager") is not None and out["manager"].is_private:
@@ -465,6 +480,15 @@ def hidden_counts(session: Session, contact: Contact, p: Presenting | None) -> d
                 func.lower(func.coalesce(ContactPhone.label, "")).in_(labels),
             )
         )
+        if not p.hides("location"):  # else every address is gone, like the location field
+            counts["personal"] += count(
+                select(func.count())
+                .select_from(ContactAddress)
+                .where(
+                    ContactAddress.contact_id == contact.id,
+                    func.lower(func.coalesce(ContactAddress.label, "")).in_(labels),
+                )
+            )
     if p.hides("fields"):
         names = list(p.settings.fields) or [""]
         counts["fields"] = count(

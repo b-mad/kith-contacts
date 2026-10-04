@@ -30,6 +30,7 @@ from app.exchange import contact_record
 from app.models import (
     Activity,
     Contact,
+    ContactAddress,
     ContactEmail,
     ContactMerge,
     ContactPhone,
@@ -182,6 +183,11 @@ def _pick_manager(
     return wanted
 
 
+def _place_key(a: ContactAddress) -> tuple[str, ...]:
+    """Two addresses are the same place when street, city and postal code match."""
+    return tuple(" ".join((v or "").lower().split()) for v in (a.street, a.city, a.postal_code))
+
+
 def _digits(number: str) -> str:
     return re.sub(r"\D", "", number)
 
@@ -238,6 +244,21 @@ def merge_contacts(
         if _digits(p.number) not in numbers:
             keep.phones.append(ContactPhone(number=p.number, label=p.label))
             numbers.add(_digits(p.number))
+    places = {_place_key(a) for a in keep.addresses}  # C-19
+    for a in other.addresses:
+        if _place_key(a) not in places:
+            keep.addresses.append(
+                ContactAddress(
+                    label=a.label,
+                    street=a.street,
+                    city=a.city,
+                    region=a.region,
+                    postal_code=a.postal_code,
+                    country=a.country,
+                    country_code=a.country_code,
+                )
+            )
+            places.add(_place_key(a))
 
     # Custom fields: the kept contact wins on a name clash.
     names = {f.name.lower() for f in keep.custom_fields}
@@ -335,6 +356,7 @@ def merged_counts(a: Contact, b: Contact) -> dict[str, int]:
     return {
         "emails": len({e.email.lower() for e in [*a.emails, *b.emails]}),
         "phones": len({_digits(p.number) for p in [*a.phones, *b.phones]}),
+        "addresses": len({_place_key(x) for x in [*a.addresses, *b.addresses]}),
         "tags": len({t.id for t in [*a.tags, *b.tags]}),
         "lists": len({m.list_id for m in [*a.memberships, *b.memberships]}),
         "activities": len(a.activities) + len(b.activities),

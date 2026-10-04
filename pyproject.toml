@@ -15,6 +15,7 @@ dependencies = [
     "phonenumbers>=8.13",
     "pillow>=11",
     "psycopg[binary]>=3.2",
+    "pycountry>=24.6",
     "pydantic-settings>=2.7",
     "python-multipart>=0.0.20",
     "sqlalchemy>=2.0.36",

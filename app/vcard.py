@@ -62,6 +62,15 @@ def to_vcard(contact: Contact) -> str:
     for phone in contact.phones:
         kind = _TEL_TYPES.get((phone.label or "").lower(), "VOICE")
         lines.append(f"TEL;TYPE={kind}:{phone.number}")
+    # C-19: ADR is PO box; extended address; street; city; region; postal code; country.
+    for address in contact.addresses:
+        adr_type = {"home": "HOME", "personal": "HOME", "work": "WORK"}.get(
+            (address.label or "").lower()
+        )
+        parts = ("", "", address.street, address.city, address.region, address.postal_code,
+                 address.country)  # fmt: skip
+        prefix = f"ADR;TYPE={adr_type}" if adr_type else "ADR"
+        lines.append(prefix + ":" + ";".join(_escape(p or "") for p in parts))
     note = "\n\n".join(
         part
         for part in (
@@ -102,6 +111,7 @@ class ParsedCard:
     notes: str = ""
     emails: list[tuple[str, str, bool]] = field(default_factory=list)  # (email, label, pref)
     phones: list[tuple[str, str]] = field(default_factory=list)  # (number, label)
+    addresses: list[dict[str, str]] = field(default_factory=list)  # C-19
     tags: list[str] = field(default_factory=list)
     linkedin_url: str = ""  # C-18
 
@@ -200,6 +210,22 @@ def parse_vcards(text: str) -> list[ParsedCard]:
             link = _unescape(value).replace("\\:", ":").strip()
             if "linkedin.com/in/" in link.lower():
                 card.linkedin_url = link
+        elif name == "ADR" and value.strip(";").strip():
+            box, extended, street, city, region, code, country = [*_split(value, ";"), *[""] * 7][
+                :7
+            ]
+            ignore = {"PREF", "POSTAL", "PARCEL", "DOM", "INTL"}
+            card.addresses.append(
+                {
+                    "label": _label(params.get("TYPE", []), ignore),
+                    # street first, then the apartment or suite, then a PO box
+                    "street": "\n".join(p.strip() for p in (street, extended, box) if p.strip()),
+                    "city": city.strip(),
+                    "region": region.strip(),
+                    "postal_code": code.strip(),
+                    "country": country.strip(),
+                }
+            )
         elif name == "CATEGORIES":
             card.tags.extend(t.strip() for t in _split(value, ",") if t.strip())
     return cards

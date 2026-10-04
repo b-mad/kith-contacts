@@ -133,6 +133,10 @@ def seed(session: Session) -> Seeded:
             {"number": "+1 617 555 0101", "label": "work"},
             {"number": "+44 20 7946 0958", "label": "mobile"},
         ],
+        addresses=[  # C-19: a work address is shown; a home address is personal
+            {"label": "work", "street": "1 Harbor Way", "city": "Boston", "region": "MA"},
+            {"label": "home", "street": "9 Zqxcanarystreet", "city": "Zqxcanaryhometown"},
+        ],
         custom_fields=[
             {"name": "Birthday", "value": "zqxcanarybirthday March 3"},
             {"name": "Family", "value": "zqxcanaryfamily two kids"},
@@ -276,6 +280,7 @@ def test_redaction_keeps_only_public_fields(db_session: Session) -> None:
     assert out.notes is None
     assert [e.email for e in out.emails] == ["maria@northwind.example"]
     assert [p.label for p in out.phones] == ["work"]
+    assert [a.city for a in out.addresses] == ["Boston"]
     assert out.links.mailto == "mailto:maria@northwind.example"
     assert out.links.tel is not None
     assert "7946" not in out.links.tel
@@ -533,7 +538,7 @@ def test_card_shows_placeholders_for_what_is_hidden(
     assert "Maria Lopez" in card
     assert "HL7 interfaces" in card
     assert 'data-testid="hidden-notes"' in card
-    assert "2 personal addresses or numbers hidden while presenting" in card
+    assert "3 personal addresses or numbers hidden while presenting" in card  # + home (C-19)
     assert "1 private tag hidden while presenting" in card
     assert "1 private list hidden while presenting" in card
     assert "2 private fields hidden while presenting" in card

@@ -256,7 +256,7 @@ def test_json_and_csv_exports_carry_the_profile(client: TestClient, db_session: 
     doc = {"format": FORMAT, "contacts": [{**record, "display_name": "Maria Copy"}]}
     assert rows_from_json(json.dumps(doc))[0]["linkedin_url"] == MARIA
     csv_text = export_csv(db_session)
-    assert csv_text.splitlines()[0].endswith(",linkedin")
+    assert "linkedin" in csv_text.splitlines()[0].split(",")
     assert MARIA in csv_text
 
 
