@@ -78,6 +78,7 @@ def test_container_instances_restore_on_an_empty_database() -> None:
 def test_launchers_write_every_setting_compose_reads() -> None:
     used = set(re.findall(r"\$\{([A-Z_]+)(?::[-?][^}]*)?\}", COMPOSE))
     provided = {"APP_VERSION", "CONTACTS_BACKUPS"}  # exported by the start scripts
+    provided |= {"APP_UID", "APP_GID"}  # macOS/Linux: the computer's user; else the image's
     optional = {
         "BACKUP_RETENTION_DAYS",
         "SEMANTIC_SEARCH",
@@ -208,3 +209,12 @@ def test_bundle_permissions_and_line_endings(zip_path: Path) -> None:
         assert b"\n" not in bat.replace(b"\r\n", b"")
         assert b"\n" not in ps1.replace(b"\r\n", b"")
         assert b"\r\n" not in zf.read(f"{top}/program/deploy/mac/start.sh")
+
+
+@pytest.mark.req("I-10", "N-06")
+def test_instances_run_as_the_computers_user_when_given() -> None:
+    """Docker Desktop on a Mac lets only the folder's owner write the backups (found on a Mac)."""
+    block = COMPOSE.split("x-instance: &instance")[1].split("x-instance-env")[0]
+    assert 'user: "${APP_UID:-10001}:${APP_GID:-10001}"' in block
+    assert "APP_UID: ${APP_UID:-10001}" in _service("setup")
+    assert 'APP_UID="$(id -u)"' in MAC_START

@@ -117,6 +117,12 @@ mkdir -p "$DATA/Backups/work" "$DATA/Backups/personal"
 APP_VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' "$PROGRAM/pyproject.toml" | head -1)"
 export APP_VERSION
 export CONTACTS_BACKUPS="$DATA/Backups"
+# Run the app as you: Docker Desktop lets only the folder's owner write your backups there.
+if [ "$(id -u)" != "0" ]; then
+  APP_UID="$(id -u)"
+  APP_GID="$(id -g)"
+  export APP_UID APP_GID
+fi
 say ""
 say "Starting Contact Manager $APP_VERSION."
 say "The first start, and the first start after an update, take 5 to 10 minutes."

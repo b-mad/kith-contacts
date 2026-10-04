@@ -18,10 +18,11 @@ import contextlib
 import os
 import secrets as token
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable, MutableMapping, Sequence
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from urllib.parse import quote
 
@@ -35,7 +36,7 @@ DB_SECRETS = Path("/run/contacts/db")
 INSTANCES = Path("/run/contacts/instances")
 INSTANCE = Path("/run/contacts/instance")
 BACKUPS = Path("/backups")
-APP_UID = 10001  # the image's "contacts" user (Dockerfile)
+APP_UID = 10001  # the image's "contacts" user (Dockerfile); compose may run as another
 ADMIN_PASSWORD_FILE = "postgres-password"  # noqa: S105 - a file name, not a password
 URL_FILE = "database-url"
 INSTANCE_NAMES = ("work", "personal")
@@ -124,13 +125,28 @@ def admin_url(password: str, host: str = "db", port: int = 5432) -> str:
     return f"postgresql://postgres:{quote(password, safe='')}@{host}:{port}/postgres"
 
 
-def give_to_app(path: Path, uid: int = APP_UID) -> None:
-    """``setup`` runs as root so it can hand files and folders to the app user. Some host
-    folders (Docker Desktop shares) ignore ownership; they are writable anyway."""
+def app_ids(environ: Mapping[str, str] = os.environ) -> tuple[int, int]:
+    """The user the instances run as: ``APP_UID``/``APP_GID`` from compose, else the image's.
+
+    The start scripts pass the computer's own user on macOS and Linux, because Docker Desktop
+    shows a shared folder as owned by that user and lets nobody else write to it.
+    """
+
+    def number(key: str) -> int:
+        value = environ.get(key, "").strip()
+        return int(value) if value.isdigit() else APP_UID
+
+    return number("APP_UID"), number("APP_GID")
+
+
+def give_to_app(path: Path, ids: tuple[int, int] | None = None) -> None:
+    """``setup`` runs as root so it can hand files and folders to the app user. A shared
+    folder that ignores the change is fine as long as the app runs as its owner (above)."""
     if os.geteuid() != 0:
         return
+    uid, gid = ids or app_ids()
     with contextlib.suppress(OSError):
-        os.chown(path, uid, uid)
+        os.chown(path, uid, gid)
 
 
 def setup_instances(
@@ -179,6 +195,22 @@ def prepare_environment(environ: MutableMapping[str, str], folder: Path = INSTAN
         environ["DATABASE_URL"] = url
 
 
+def check_backup_folder(settings: Settings) -> None:
+    """N-06: an instance that cannot write its backups must not look healthy. Refuse to start
+    with a message the Start script shows, instead of failing quietly every night."""
+    folder = settings.resolved_backup_dir
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=folder, prefix=".write-check-"):
+            pass
+    except OSError as exc:
+        raise ContainerError(
+            f"Cannot write backups to {folder} (the Contact Manager/Backups folder on this "
+            f"computer): {exc.strerror or exc}. Contact Manager does not start without "
+            "working backups."
+        ) from exc
+
+
 def restore_on_first_start(settings: Settings, *, say: Say = _say) -> BackupFile | None:
     """I-12: a brand-new database is filled from the newest backup in its folder."""
     try:
@@ -199,6 +231,7 @@ def serve(environ: MutableMapping[str, str] = os.environ) -> int:
     except ValidationError as exc:
         print(f"Invalid settings in settings.env:\n{exc}", file=sys.stderr)
         return 2
+    check_backup_folder(settings)
     wait_for_database(str(settings.database_url))
     if environ.get("RESTORE_ON_EMPTY", "").lower() in {"1", "true", "yes"}:
         restore_on_first_start(settings)

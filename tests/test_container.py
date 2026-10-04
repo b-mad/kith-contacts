@@ -427,3 +427,35 @@ def test_move_to_containers_copies_a_backup_and_writes_settings(
             move({}, data=tmp_path / "other")
     finally:
         drop_database(spec, admin_url)
+
+
+@pytest.mark.req("I-10", "N-06")
+def test_app_user_comes_from_compose_or_the_image() -> None:
+    assert container.app_ids({}) == (container.APP_UID, container.APP_UID)
+    assert container.app_ids({"APP_UID": "501", "APP_GID": "20"}) == (501, 20)
+    assert container.app_ids({"APP_UID": "", "APP_GID": "x"}) == (
+        container.APP_UID,
+        container.APP_UID,
+    )
+
+
+@pytest.mark.req("I-10", "N-06")
+def test_setup_hands_files_to_the_computers_user(tmp_path: Path) -> None:
+    target = tmp_path / "work"
+    target.mkdir()
+    container.give_to_app(target, (501, 20))
+    if os.geteuid() == 0:
+        assert (target.stat().st_uid, target.stat().st_gid) == (501, 20)
+
+
+@pytest.mark.req("I-10", "N-06")
+def test_an_instance_that_cannot_write_backups_does_not_start(
+    settings: Settings, tmp_path: Path
+) -> None:
+    ok = settings.model_copy(update={"backup_dir": tmp_path / "Backups" / "work"})
+    container.check_backup_folder(ok)
+    assert list((tmp_path / "Backups" / "work").iterdir()) == []  # the check leaves nothing
+    blocked = tmp_path / "a-file"
+    blocked.write_text("not a folder")
+    with pytest.raises(container.ContainerError, match="Cannot write backups"):
+        container.check_backup_folder(settings.model_copy(update={"backup_dir": blocked}))

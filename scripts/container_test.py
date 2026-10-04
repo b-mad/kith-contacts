@@ -66,6 +66,8 @@ class Stack:
             "APP_VERSION": app_version(),
             "CONTACTS_BACKUPS": str(self.backups),
         }
+        if os.getuid() != 0 and "APP_UID" not in self.env:  # as deploy/mac/start.sh does
+            self.env |= {"APP_UID": str(os.getuid()), "APP_GID": str(os.getgid())}
 
     def compose(self, *args: str, check_ok: bool = True) -> subprocess.CompletedProcess[str]:
         argv = [
@@ -150,7 +152,9 @@ def run(stack: Stack) -> None:
     check(not inspect(db_id)["HostConfig"]["PortBindings"], "the database publishes no port")
     work = inspect(stack.compose("ps", "-q", "work").stdout.strip())
     check(work["HostConfig"]["ReadonlyRootfs"], "the app's filesystem is read-only")
-    check(work["Config"]["User"] == "contacts", "the app runs as the unprivileged user")
+    user = work["Config"]["User"]
+    expected = f"{stack.env.get('APP_UID', '10001')}:{stack.env.get('APP_GID', '10001')}"
+    check(user == expected, f"the app runs as an unprivileged user ({user})")
     bindings = work["HostConfig"]["PortBindings"][f"{PORTS['work']}/tcp"]
     check(
         all(b["HostIp"] == "127.0.0.1" for b in bindings), "the app listens on this computer only"

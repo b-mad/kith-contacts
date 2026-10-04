@@ -23,6 +23,9 @@ x-image: &image
 
 x-instance: &instance
   <<: *image
+  # The start scripts pass the computer's own user (macOS, Linux) so the app may write to the
+  # shared backup folder; otherwise the image's unprivileged user.
+  user: "${APP_UID:-10001}:${APP_GID:-10001}"
   restart: unless-stopped
   depends_on:
     setup:
@@ -92,6 +95,8 @@ services:
         condition: service_healthy
     environment:
       CONTACTS_INSTANCES: ${COMPOSE_PROFILES:-work}
+      APP_UID: ${APP_UID:-10001}
+      APP_GID: ${APP_GID:-10001}
     volumes:
       - db-secrets:/run/contacts/db:ro
       - work-instance:/run/contacts/instances/work

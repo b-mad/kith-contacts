@@ -229,6 +229,7 @@ the folder.
 | **Windows:** Docker says WSL needs updating | Click Docker's update button and restart if it asks. |
 | "port is already allocated" or "address already in use" | Another program uses that port. Change `WORK_PORT` or `PERSONAL_PORT` in settings.env (see above), then start again. |
 | "failed to resolve", "network" or "timeout" during the first start | Check the internet connection and start again. Some work networks block the downloads: use another network for the first start, or ask your IT department. |
+| "Cannot write backups" | Contact Manager won't run without working backups. Check that the **Contact Manager** folder in your home folder belongs to you and isn't locked or read-only (Mac: select it, **File**, **Get Info**, **Sharing & Permissions**). Then start again. |
 | The browser says "This site can't be reached" | Wait a minute after signing in, then reload. If it still fails, double-click **Start Contact Manager**. |
 | Settings says search by meaning is off | Its language model couldn't be downloaded during the first start. Everything else works. It will try again with the next update. |
 | Anything else | Copy the text in the window and send it to whoever gave you Contact Manager. More detail is in Docker Desktop: go to **Containers**, then **contact-manager**, then **work** (or **personal**), then **Logs**. |
