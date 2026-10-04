@@ -143,7 +143,8 @@ def test_names_typed_at_first_start_cannot_break_the_settings_file() -> None:
         [  # noqa: S607
             "bash",
             "-c",
-            f'source <(sed -n "/^clean()/,/^}}/p" "{script}"); clean \'  Acme "Q$x`1`\\\\ \' Work',
+            # eval, not `source <(...)`: bash 3.2 on macOS sources nothing from a pipe
+            f'eval "$(sed -n "/^clean()/,/^}}/p" "{script}")"; clean \'  Acme "Q$x`1`\\\\ \' Work',
         ],
         capture_output=True,
         text=True,

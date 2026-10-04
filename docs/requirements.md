@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.11 |
+| Version | 1.11.1 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-04 |
@@ -87,7 +87,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 
 | ID | Requirement | Priority | Phase |
 | --- | --- | --- | --- |
-| C-01 | Create, view, edit and archive a contact. Only a display name is required. | Must | 1 |
+| C-01 | Create, view, edit and archive a contact. Only a display name is required. The card shows the first and last name and nickname wherever they differ from the display name. | Must | 1 |
 | C-02 | Zero or more email addresses per contact, each with a label (work, personal) and one marked primary. | Must | 1 |
 | C-03 | Zero or more phone numbers per contact, each with a label. | Must | 1 |
 | C-04 | Optional Slack handle and Slack DM link; optional Microsoft Teams chat link (`https://teams.microsoft.com/l/chat/0/0?users=<email>`), generated from the primary email when blank. Both Slack and Teams actions are shown on every card. | Must | 1 |
@@ -390,6 +390,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.11.1 | 2026-10-04 | Clarified C-01: the card and search preview show the first and last name and nickname when they differ from the display name. No requirement added or removed. | — |
 | 1.11 | 2026-10-04 | Phase 9 — Containers added: I-10 container deployment, I-11 backup before upgrade, I-12 restore on first start, I-13 double-click start for macOS and Windows with an install guide, I-14 version shown. N-01, N-04 and N-06 clarified for container installs. | 0019 |
 | 1.10 | 2026-10-03 | C-18 LinkedIn profile link added in a new Phase 8 — Profiles. Data model gains contact.linkedin_url. | 0018 |
 | 1.9.1 | 2026-10-03 | Phases 6 and 7 delivered. Clarified I-09: a JSON copy also carries the keep-in-touch cadence and snooze (C-15, C-16) and private flags (P-03). No requirement added or removed. | 0016, 0017 |

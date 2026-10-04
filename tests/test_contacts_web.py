@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.datastructures import FormData
 
+from app.main import other_names
 from app.web import parse_contact_form
 
 TOKEN = re.compile(r'name="csrf_token" value="([^"]+)"')
@@ -187,6 +188,56 @@ def test_card_shows_one_click_actions(client: TestClient, types: dict[str, int])
         'href="https://teams.microsoft.com/l/chat/0/0?users=maria@acme.example"' in html
     )  # generated from the primary email
     assert 'data-testid="action-slack">Slack @maria' in html  # handle shown when no DM link
+
+
+@pytest.mark.req("C-01")
+def test_card_shows_name_parts_the_display_name_hides(
+    client: TestClient, types: dict[str, int]
+) -> None:
+    rob = api_create(
+        client,
+        display_name="Rob Smith",
+        first_name="Robert",
+        last_name="Smith",
+        nickname="Bobby",
+        contact_type_id=types["Employee"],
+    )
+    plain = api_create(
+        client,
+        display_name="Maria Lopez",
+        first_name="Maria",
+        last_name="Lopez",
+        contact_type_id=types["Employee"],
+    )
+
+    card = client.get(f"/contacts/{rob['id']}").text
+    preview = client.get(f"/contacts/{rob['id']}/preview").text
+
+    expected = "Full name: Robert Smith · Goes by \u201cBobby\u201d"
+    assert f'data-testid="other-names">{expected}</p>' in card
+    assert f'data-testid="preview-other-names">{expected}</p>' in preview
+    assert 'data-testid="other-names"' not in client.get(f"/contacts/{plain['id']}").text
+
+
+@pytest.mark.req("C-01")
+@pytest.mark.parametrize(
+    ("display", "first", "last", "nick", "expected"),
+    [
+        ("Maria Lopez", "Maria", "Lopez", None, []),
+        (" maria  lopez", "Maria", "Lopez", None, []),  # case and spacing don't count
+        ("Rob Smith", "Robert", "Smith", None, ["Full name: Robert Smith"]),
+        ("Rob", "Robert", None, None, ["First name: Robert"]),
+        ("Dr. Chen", None, "Chen-Wu", None, ["Last name: Chen-Wu"]),
+        ("Bob Smith", "Robert", "Smith", "Bob", ["Full name: Robert Smith"]),  # Bob is shown
+        ("Kate", "Kate", None, "Katie", ["Goes by \u201cKatie\u201d"]),
+        ("Kate", "Katie", None, "Katie", ["First name: Katie"]),  # nickname = first name
+        ("Ana", None, None, None, []),
+    ],
+)
+def test_other_names(
+    display: str, first: str | None, last: str | None, nick: str | None, expected: list[str]
+) -> None:
+    assert other_names(display, first, last, nick) == expected
 
 
 @pytest.mark.req("C-07")

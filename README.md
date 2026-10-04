@@ -19,6 +19,8 @@ everything else runs in containers (ADR-0019).
 
 - [uv](https://docs.astral.sh/uv/) (installs Python 3.12 for you)
 - Docker Desktop (for PostgreSQL), or a local PostgreSQL 16+ with `pg_trgm`
+- PostgreSQL client tools 17+ (`pg_dump`, `pg_restore`) for the backup and container tests —
+  macOS: `brew install libpq && brew link --force libpq`
 
 ## Quick start
 

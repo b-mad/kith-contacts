@@ -139,6 +139,26 @@ def initials(name: str) -> str:
     )
 
 
+def _same_name(a: str, b: str) -> bool:
+    return " ".join(a.split()).casefold() == " ".join(b.split()).casefold()
+
+
+def other_names(
+    display_name: str, first_name: str | None, last_name: str | None, nickname: str | None
+) -> list[str]:
+    """C-01: the parts of a contact's name that the display name doesn't already show."""
+    first, last, nick = ((v or "").strip() for v in (first_name, last_name, nickname))
+    parts: list[str] = []
+    full = " ".join(p for p in (first, last) if p)
+    if full and not _same_name(full, display_name):
+        label = "Full name" if first and last else "First name" if first else "Last name"
+        parts.append(f"{label}: {full}")
+    shown = {w.casefold() for w in display_name.split()} | {first.casefold()}
+    if nick and nick.casefold() not in shown and not _same_name(nick, display_name):
+        parts.append(f"Goes by \u201c{nick}\u201d")
+    return parts
+
+
 def build_templates(settings: Settings) -> Jinja2Templates:
     templates = Jinja2Templates(directory=APP_DIR / "templates")
     templates.env.globals["instance"] = settings
@@ -146,6 +166,7 @@ def build_templates(settings: Settings) -> Jinja2Templates:
     templates.env.filters["phone"] = display_phone
     templates.env.filters["slack_handle"] = slack_handle_display
     templates.env.filters["initials"] = initials
+    templates.env.globals["other_names"] = other_names
     templates.env.filters["search_summary"] = describe_query
     templates.env.filters["highlight"] = highlight
     templates.env.filters["linkedin_name"] = linkedin_name

@@ -14,6 +14,8 @@
       </div>
       <div>
       <h1>{{ c.display_name }}{% if c.is_favorite %} <span class="star" title="Favorite" aria-label="Favorite">★</span>{% endif %}</h1>
+      {% set alt = other_names(c.display_name, c.first_name, c.last_name, c.nickname) %}
+      {% if alt %}<p class="muted" data-testid="other-names">{{ alt | join(" · ") }}</p>{% endif %}
       {% if c.pronunciation %}<p class="muted">Pronounced “{{ c.pronunciation }}”</p>{% endif %}
       {% if reminder %}<p class="kit-line kit-{{ reminder.state }}" data-testid="kit-line"><a href="#kit-h">Keep in touch: {{ reminder.describe }}</a></p>{% endif %}
       <p class="subtitle">

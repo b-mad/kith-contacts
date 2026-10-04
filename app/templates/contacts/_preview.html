@@ -9,6 +9,8 @@
     {% else %}<span class="photo preview-photo initials" aria-hidden="true">{{ c.display_name | initials }}</span>{% endif %}
     <div class="preview-who">
       <h2 id="preview-name" class="preview-name">{{ c.display_name }}{% if c.is_favorite %} <span class="star" aria-label="Favorite">★</span>{% endif %}</h2>
+      {% set alt = other_names(c.display_name, c.first_name, c.last_name, c.nickname) %}
+      {% if alt %}<p class="muted" data-testid="preview-other-names">{{ alt | join(" · ") }}</p>{% endif %}
       {% if c.title %}<p class="muted">{{ c.title }}</p>{% endif %}
       {% set org = [c.team, c.company] | select | list %}
       {% if org %}<p class="muted">{{ org | join(" · ") }}</p>{% endif %}
