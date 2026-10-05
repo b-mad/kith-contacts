@@ -1,6 +1,6 @@
 # ADR-0025: Publish as open source under the Apache License 2.0
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-10-05)
 - **Date:** 2026-10-05
 - **Deciders:** Bryan Madsen
 - **Requirements affected:** N-13 added (Phase 14); no existing requirement changes meaning

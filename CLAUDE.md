@@ -30,6 +30,10 @@ requirements, and do not silently deviate from an ADR.
 - Keep changes small and focused; one requirement or fix per commit when possible.
 - The product is **Kith Contacts** (N-12, ADR-0024). Do not bring back an earlier name in code,
   scripts, launchers or docs; `tests/test_naming.py` fails on it.
+- The repository is public (N-13, ADR-0025, Apache-2.0). A new bundled font, library, outline
+  or data set needs an entry in `THIRD_PARTY_NOTICES` and a rule in
+  `tests/test_release_notices.py`. Use made-up people and `.example` addresses only; never
+  commit real contacts, backups, keys or `.env` files (`tests/test_release_hygiene.py`).
 - Schema changes: edit `app/models.py` **and** add an Alembic migration in
   `migrations/versions/` (`make migration m="describe change"`), then review
   the generated file by hand. Migrations must upgrade and downgrade cleanly.
