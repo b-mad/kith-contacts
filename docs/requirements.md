@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.16 |
+| Version | 1.17 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-05 |
@@ -240,6 +240,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | N-10 | Maintainability | Typed Python (type hints checked by mypy, Pydantic models), versioned migrations, ≥ 80% test coverage overall and on search and list logic. |
 | N-11 | Portability | Full export to open formats (CSV, JSON, vCard) per instance so data is never locked in. |
 | N-12 | Identity | The product is named **Kith Contacts**. The name is used for everything a person sees or downloads (pages, launchers, messages, install guide, bundle zip, image title) and for the Compose project `kith-contacts`, the `~/KithContacts` data folder, the program folder, the image, the Python package, the JSON export format `kith-contacts/1` (import also accepts `contacts-app/1`) and the model cache `~/.cache/kith-contacts/`. "Kith" alone appears only in running text after the full name. Moving an existing install is the I-12 restore from its backups (ADR-0024). |
+| N-13 | Open source | The source is published under the Apache License 2.0 (ADR-0025). The repository carries `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES` (every bundled font, library, outline and data set, and the downloaded model, with its licence and required attribution), `SECURITY.md`, `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`, and the install zip carries the licence files. It contains no secrets, no real personal data and no real addresses (`.example` domains only), in the files or in the published history. A test fails when a bundled asset has no notice. |
 
 ## 6. Data model
 
@@ -301,6 +302,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 11 — Birthdays and private types | Birthdays with reminders; private contact types | C-20, C-21, P-08 | 1–2 days |
 | 12 — Map and local time | Offline map, local time, near search, directions | C-22, C-23, S-13, S-14, M-06 | 4–5 days |
 | 13 — Name ✅ | Rename to Kith Contacts everywhere for the public release; one-time move of the owner's install through backup and restore | N-12 | 1–2 days |
+| 14 — Open source release | LICENSE and notices, project files, README for strangers, clean sample data, rewritten author addresses, name and policy checks | N-13 | 2–3 days |
 
 ### Phase 0 — Foundation
 
@@ -418,7 +420,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 - [ ] Is a directory export (Outlook / Entra ID CSV) available to seed the business instance in Phase 3?
 - [x] Contact map and time-zone offsets → offline ZIP and city data (`zipcodes`, GeoNames extract) and a tile-free map (ADR-0023).
 - [ ] Is "Kith Contacts" clear to use? Check GitHub repository availability and search USPTO software classes 9 and 42 before the first public release (ADR-0024).
-- [ ] Which open-source licence for the public release? The repository has no `LICENSE` file yet; decide in its own ADR before publishing.
+- [ ] Which open-source licence for the public release? Proposed: Apache-2.0 (ADR-0025); accept or choose another before publishing.
 
 ## 10. Risks
 
@@ -436,6 +438,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.17 | 2026-10-05 | N-13 added in a new Phase 14: publish as open source under the Apache License 2.0 with third-party notices, project files and a clean history. Proposed; not yet implemented. | 0025 |
 | 1.16 | 2026-10-05 | N-12 added in a new Phase 13: the product is named Kith Contacts everywhere (UI, launchers, bundle, Compose project, data folder, export format, model cache) for the public open-source release; the owner's install moves once through backup and restore (I-12). Delivered. | 0024 |
 | 1.15 | 2026-10-04 | C-22 place lookup, C-23 local time, S-13 map, S-14 near filter and M-06 directions added in a new Phase 12. Data model gains place columns on `contact_address`. N-04 clarified (links the user clicks). Open question on map data closed. | 0023 |
 | 1.14 | 2026-10-04 | C-20 birthdays, C-21 birthday reminders on Reconnect and P-08 private contact types added in a new Phase 11. Data model gains `contact.birthday` and `contact_type.is_private`. Clarified P-02 (birthdays are personal) and D-01, D-02, D-03, I-09 (birthdays included). | 0022 |
