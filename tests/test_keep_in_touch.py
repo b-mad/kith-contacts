@@ -295,7 +295,7 @@ def due_people(client: TestClient, db_session: Session) -> dict[str, Contact]:
     people = {
         # monthly, last call 70 days ago -> overdue by about 40 days
         "very": _person(
-            client, db_session, "Vera Overdue", "1m", called_days_ago=70, email="v@x.io"
+            client, db_session, "Vera Overdue", "1m", called_days_ago=70, email="v@x.example"
         ),
         # every 2 weeks, last call 15 days ago -> overdue by 1 day
         "just": _person(client, db_session, "Justin Late", "2w", called_days_ago=15),
@@ -335,7 +335,7 @@ def test_reconnect_page_groups_people_and_offers_actions(
     names = re.findall(r'class="reconnect-name">([^<]+)<', page)
     assert names == ["Vera Overdue", "Justin Late", "Sunny Soon"]
     assert "Last:</span> Call ·" in page
-    assert 'href="mailto:v@x.io" data-log-kind="email"' in page
+    assert 'href="mailto:v@x.example" data-log-kind="email"' in page
     assert 'aria-label="Snooze Justin Late for 2 weeks"' in page
 
 
@@ -410,7 +410,7 @@ def test_due_filter_on_people_with_chip_and_saved_search(
 
 @pytest.mark.req("C-17")
 def test_email_and_call_links_offer_the_log_prompt(client: TestClient, db_session: Session) -> None:
-    contact = _person(client, db_session, "Prompt Me", None, email="p@x.io")
+    contact = _person(client, db_session, "Prompt Me", None, email="p@x.example")
     page = client.get(f"/contacts/{contact.id}").text
     assert f'data-log-kind="email" data-log-contact="{contact.id}"' in page
     assert 'data-testid="log-prompt"' in page

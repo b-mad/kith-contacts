@@ -54,8 +54,8 @@ def test_finds_shared_email_and_similar_name_at_same_company(
     client: TestClient, db_session: Session
 ) -> None:
     a = _new(client, db_session, "Maria Lopez", company="Acme Health",
-             emails=[{"email": "maria@acme.com"}])  # fmt: skip
-    b = _new(client, db_session, "M. Lopez", emails=[{"email": "MARIA@acme.com"}])
+             emails=[{"email": "maria@acme.example"}])  # fmt: skip
+    b = _new(client, db_session, "M. Lopez", emails=[{"email": "MARIA@acme.example"}])
     c = _new(client, db_session, "Maria Lopes", company="acme health")
     far = _new(client, db_session, "Maria Lopez", company="Other Co")
     archived = _new(client, db_session, "Maria Lopez", company="Acme Health")
@@ -63,7 +63,7 @@ def test_finds_shared_email_and_similar_name_at_same_company(
 
     pairs = find_duplicates(db_session)
     by_ids = {frozenset({p.a.id, p.b.id}): p for p in pairs}
-    assert "same email maria@acme.com" in by_ids[frozenset({a, b})].reasons
+    assert "same email maria@acme.example" in by_ids[frozenset({a, b})].reasons
     assert by_ids[frozenset({a, c})].reasons == ["similar name"]
     assert frozenset({a, far}) not in by_ids  # different companies
     assert not any(archived in k for k in by_ids)
@@ -85,13 +85,13 @@ def test_merge_moves_everything_and_keeps_a_snapshot(
     types = _types(db_session)
     boss = _new(client, db_session, "Boss Person")
     keep = _new(client, db_session, "Dev Patel", title="Engineer", company="Acme Health",
-                notes="Met at HIMSS", emails=[{"email": "dev@acme.com", "is_primary": True}],
+                notes="Met at HIMSS", emails=[{"email": "dev@acme.example", "is_primary": True}],
                 phones=[{"number": "+14045550100"}],
                 custom_fields=[{"name": "Role", "value": "Lead"}])  # fmt: skip
     other = _new(client, db_session, "Devendra Patel", title="Staff Engineer",
                  team="Data Platform", manager_id=boss, notes="Prefers Teams",
                  contact_type_id=types["Vendor"],
-                 emails=[{"email": "DEV@acme.com"}, {"email": "dev.p@home.com"}],
+                 emails=[{"email": "DEV@acme.example"}, {"email": "dev.p@home.example"}],
                  phones=[{"number": "(404) 555-0100"}, {"number": "+14045550199"}],
                  custom_fields=[{"name": "role", "value": "ignored"},
                                 {"name": "Birthday", "value": "May 1"}])  # fmt: skip
@@ -117,8 +117,8 @@ def test_merge_moves_everything_and_keeps_a_snapshot(
     assert merged.manager_id == boss
     assert merged.contact_type.name == "Employee"  # conflict defaults to kept
     assert merged.notes == "Met at HIMSS\n\nPrefers Teams"
-    assert sorted(e.email for e in merged.emails) == ["dev.p@home.com", "dev@acme.com"]
-    assert [e.email for e in merged.emails if e.is_primary] == ["dev@acme.com"]
+    assert sorted(e.email for e in merged.emails) == ["dev.p@home.example", "dev@acme.example"]
+    assert [e.email for e in merged.emails if e.is_primary] == ["dev@acme.example"]
     assert sorted(p.number for p in merged.phones) == ["+14045550100", "+14045550199"]
     assert [(f.name, f.value) for f in merged.custom_fields] == [
         ("Role", "Lead"),

@@ -57,8 +57,8 @@ OFFICES: dict[str, dict[str, str]] = {
                          "postal_code": "30318"},
     "Peachtree Labs": {"street": "3100 Industrial Blvd", "city": "Duluth", "region": "GA",
                        "postal_code": "30096"},
-    "Buford Family Medicine": {"street": "12 Main St", "city": "Buford", "region": "GA",
-                               "postal_code": "30518"},
+    "Fernbrook Family Practice": {"street": "100 Sample Way", "city": "Buford", "region": "GA",
+                                  "postal_code": "30518"},
     "Gwinnett Health Partners": {"street": "700 Hospital Ave", "city": "Lawrenceville",
                                  "region": "GA", "postal_code": "30046"},
     "InterLink HL7 Services": {"street": "1600 Market St", "city": "Denver", "region": "CO",
@@ -411,7 +411,7 @@ def _customers() -> list[Sample]:
         Sample(
             "Ellen Park",
             "Customer",
-            "Buford Family Medicine",
+            "Fernbrook Family Practice",
             "Office Manager",
             works_on="Pilot site for provider ordering",
             location="Buford, GA",
@@ -419,7 +419,7 @@ def _customers() -> list[Sample]:
         Sample(
             "Dr. Omar Siddiqui",
             "Customer",
-            "Buford Family Medicine",
+            "Fernbrook Family Practice",
             "Physician Owner",
             notes="Prefers phone calls",
             email=False,

@@ -72,8 +72,8 @@ def _rich_contact(client: TestClient, session: Session) -> int:
             "company": "LabCo",
             "pronunciation": "NOR-ah",
             "is_favorite": True,
-            "teams_url": "https://teams.microsoft.com/l/chat/0/0?users=nora@labco.com",
-            "emails": [{"email": "nora@labco.com", "is_primary": True}],
+            "teams_url": "https://teams.microsoft.com/l/chat/0/0?users=nora@labco.example",
+            "emails": [{"email": "nora@labco.example", "is_primary": True}],
             "phones": [{"number": "+14045550123", "label": "mobile"}],
             "custom_fields": [{"name": "Account #", "value": "LC-778"}],
         },
@@ -144,7 +144,7 @@ def test_copy_a_contact_to_another_instance(
         data={"csrf_token": token},
         files={"file": ("Nora-Kim.json", res.content, "application/json")},
     )
-    assert "email nora@labco.com already exists" in again.text
+    assert "email nora@labco.example already exists" in again.text
 
 
 @pytest.mark.req("I-09")
@@ -162,7 +162,7 @@ def test_json_rows_are_validated(client: TestClient, db_session: Session) -> Non
             {
                 "display_name": "Old Friend",
                 "archived_at": "2026-01-01T00:00:00+00:00",
-                "emails": [{"email": "old@friend.com"}, {"bad": 1}],
+                "emails": [{"email": "old@friend.example"}, {"bad": 1}],
                 "activities": [
                     {"kind": "call", "occurred_on": "2026-02-01", "summary": "Caught up"},
                     {"kind": "fax", "occurred_on": "2026-02-01", "summary": "skipped"},
