@@ -28,6 +28,8 @@ requirements, and do not silently deviate from an ADR.
   ```
 - Tests use real PostgreSQL (never mock the database) — ADR-0006.
 - Keep changes small and focused; one requirement or fix per commit when possible.
+- The product is **Kith Contacts** (N-12, ADR-0024). Do not bring back an earlier name in code,
+  scripts, launchers or docs; `tests/test_naming.py` fails on it.
 - Schema changes: edit `app/models.py` **and** add an Alembic migration in
   `migrations/versions/` (`make migration m="describe change"`), then review
   the generated file by hand. Migrations must upgrade and downgrade cleanly.
@@ -163,5 +165,5 @@ make migration m="add tags"  # new Alembic migration
 make model                   # install the search-by-meaning model once
 make test-model              # tests with the real model
 make container-test          # build the image and check the container install
-make bundle                  # dist/Contact-Manager-<version>.zip
+make bundle                  # dist/Kith-Contacts-<version>.zip
 ```

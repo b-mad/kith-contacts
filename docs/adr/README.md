@@ -53,3 +53,4 @@ not change meaning — those are logged in the requirements change log only.
 | [0021](0021-postal-addresses.md) | Postal addresses as structured rows with ISO country and state codes | Accepted | C-19, D-01, D-02, D-03, I-09 |
 | [0022](0022-birthdays-and-private-contact-types.md) | Birthdays as a partial date with Reconnect reminders; private contact types | Accepted | C-20, C-21, P-08, P-02 |
 | [0023](0023-map-local-time-and-directions.md) | Offline contact map, local time per contact, directions links | Accepted | C-22, C-23, S-13, S-14, M-06, N-04 |
+| [0024](0024-rename-to-kith-contacts.md) | Name the product Kith Contacts, everywhere | Accepted | N-12 |

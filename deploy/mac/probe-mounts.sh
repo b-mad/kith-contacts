@@ -1,5 +1,5 @@
 #!/bin/bash
-# Diagnose "Cannot write backups": can a Contact Manager container write to a folder shared
+# Diagnose "Cannot write backups": can a Kith Contacts container write to a folder shared
 # from this computer? (ADR-0019; works on macOS and Linux with Docker.)
 #
 #   bash deploy/mac/probe-mounts.sh            # from the program or repository folder
@@ -14,7 +14,7 @@ set -u
 
 PROGRAM="$(cd "$(dirname "$0")/../.." && pwd)"
 VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' "$PROGRAM/pyproject.toml" | head -1)"
-IMG="contact-manager:${VERSION:-dev}"
+IMG="kith-contacts:${VERSION:-dev}"
 ME="$(id -u):$(id -g)"
 HARDENED="--read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true"
 export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:$HOME/.docker/bin:/Applications/Docker.app/Contents/Resources/bin"
@@ -24,12 +24,12 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
-  echo "Image $IMG not found: double-click Start Contact Manager once (it builds it), then try again."
+  echo "Image $IMG not found: double-click Start Kith Contacts once (it builds it), then try again."
   exit 1
 fi
 
 TMP_BASE="$(mktemp -d "${TMPDIR:-/tmp}/cm-probe.XXXXXX")"
-HOME_BASE="$HOME/ContactManager/.probe"
+HOME_BASE="$HOME/KithContacts/.probe"
 LOCATIONS="$TMP_BASE|$HOME_BASE|/tmp/cm-probe-$$"
 failures=0
 results=""
@@ -95,7 +95,7 @@ $(docker run --rm --user "$user" $opts -v "$base/made-by-docker-$user-$flags:/b"
   rm -rf "$base"
 }
 
-echo "Contact Manager: shared-folder probe ($IMG, you are $ME)"
+echo "Kith Contacts: shared-folder probe ($IMG, you are $ME)"
 echo "Docker: $(docker version --format '{{.Server.Version}}' 2>/dev/null), $(docker info --format '{{.OperatingSystem}}' 2>/dev/null)"
 IFS='|' read -r -a bases <<< "$LOCATIONS"
 for base in "${bases[@]}"; do
@@ -104,14 +104,14 @@ for base in "${bases[@]}"; do
   printf '  %-8s %-11s %-9s %-30s %s\n' "RESULT" "USER" "OPTIONS" "FOLDER (MADE BY, HOW SHARED)" "WHAT THE CONTAINER SEES"
   probe_location "$base"
 done
-rmdir "$HOME/ContactManager" 2>/dev/null || true
+rmdir "$HOME/KithContacts" 2>/dev/null || true
 
 echo ""
 if [ "$failures" -eq 0 ]; then
   echo "Verdict: containers can write to shared folders here. A backup problem lies elsewhere;"
-  echo "send this output and the 'Cannot write backups' message to whoever gave you Contact Manager."
+  echo "send this output and the 'Cannot write backups' message to whoever gave you Kith Contacts."
 else
   echo "Verdict: $failures combination(s) cannot write:"
   printf '%b\n' "$results"
-  echo "Send this output to whoever gave you Contact Manager."
+  echo "Send this output to whoever gave you Kith Contacts."
 fi

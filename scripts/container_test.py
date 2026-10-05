@@ -30,7 +30,7 @@ from typing import Any
 from app.version import app_version
 
 ROOT = Path(__file__).resolve().parent.parent
-PROJECT = "contact-manager-test"
+PROJECT = "kith-contacts-test"
 PORTS = {"work": 5190, "personal": 5191}
 SETTINGS = """# written by scripts/container_test.py
 COMPOSE_PROFILES=work,personal
@@ -243,7 +243,7 @@ def mount_report(stack: Stack, service: str) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     del argv
     # a space in the path, as Windows user names often have ("C:\\Users\\Ann Lee")
-    with tempfile.TemporaryDirectory(prefix="contact manager test-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="kith contacts test-") as tmp:
         home = Path(tmp)
         stack = Stack(home)
         stack.settings.write_text(SETTINGS.format(**PORTS), encoding="utf-8")

@@ -163,16 +163,16 @@ def zip_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.mark.req("I-13")
 def test_bundle_has_launchers_guide_and_program(zip_path: Path) -> None:
-    top = f"ContactManager-{app_version()}"
-    assert zip_path.name == f"Contact-Manager-{app_version()}.zip"
+    top = f"KithContacts-{app_version()}"
+    assert zip_path.name == f"Kith-Contacts-{app_version()}.zip"
     with zipfile.ZipFile(zip_path) as zf:
         names = set(zf.namelist())
         for name in (
             "Start here.html",
-            "Start Contact Manager.command",
-            "Stop Contact Manager.command",
-            "Start Contact Manager.bat",
-            "Stop Contact Manager.bat",
+            "Start Kith Contacts.command",
+            "Stop Kith Contacts.command",
+            "Start Kith Contacts.bat",
+            "Stop Kith Contacts.bat",
             "program/Dockerfile",
             "program/compose.yaml",
             "program/uv.lock",
@@ -198,13 +198,13 @@ def test_bundle_never_carries_secrets_or_local_files(zip_path: Path) -> None:
 
 @pytest.mark.req("I-13")
 def test_bundle_permissions_and_line_endings(zip_path: Path) -> None:
-    top = f"ContactManager-{app_version()}"
+    top = f"KithContacts-{app_version()}"
     with zipfile.ZipFile(zip_path) as zf:
         mode = {i.filename: (i.external_attr >> 16) & 0o777 for i in zf.infolist()}
-        assert mode[f"{top}/Start Contact Manager.command"] == 0o755
+        assert mode[f"{top}/Start Kith Contacts.command"] == 0o755
         assert mode[f"{top}/program/deploy/mac/start.sh"] == 0o755
         assert mode[f"{top}/program/compose.yaml"] == 0o644
-        bat = zf.read(f"{top}/Start Contact Manager.bat")
+        bat = zf.read(f"{top}/Start Kith Contacts.bat")
         ps1 = zf.read(f"{top}/program/deploy/windows/start.ps1")
         assert b"\r\n" in bat
         assert b"\n" not in bat.replace(b"\r\n", b"")
@@ -232,4 +232,4 @@ def test_backup_folders_are_made_on_this_computer_before_start() -> None:
     assert WIN_START.index("'Backups') 'work'") < WIN_START.index("up -d --build")
     test = (ROOT / "scripts/container_test.py").read_text()
     assert "(stack.backups / name).mkdir(parents=True)" in test
-    assert 'prefix="contact manager test-"' in test  # a space, as Windows user names often have
+    assert 'prefix="kith contacts test-"' in test  # a space, as Windows user names often have

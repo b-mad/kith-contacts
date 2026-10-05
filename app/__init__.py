@@ -1,1 +1,1 @@
-"""Contact Manager application package."""
+"""Kith Contacts application package."""

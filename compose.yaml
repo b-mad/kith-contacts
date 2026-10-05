@@ -1,15 +1,15 @@
-# Contact Manager: container install (I-10, ADR-0019).
+# Kith Contacts: container install (I-10, ADR-0019).
 #
-# Normally started by "Start Contact Manager", which runs:
-#   docker compose --project-name contact-manager --env-file <home>/ContactManager/settings.env \
+# Normally started by "Start Kith Contacts", which runs:
+#   docker compose --project-name kith-contacts --env-file <home>/KithContacts/settings.env \
 #     -f compose.yaml up -d --build --wait
-# with APP_VERSION (from pyproject.toml) and CONTACTS_BACKUPS (<home>/ContactManager/Backups)
+# with APP_VERSION (from pyproject.toml) and CONTACTS_BACKUPS (<home>/KithContacts/Backups)
 # set in the environment. settings.env chooses the contact books (COMPOSE_PROFILES=work,personal)
 # and their names, colors, contact types and ports; it holds no passwords.
 #
 # Development keeps using docker-compose.db.yml and ./run.sh.
 
-name: contact-manager
+name: kith-contacts
 
 x-logging: &logging
   driver: json-file
@@ -18,7 +18,7 @@ x-logging: &logging
     max-file: "3"
 
 x-image: &image
-  image: contact-manager:${APP_VERSION:-dev}
+  image: kith-contacts:${APP_VERSION:-dev}
   pull_policy: never
 
 # Backup folders are shared from this computer. The Start scripts (and container-test) create
@@ -106,7 +106,7 @@ services:
       - work-instance:/run/contacts/instances/work
       - personal-instance:/run/contacts/instances/personal
       - type: bind
-        source: ${CONTACTS_BACKUPS:?run Start Contact Manager}
+        source: ${CONTACTS_BACKUPS:?run Start Kith Contacts}
         target: /backups
     networks: [backend]
     logging: *logging
@@ -127,7 +127,7 @@ services:
     volumes:
       - work-instance:/run/contacts/instance:ro
       - type: bind
-        source: ${CONTACTS_BACKUPS:?run Start Contact Manager}/work
+        source: ${CONTACTS_BACKUPS:?run Start Kith Contacts}/work
         target: /backups
 
   personal:
@@ -146,7 +146,7 @@ services:
     volumes:
       - personal-instance:/run/contacts/instance:ro
       - type: bind
-        source: ${CONTACTS_BACKUPS:?run Start Contact Manager}/personal
+        source: ${CONTACTS_BACKUPS:?run Start Kith Contacts}/personal
         target: /backups
 
 networks:

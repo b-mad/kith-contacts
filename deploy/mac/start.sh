@@ -1,12 +1,12 @@
 #!/bin/bash
-# Start Contact Manager on a Mac (I-13, ADR-0019).
-# Run by double-clicking "Start Contact Manager.command"; also works from a terminal.
+# Start Kith Contacts on a Mac (I-13, ADR-0019).
+# Run by double-clicking "Start Kith Contacts.command"; also works from a terminal.
 set -u
 
 PROGRAM="$(cd "$(dirname "$0")/../.." && pwd)"
-DATA="$HOME/ContactManager"
+DATA="$HOME/KithContacts"
 SETTINGS="$DATA/settings.env"
-PROJECT="contact-manager"
+PROJECT="kith-contacts"
 export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:$HOME/.docker/bin:/Applications/Docker.app/Contents/Resources/bin"
 
 say() { printf '%s\n' "$*"; }
@@ -53,7 +53,7 @@ first_start() {
   region="$(defaults read -g AppleLocale 2>/dev/null | sed -n 's/^[a-z]*_\([A-Z][A-Z]\).*/\1/p')"
   mkdir -p "$DATA"
   cat > "$SETTINGS" <<EOF
-# Contact Manager settings. Change a value, then double-click "Start Contact Manager" again.
+# Kith Contacts settings. Change a value, then double-click "Start Kith Contacts" again.
 # No passwords are kept here.
 
 # Contact books to run: work, personal, or work,personal
@@ -76,13 +76,13 @@ EOF
   say "Saved your answers in $SETTINGS"
 }
 
-say "Contact Manager"
+say "Kith Contacts"
 say "==============="
 
 # 1. Docker Desktop installed?
 if ! command -v docker >/dev/null 2>&1; then
   say ""
-  say "Docker Desktop is not installed yet. It is free and runs Contact Manager."
+  say "Docker Desktop is not installed yet. It is free and runs Kith Contacts."
   say "Opening the download page. Install it (step 1 in 'Start here'), then try again."
   open "https://www.docker.com/products/docker-desktop/"
   finish 1
@@ -124,12 +124,12 @@ if [ "$(id -u)" != "0" ]; then
   export APP_UID APP_GID
 fi
 say ""
-say "Starting Contact Manager $APP_VERSION."
+say "Starting Kith Contacts $APP_VERSION."
 say "The first start, and the first start after an update, take 5 to 10 minutes."
 if ! docker compose --project-name "$PROJECT" --env-file "$SETTINGS" -f "$PROGRAM/compose.yaml" \
     up -d --build --remove-orphans --wait --wait-timeout 300; then
   say ""
-  say "Contact Manager could not start. Look at the last lines above:"
+  say "Kith Contacts could not start. Look at the last lines above:"
   say " - 'port is already allocated' or 'address already in use': another program uses the"
   say "   port. Close it, or change WORK_PORT / PERSONAL_PORT in $SETTINGS."
   say " - 'failed to resolve' or 'network': check the internet connection and try again."
@@ -151,7 +151,7 @@ if [[ "$profiles" == *personal* ]]; then
   open "$url"
 fi
 say ""
-say "Contact Manager is running. Bookmark the page in your browser."
-say "It keeps running in Docker Desktop, also after a restart, until you use Stop Contact Manager."
+say "Kith Contacts is running. Bookmark the page in your browser."
+say "It keeps running in Docker Desktop, also after a restart, until you use Stop Kith Contacts."
 say "Backups are saved daily in $DATA/Backups"
 finish 0

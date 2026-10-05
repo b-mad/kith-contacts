@@ -9,7 +9,7 @@
 Passwords live only in Docker volumes: ``/run/contacts/db`` (shared by ``secrets``,
 PostgreSQL and ``setup``) and one ``/run/contacts/instance`` volume per instance, which
 only ``setup`` and that instance mount. Everything people may change is in
-``~/ContactManager/settings.env`` on the host and arrives as environment variables.
+``~/KithContacts/settings.env`` on the host and arrives as environment variables.
 """
 
 from __future__ import annotations
@@ -205,8 +205,8 @@ def check_backup_folder(settings: Settings) -> None:
             pass
     except OSError as exc:
         raise ContainerError(
-            f"Cannot write backups to {folder} (the ContactManager/Backups folder on this "
-            f"computer): {exc.strerror or exc}. Contact Manager does not start without "
+            f"Cannot write backups to {folder} (the KithContacts/Backups folder on this "
+            f"computer): {exc.strerror or exc}. Kith Contacts does not start without "
             "working backups."
         ) from exc
 
@@ -271,7 +271,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if command == "health":
             return health()
         if command in BACKUP_COMMANDS:
-            # e.g. docker compose -p contact-manager exec work python -m app.container backup
+            # e.g. docker compose -p kith-contacts exec work python -m app.container backup
             from scripts.backup import main as backup_main
 
             prepare_environment(os.environ)

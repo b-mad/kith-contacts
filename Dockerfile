@@ -1,5 +1,5 @@
-# Contact Manager app image (I-10, ADR-0019).
-# Built on each person's computer by "Start Contact Manager" (docker compose up --build).
+# Kith Contacts app image (I-10, ADR-0019).
+# Built on each person's computer by "Start Kith Contacts" (docker compose up --build).
 # PYTHON_IMAGE, PG_MAJOR and WITH_MODEL exist for `make container-test`; keep the defaults.
 ARG PYTHON_IMAGE=python:3.12-slim-trixie
 
@@ -44,7 +44,7 @@ RUN chmod -R a+rX,go-w /opt/contacts /opt/model
 
 FROM base
 ARG APP_VERSION=dev
-LABEL org.opencontainers.image.title="Contact Manager" \
+LABEL org.opencontainers.image.title="Kith Contacts" \
       org.opencontainers.image.description="Find people by context: team, manager, project, tags." \
       org.opencontainers.image.version="${APP_VERSION}"
 RUN useradd --system --uid 10001 --user-group --home-dir /nonexistent --no-create-home \

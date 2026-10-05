@@ -1,12 +1,12 @@
-# Start Contact Manager on Windows (I-13, ADR-0019).
-# Run by double-clicking "Start Contact Manager.bat". Works in Windows PowerShell 5.1 and later.
+# Start Kith Contacts on Windows (I-13, ADR-0019).
+# Run by double-clicking "Start Kith Contacts.bat". Works in Windows PowerShell 5.1 and later.
 # Keep this file plain ASCII: Windows PowerShell 5.1 reads files without a BOM as ANSI.
 
 $ErrorActionPreference = 'Continue'
 $Program = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$Data = Join-Path $env:USERPROFILE 'ContactManager'
+$Data = Join-Path $env:USERPROFILE 'KithContacts'
 $Settings = Join-Path $Data 'settings.env'
-$Project = 'contact-manager'
+$Project = 'kith-contacts'
 
 function Finish([int]$Code) {
     Write-Host ''
@@ -60,7 +60,7 @@ function First-Start {
         if ($name -match '-([A-Z]{2})$') { $region = $Matches[1] }
     } catch { }
     $text = @"
-# Contact Manager settings. Change a value, then double-click "Start Contact Manager" again.
+# Kith Contacts settings. Change a value, then double-click "Start Kith Contacts" again.
 # No passwords are kept here.
 
 # Contact books to run: work, personal, or work,personal
@@ -87,7 +87,7 @@ PHONE_REGION=$region
     Write-Host "Saved your answers in $Settings"
 }
 
-Write-Host 'Contact Manager'
+Write-Host 'Kith Contacts'
 Write-Host '==============='
 
 # 1. Docker Desktop installed?
@@ -97,7 +97,7 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         $env:Path = "$env:Path;$bin"
     } else {
         Write-Host ''
-        Write-Host 'Docker Desktop is not installed yet. It is free and runs Contact Manager.'
+        Write-Host 'Docker Desktop is not installed yet. It is free and runs Kith Contacts.'
         Write-Host "Opening the download page. Install it (step 1 in 'Start here'), then try again."
         Start-Process 'https://www.docker.com/products/docker-desktop/'
         Finish 1
@@ -139,13 +139,13 @@ $version = (Select-String -LiteralPath (Join-Path $Program 'pyproject.toml') -Pa
 $env:APP_VERSION = $version
 $env:CONTACTS_BACKUPS = (Join-Path $Data 'Backups') -replace '\\', '/'
 Write-Host ''
-Write-Host "Starting Contact Manager $version."
+Write-Host "Starting Kith Contacts $version."
 Write-Host 'The first start, and the first start after an update, take 5 to 10 minutes.'
 & docker compose --project-name $Project --env-file $Settings -f (Join-Path $Program 'compose.yaml') `
     up -d --build --remove-orphans --wait --wait-timeout 300
 if ($LASTEXITCODE -ne 0) {
     Write-Host ''
-    Write-Host 'Contact Manager could not start. Look at the last lines above:'
+    Write-Host 'Kith Contacts could not start. Look at the last lines above:'
     Write-Host " - 'port is already allocated' or 'address already in use': another program uses the"
     Write-Host "   port. Close it, or change WORK_PORT / PERSONAL_PORT in $Settings."
     Write-Host " - 'failed to resolve' or 'network': check the internet connection and try again."
@@ -167,7 +167,7 @@ if ($profiles -like '*personal*') {
     Start-Process $url
 }
 Write-Host ''
-Write-Host 'Contact Manager is running. Bookmark the page in your browser.'
-Write-Host 'It keeps running in Docker Desktop, also after a restart, until you use Stop Contact Manager.'
+Write-Host 'Kith Contacts is running. Bookmark the page in your browser.'
+Write-Host 'It keeps running in Docker Desktop, also after a restart, until you use Stop Kith Contacts.'
 Write-Host ('Backups are saved daily in ' + (Join-Path $Data 'Backups'))
 Finish 0

@@ -236,7 +236,7 @@ def create_app(
         engine.dispose()
 
     app = FastAPI(
-        title=f"Contacts · {settings.instance_name}",
+        title=f"Kith Contacts · {settings.instance_name}",
         lifespan=lifespan,
         docs_url="/docs" if not settings.is_production else None,
         redoc_url=None,

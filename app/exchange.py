@@ -1,6 +1,6 @@
 """Export (D-03) and import (D-01, D-02) of contacts.
 
-Exports: CSV (one row per contact), JSON (lossless, ``format: contacts-app/1``)
+Exports: CSV (one row per contact), JSON (lossless, ``format: kith-contacts/1``)
 and vCard. Imports: CSV with column mapping, or vCard; both go through
 ``plan_import`` (preview, duplicates, errors) and ``run_import``.
 """
@@ -41,7 +41,9 @@ from app.search import refresh_search
 from app.tags import add_tag
 from app.vcard import ParsedCard
 
-FORMAT = "contacts-app/1"
+FORMAT = "kith-contacts/1"
+#: Exports written before the product was renamed (ADR-0024) carry this name and still import.
+LEGACY_FORMATS = ("contacts-app/1",)  # old-name-ok
 MAX_IMPORT_ROWS = 5000
 MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
@@ -75,7 +77,7 @@ def _iso(value: datetime | None) -> str | None:
 
 
 def contact_record(contact: Contact, *, include_photo: bool = False) -> dict[str, Any]:
-    """One contact in the ``contacts-app/1`` format (D-03, I-09, C-12 merge snapshots)."""
+    """One contact in the ``kith-contacts/1`` format (D-03, I-09, C-12 merge snapshots)."""
     c = contact
     record: dict[str, Any] = {
         "id": c.id,
@@ -563,14 +565,15 @@ def _text(value: object) -> str | None:
 
 
 def rows_from_json(raw: str) -> list[dict[str, Any]]:
-    """Records from a ``contacts-app/1`` JSON export — one contact or a whole instance (I-09)."""
+    """Records from a ``kith-contacts/1`` JSON export (older exports: ``LEGACY_FORMATS``) —
+    one contact or a whole instance (I-09)."""
     if len(raw.encode("utf-8")) > MAX_IMPORT_BYTES:
         raise ContactError("File is larger than 5 MB", "file")
     try:
         doc = json.loads(raw)
     except ValueError:
         raise ContactError("That file is not valid JSON", "file") from None
-    if not isinstance(doc, dict) or doc.get("format") != FORMAT:
+    if not isinstance(doc, dict) or doc.get("format") not in (FORMAT, *LEGACY_FORMATS):
         raise ContactError("That JSON file is not an export from this app", "file")
     contacts = doc.get("contacts")
     if not isinstance(contacts, list) or not contacts:

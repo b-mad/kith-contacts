@@ -1,5 +1,5 @@
 [project]
-name = "contacts-app"
+name = "kith-contacts"
 version = "1.0.0"
 description = "Locally hosted contact manager for finding people by context."
 readme = "README.md"

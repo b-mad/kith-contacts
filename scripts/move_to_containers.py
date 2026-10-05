@@ -3,8 +3,8 @@
     make move-to-containers WORK=business-prod PERSONAL=personal-prod
 
 For each instance named: takes a fresh backup, copies it into the container install's backup
-folder (``~/ContactManager/Backups/work`` or ``…/personal``) and writes
-``~/ContactManager/settings.env`` with the same name, color, contact types, port, home
+folder (``~/KithContacts/Backups/work`` or ``…/personal``) and writes
+``~/KithContacts/settings.env`` with the same name, color, contact types, port, home
 company and phone region. On its first start each container instance finds its new database
 empty and restores that backup (I-12). Nothing in the old instances is changed.
 """
@@ -21,7 +21,7 @@ from app.backup import BackupError, backup
 from app.config import Settings, load_settings
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA = Path.home() / "ContactManager"
+DATA = Path.home() / "KithContacts"
 SLOTS = ("work", "personal")
 
 
@@ -38,8 +38,7 @@ def _quoted(value: str) -> str:
 def render_settings(instances: dict[str, Settings]) -> str:
     """settings.env in the same shape the start scripts write (deploy/mac/start.sh)."""
     lines = [
-        "# Contact Manager settings. Change a value, then double-click "
-        '"Start Contact Manager" again.',
+        '# Kith Contacts settings. Change a value, then double-click "Start Kith Contacts" again.',
         "# No passwords are kept here. Moved from ./run.sh instances by "
         "scripts/move_to_containers.py.",
         "",
@@ -114,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
     print("Next:")
     for name in names.values():
         print(f"  - stop ./run.sh {name} (changes made after this backup are not moved)")
-    print("  - double-click Start Contact Manager, or run deploy/mac/start.sh from here")
+    print("  - double-click Start Kith Contacts, or run deploy/mac/start.sh from here")
     print("  - check your contacts, then retire the old env files and any launchd backup job")
     return 0
 

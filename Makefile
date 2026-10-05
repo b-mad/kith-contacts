@@ -86,13 +86,13 @@ migration: ## New Alembic migration from model changes: make migration m="add ta
 	@test -n "$(m)" || (echo 'usage: make migration m="message"' && exit 2)
 	INSTANCE_ENV_FILE=instances/dev.env $(UV) alembic revision --autogenerate -m "$(m)"
 
-image: ## Build the app image contact-manager:<version> (ADR-0019)
-	docker build --build-arg APP_VERSION=$(VERSION) -t contact-manager:$(VERSION) .
+image: ## Build the app image kith-contacts:<version> (ADR-0019)
+	docker build --build-arg APP_VERSION=$(VERSION) -t kith-contacts:$(VERSION) .
 
 container-test: ## Build the image and check the whole container install on spare ports (I-10 to I-12)
 	$(UV) python -m scripts.container_test
 
-bundle: ## The zip people download: dist/Contact-Manager-<version>.zip (I-13)
+bundle: ## The zip people download: dist/Kith-Contacts-<version>.zip (I-13)
 	$(UV) python -m scripts.bundle
 
 move-to-containers: ## Move ./run.sh instances into the container install: make move-to-containers WORK=business-prod PERSONAL=personal-prod [FORCE=1]

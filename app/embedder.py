@@ -46,7 +46,7 @@ class ModelUnavailable(RuntimeError):
 
 
 def default_model_dir() -> Path:
-    return Path.home() / ".cache" / "contacts-app" / "models" / MODEL_NAME
+    return Path.home() / ".cache" / "kith-contacts" / "models" / MODEL_NAME
 
 
 def normalize(vectors: Vectors) -> Vectors:

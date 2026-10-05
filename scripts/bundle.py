@@ -1,15 +1,15 @@
-"""Build the zip people download to install Contact Manager (I-13, ADR-0019).
+"""Build the zip people download to install Kith Contacts (I-13, ADR-0019).
 
-    make bundle            # dist/Contact-Manager-<version>.zip
+    make bundle            # dist/Kith-Contacts-<version>.zip
 
 Layout inside the zip::
 
-    ContactManager-<version>/
+    KithContacts-<version>/
         Start here.html                    the install guide (docs/install-guide.md)
-        Start Contact Manager.command      macOS
-        Stop Contact Manager.command
-        Start Contact Manager.bat          Windows
-        Stop Contact Manager.bat
+        Start Kith Contacts.command      macOS
+        Stop Kith Contacts.command
+        Start Kith Contacts.bat          Windows
+        Stop Kith Contacts.bat
         program/                           what the image is built from, plus the scripts
 
 Only files git knows about and does not ignore are included, so instance env files,
@@ -86,7 +86,7 @@ li + li {{ margin-top: .3rem; }}
 </head>
 <body>
 <main>
-<p class="version">Contact Manager {version}</p>
+<p class="version">Kith Contacts {version}</p>
 {body}
 </main>
 </body>
@@ -130,9 +130,9 @@ def _content(path: Path) -> bytes:
 
 def build(dest: Path, version: str | None = None) -> Path:
     version = version or app_version()
-    top = f"ContactManager-{version}"
+    top = f"KithContacts-{version}"
     dest.mkdir(parents=True, exist_ok=True)
-    target = dest / f"Contact-Manager-{version}.zip"
+    target = dest / f"Kith-Contacts-{version}.zip"
     files = tracked(PROGRAM_PATHS)
     if not any(f.name == "compose.yaml" for f in files):
         raise SystemExit("compose.yaml not found: run this from the repository")

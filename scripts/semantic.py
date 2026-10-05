@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
         "--dest",
         type=Path,
         default=None,
-        help="default: ~/.cache/contacts-app/models/all-MiniLM-L6-v2",
+        help="default: ~/.cache/kith-contacts/models/all-MiniLM-L6-v2",
     )
     model.add_argument("--from", dest="source", type=Path, default=None, help="copy from a folder")
     sub.add_parser("reindex", help="embed all contacts of INSTANCE_ENV_FILE's instance")

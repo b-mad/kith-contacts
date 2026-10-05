@@ -166,7 +166,7 @@ wheels = [
 ]
 
 [[package]]
-name = "contacts-app"
+name = "kith-contacts"
 version = "1.0.0"
 source = { virtual = "." }
 dependencies = [

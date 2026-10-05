@@ -1,4 +1,4 @@
-# Contact Manager
+# Kith Contacts
 
 A locally hosted, browser-based contact manager for finding people by
 context — team, manager, project, tags — even when you forget their name.

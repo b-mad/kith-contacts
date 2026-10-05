@@ -86,7 +86,7 @@
     <p class="semantic-status" data-testid="semantic-status"><span class="pill">Starting</span> Loading the model…</p>
   {% else %}
   {% if instance.install_kind == "container" %}
-    <p class="semantic-status" data-testid="semantic-status"><span class="pill muted">Off</span> {% if instance.semantic_search == "off" %}Turned off in settings.env.{% else %}The language model could not be downloaded when Contact Manager was built.{% endif %}</p>
+    <p class="semantic-status" data-testid="semantic-status"><span class="pill muted">Off</span> {% if instance.semantic_search == "off" %}Turned off in settings.env.{% else %}The language model could not be downloaded when Kith Contacts was built.{% endif %}</p>
     <p class="muted small">Everything else works. The download is tried again with the next update; it needs access to huggingface.co. Nothing is sent anywhere; the model runs on this computer.</p>
   {% else %}
     <p class="semantic-status" data-testid="semantic-status"><span class="pill muted">Off</span> {{ semantic.unavailable or "Not set up." }}</p>
