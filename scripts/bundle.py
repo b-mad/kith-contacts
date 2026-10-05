@@ -6,11 +6,13 @@ Layout inside the zip::
 
     KithContacts-<version>/
         Start here.html                    the install guide (docs/install-guide.md)
+        LICENSE, NOTICE, THIRD_PARTY_NOTICES   the licence terms (N-13)
         Start Kith Contacts.command      macOS
         Stop Kith Contacts.command
         Start Kith Contacts.bat          Windows
         Stop Kith Contacts.bat
         program/                           what the image is built from, plus the scripts
+                                           (and a copy of the licence files)
 
 Only files git knows about and does not ignore are included, so instance env files,
 backups and local tools can never end up in the zip. Permissions are normalised (scripts
@@ -32,7 +34,9 @@ import markdown
 from app.version import app_version
 
 ROOT = Path(__file__).resolve().parent.parent
+LICENCE_FILES = ("LICENSE", "NOTICE", "THIRD_PARTY_NOTICES")
 PROGRAM_PATHS = (
+    *LICENCE_FILES,
     "Dockerfile",
     ".dockerignore",
     "compose.yaml",
@@ -141,6 +145,8 @@ def build(dest: Path, version: str | None = None) -> Path:
             _info(f"{top}/Start here.html", False),
             guide_html(GUIDE.read_text(encoding="utf-8"), version),
         )
+        for name in LICENCE_FILES:
+            zf.writestr(_info(f"{top}/{name}", False), _content(ROOT / name))
         for launcher in sorted(LAUNCHERS.iterdir()):
             zf.writestr(
                 _info(f"{top}/{launcher.name}", launcher.suffix in EXECUTABLE),

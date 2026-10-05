@@ -3,6 +3,9 @@ name = "kith-contacts"
 version = "1.0.0"
 description = "Locally hosted contact manager for finding people by context."
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES"]
+authors = [{ name = "Bryan Madsen" }]
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.14",

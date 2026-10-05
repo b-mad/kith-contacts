@@ -186,6 +186,17 @@ def test_bundle_has_launchers_guide_and_program(zip_path: Path) -> None:
         assert "<script" not in guide
 
 
+@pytest.mark.req("N-13")
+def test_bundle_carries_the_licence_files(zip_path: Path) -> None:
+    top = f"KithContacts-{app_version()}"
+    with zipfile.ZipFile(zip_path) as zf:
+        for name in ("LICENSE", "NOTICE", "THIRD_PARTY_NOTICES"):
+            assert f"{top}/{name}" in zf.namelist(), name
+            assert f"{top}/program/{name}" in zf.namelist(), name
+        assert b"Apache License" in zf.read(f"{top}/LICENSE")
+        assert b"GeoNames" in zf.read(f"{top}/THIRD_PARTY_NOTICES")
+
+
 @pytest.mark.req("I-13", "N-05")
 def test_bundle_never_carries_secrets_or_local_files(zip_path: Path) -> None:
     with zipfile.ZipFile(zip_path) as zf:

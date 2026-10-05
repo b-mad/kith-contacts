@@ -1,0 +1,113 @@
+# Third-party notices
+
+Kith Contacts is licensed under the Apache License 2.0 (see `LICENSE` and `NOTICE`). It
+includes or uses the software, fonts and data below, each under its own licence. Nothing here
+is loaded from the internet while the app runs (N-04).
+
+The licence file of each bundled asset sits next to it in the repository (paths below).
+
+## Bundled in the repository
+
+| Asset | Where | Version | Licence | Notice |
+| --- | --- | --- | --- | --- |
+| Leaflet | `app/static/vendor/leaflet/` | 1.9.4 | BSD-2-Clause | Copyright (c) 2010-2023 Volodymyr Agafonkin, (c) 2010-2011 CloudMade; `app/static/vendor/leaflet/LICENSE-leaflet.txt` |
+| Leaflet.markercluster | `app/static/vendor/leaflet/` | 1.5.3 | MIT | `app/static/vendor/leaflet/LICENSE-markercluster.txt` |
+| topojson-client | `app/static/vendor/topojson-client.min.js` | 3.1.0 | ISC | `app/static/vendor/LICENSE-topojson-client.txt` |
+| us-atlas (state and county outlines from US Census Bureau cartographic boundary files, public domain) | `app/static/vendor/geo/` | 3.0.1 | ISC | `app/static/vendor/geo/LICENSE-us-atlas.txt` |
+| world-atlas (country outlines from Natural Earth, public domain) | `app/static/vendor/geo/` | 2.0.2 | ISC | `app/static/vendor/geo/LICENSE-world-atlas.txt` |
+| Atkinson Hyperlegible Next (font) | `app/static/fonts/` | - | SIL Open Font License 1.1 | Copyright 2020-2024 The Atkinson Hyperlegible Next Project Authors; `app/static/fonts/OFL.txt` |
+| World city list | `app/data/world_cities.tsv.gz` | built by `scripts/geodata.py` | CC BY 4.0 | Derived from GeoNames cities15000, see below |
+
+## GeoNames (attribution required)
+
+The world city list (`app/data/world_cities.tsv.gz`) is built from the GeoNames `cities15000`
+data set, and the `zipcodes` package (US ZIP codes) draws on GeoNames data as well. This product
+includes data from GeoNames (https://www.geonames.org), licensed under the Creative Commons
+Attribution 4.0 License (https://creativecommons.org/licenses/by/4.0/). The data was filtered
+and reformatted for this app. The `zipcodes` package also credits USPS and
+unitedstateszipcodes.org.
+
+## Search model (downloaded, not committed)
+
+Search by meaning uses the sentence-transformers `all-MiniLM-L6-v2` model
+(https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2), published under the Apache
+License 2.0. The install fetches the revision pinned in `app/embedder.py` and checks the SHA-256 of
+every file; the model is not stored in this repository. The container image contains a copy.
+
+## Python packages used at run time
+
+Installed from PyPI (see `uv.lock` for exact versions); each package carries its own licence
+file in its distribution. Licences as declared by the packages on 2026-10-05.
+
+| Package | Version | Licence |
+| --- | --- | --- |
+| Jinja2 | 3.1.6 | BSD-3-Clause |
+| Mako | 1.4.3 | MIT |
+| MarkupSafe | 3.0.3 | BSD-3-Clause |
+| PyYAML | 6.0.3 | MIT |
+| SQLAlchemy | 2.0.54 | MIT |
+| alembic | 1.20.0 | MIT |
+| annotated-doc | 0.0.5 | MIT |
+| annotated-types | 0.8.0 | MIT |
+| anyio | 4.15.1 | MIT |
+| certifi | 2026.7.22 | MPL-2.0 |
+| click | 8.5.0 | BSD-3-Clause |
+| colorama | 0.4.6 | BSD-3-Clause |
+| dnspython | 2.8.0 | ISC |
+| email-validator | 2.3.0 | Unlicense |
+| fastapi | 0.141.1 | MIT |
+| filelock | 4.0.3 | MIT |
+| flatbuffers | 25.12.19 | Apache-2.0 |
+| fsspec | 2026.9.0 | BSD-3-Clause |
+| greenlet | 3.5.6 | MIT AND PSF-2.0 |
+| h11 | 0.16.0 | MIT |
+| hf-xet | 1.6.0 | Apache-2.0 |
+| httpcore | 1.0.9 | BSD-3-Clause |
+| httptools | 0.8.0 | MIT |
+| httpx | 0.28.1 | BSD-3-Clause |
+| huggingface_hub | 1.33.0 | Apache-2.0 |
+| idna | 3.20 | BSD-3-Clause |
+| numpy | 2.5.3 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 |
+| onnxruntime | 1.30.0 | MIT |
+| packaging | 26.3 | Apache-2.0 OR BSD-2-Clause |
+| phonenumbers | 9.0.40 | Apache-2.0 |
+| pillow | 12.3.0 | MIT-CMU |
+| protobuf | 7.36.2 | BSD-3-Clause |
+| psycopg | 3.3.6 | LGPL-3.0-only |
+| psycopg-binary | 3.3.6 | LGPL-3.0-only |
+| pycountry | 26.2.16 | LGPL-2.1-only |
+| pydantic | 2.13.5 | MIT |
+| pydantic-settings | 2.15.0 | MIT |
+| pydantic_core | 2.46.5 | MIT |
+| python-dotenv | 1.2.3 | BSD-3-Clause |
+| python-multipart | 0.0.32 | Apache-2.0 |
+| starlette | 1.7.0 | BSD-3-Clause |
+| tokenizers | 0.23.2 | Apache-2.0 |
+| tqdm | 4.70.1 | MPL-2.0 AND MIT |
+| typing-inspection | 0.4.4 | MIT |
+| typing_extensions | 4.16.0 | PSF-2.0 |
+| tzdata | 2026.4 | Apache-2.0 |
+| uvicorn | 0.53.0 | BSD-3-Clause |
+| uvloop | 0.22.1 | Apache-2.0 OR MIT |
+| watchfiles | 1.3.0 | MIT |
+| websockets | 17.1 | BSD-3-Clause |
+| zipcodes | 3.0.0 | MIT |
+
+Notes on the copyleft entries:
+
+- `psycopg` and `psycopg-binary` (LGPL-3.0) and `pycountry` (LGPL-2.1) are used unmodified as
+  separate libraries and can be replaced by the user, which the LGPL requires. Their source is at
+  https://github.com/psycopg/psycopg and https://github.com/pycountry/pycountry.
+- `certifi` and `tqdm` (MPL-2.0) are used unmodified. Their source is at
+  https://github.com/certifi/python-certifi and https://github.com/tqdm/tqdm.
+
+## Development tools
+
+Test and build tools (pytest, ruff, mypy, Playwright and others) are used only by contributors,
+are not shipped in the install zip or the container image, and are listed in `pyproject.toml`.
+
+## Keeping this file current
+
+A new bundled font, library, outline or data set needs an entry here in the same change.
+`tests/test_release_notices.py` fails when an asset under `app/static` or `app/data` has none.
+Re-check the Python package table against `uv.lock` before each release.
