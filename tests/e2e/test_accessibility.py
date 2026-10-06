@@ -37,6 +37,7 @@ PAGES = [
     "/tags",
     "/lists",
     "/org",
+    "/org?view=outline&levels=all",
     "/import",
     "/duplicates",
     "/saved-searches",

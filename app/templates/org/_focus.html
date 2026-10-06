@@ -1,0 +1,68 @@
+{# S-16: the Focus view (ADR-0030): chain, focused person, peers and direct reports. #}
+{% set f = focus %}
+{% if q %}
+<section class="org-matches" aria-labelledby="org-matches-h" data-testid="org-matches">
+  <h2 id="org-matches-h" class="eyebrow">{% if matches %}{{ matches | length }} match{{ "" if matches | length == 1 else "es" }} for “{{ q }}”{% else %}No one in the chart matches “{{ q }}”{% endif %}</h2>
+  {% if matches %}
+  <ul class="org-match-list">
+    {% for p in matches %}<li><a class="org-chip" href="{{ org_url('focus', p.id) }}">{{ m.avatar(p, 28) }}<span class="org-chip-text"><span class="org-name">{{ p.name }}</span>{% if p.title %}<span class="org-title">{{ p.title }}</span>{% endif %}</span></a></li>{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
+<nav class="org-chain" aria-label="Management chain" data-testid="org-chain">
+  <ol>
+    {% if f.focus %}<li><a href="{{ org_url('focus') }}">All leaders</a></li>
+    {% for p in f.chain %}<li><span class="org-sep" aria-hidden="true">›</span><a href="{{ org_url('focus', p.id) }}" class="org-crumb">{{ m.avatar(p, 22) }}{{ p.name }}</a></li>{% endfor %}
+    <li><span class="org-sep" aria-hidden="true">›</span><span class="org-crumb now" aria-current="page">{{ f.focus.name }}</span></li>
+    {% else %}<li><span class="org-crumb now" aria-current="page">All leaders</span></li>{% endif %}
+  </ol>
+</nav>
+<div class="org-layout" data-org-layout{% if f.focus %} data-org-initial="{{ f.focus.id }}"{% endif %}>
+  <div class="org-main">
+    {% if f.focus %}
+    {% set p = f.focus %}
+    <section class="panel org-focus-card" aria-label="Focused person" data-testid="org-focus">
+      {{ m.avatar(p, 72) }}
+      <div>
+        <h2><a href="/contacts/{{ p.id }}">{{ p.name }}</a></h2>
+        {% set line = [p.title, p.team] | select | list %}
+        {% if line %}<p class="muted">{{ line | join(" · ") }}</p>{% endif %}
+        <p class="muted">{{ p.direct }} direct report{{ "" if p.direct == 1 else "s" }}{% if p.direct %} · {{ p.total }} in total{% endif %}</p>
+      </div>
+    </section>
+    {% if f.peers %}
+    <h2 class="eyebrow org-label">{{ "Others who report to " ~ f.manager.name if f.manager else "Other leaders" }}</h2>
+    <ul class="org-peers" data-testid="org-peers">
+      {% for peer in f.peers %}<li><a class="org-chip" href="{{ org_url('focus', peer.id) }}">{{ m.avatar(peer, 28) }}<span class="org-name">{{ peer.name }}</span></a></li>{% endfor %}
+      {% if f.more_peers %}<li><a class="org-chip more" href="{{ org_url('focus', f.manager.id if f.manager else None) }}">+{{ f.more_peers }} more</a></li>{% endif %}
+    </ul>
+    {% endif %}
+    <h2 class="eyebrow org-label">Direct reports ({{ f.cards | length }})</h2>
+    {% else %}
+    <h2 class="eyebrow org-label">Leaders ({{ f.cards | length }})</h2>
+    {% endif %}
+    {% if f.cards %}
+    <ul class="org-cards" data-org-cards data-testid="org-cards">
+      {% for c in f.cards %}
+      <li class="org-card" data-contact-id="{{ c.id }}">
+        <a class="org-card-main" href="/contacts/{{ c.id }}" data-org-select>
+          {{ m.avatar(c, 48) }}
+          <span class="org-card-text"><span class="org-name">{{ c.name }}</span>{% if c.title %}<span class="org-title">{{ c.title }}</span>{% endif %}{% if c.team %}<span class="org-team">{{ c.team }}</span>{% endif %}</span>
+        </a>
+        {% if c.direct %}<a class="org-card-drill" href="{{ org_url('focus', c.id) }}" aria-label="Show the team of {{ c.name }}, {{ c.total }} in total"><span>{{ c.direct }} direct · {{ c.total }} in total</span> <span aria-hidden="true">▸</span></a>
+        {% else %}<span class="org-card-leaf muted small">No direct reports</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% elif f.focus %}
+    <p class="muted" data-testid="org-no-reports">{{ f.focus.name }} has no direct reports.</p>
+    {% else %}
+    <p class="empty">Nobody has a manager yet. Set managers on contact cards to build the chart.</p>
+    {% endif %}
+    {% if not f.focus and f.unplaced %}<p class="muted small">{{ f.unplaced }} contact(s) have no manager and no reports, so they are not shown.</p>{% endif %}
+  </div>
+  <aside class="preview-pane panel" data-org-pane aria-label="Selected person" aria-live="polite" hidden>
+    <p class="preview-empty muted">Choose a person to see their details here. Use the button at the bottom of a card to go down a level.</p>
+  </aside>
+</div>

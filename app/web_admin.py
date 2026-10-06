@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -57,7 +58,15 @@ from app.importdiff import COMPARED_SUMMARY
 from app.maps import PROVIDERS, save_provider
 from app.migrate import upgrade_to_head
 from app.models import Contact, ContactPhoto, Tag
-from app.org import build_org
+from app.org import (
+    DEFAULT_LEVELS,
+    LEVEL_CHOICES,
+    build_focus,
+    build_org,
+    find_people,
+    outline_rows,
+    search_terms,
+)
 from app.photos import remove_photo, set_photo
 from app.privacy import forget_privacy
 from app.schemas import AppearanceIn
@@ -532,9 +541,50 @@ async def import_run(request: Request, session: SessionDep) -> Response:
 # ---------------------------------------------------------------- org chart (S-06)
 
 
+def org_url(
+    view: str = "focus", root: int | None = None, levels: str = DEFAULT_LEVELS, q: str = ""
+) -> str:
+    """A link to the org chart; parameters at their default value are left out (ADR-0030)."""
+    params: list[tuple[str, str]] = []
+    if view != "focus":
+        params.append(("view", view))
+    if root is not None:
+        params.append(("root", str(root)))
+    if view == "outline" and levels != DEFAULT_LEVELS:
+        params.append(("levels", levels))
+    if q:
+        params.append(("q", q))
+    return "/org" + ("?" + urlencode(params) if params else "")
+
+
 @router.get("/org", response_class=HTMLResponse)
-def org_chart(request: Request, session: SessionDep, root: int | None = None) -> HTMLResponse:
-    return _render(request, "org/index.html", {"org": build_org(session, root)})
+def org_chart(
+    request: Request,
+    session: SessionDep,
+    root: int | None = None,
+    view: str = "focus",
+    levels: str = DEFAULT_LEVELS,
+    q: str = "",
+) -> HTMLResponse:
+    """S-06, S-16, S-17: Focus (default) or Outline. Unknown values use the defaults."""
+    view = "outline" if view == "outline" else "focus"
+    levels = levels if levels in LEVEL_CHOICES else DEFAULT_LEVELS
+    q = " ".join(q.split())[:100]
+    context: dict[str, Any] = {
+        "view": view,
+        "root": root,
+        "levels": levels,
+        "q": q,
+        "org_url": org_url,
+        "level_choices": LEVEL_CHOICES,
+    }
+    if view == "outline":
+        org = build_org(session)
+        rows = outline_rows(org.roots, levels, search_terms(q))
+        context.update(org=org, rows=rows, org_terms=search_terms(q))
+    else:
+        context.update(focus=build_focus(session, root), matches=find_people(session, q))
+    return _render(request, "org/index.html", context)
 
 
 # ---------------------------------------------------------------- tag admin (T-04)

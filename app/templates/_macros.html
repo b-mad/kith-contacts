@@ -51,3 +51,13 @@
 {% set lt = local_time_of(c) %}
 {% if lt %}<span class="local-time{% if compact %} compact{% endif %}" data-local-time data-tz="{{ lt.zone }}" data-testid="local-time" title="Local time for {{ c.display_name }} ({{ lt.zone | replace('_', ' ') }})"><span class="reach reach-{{ lt.reach }}" data-reach aria-hidden="true"></span><span class="visually-hidden">Local time </span><time data-clock>{{ lt.text }}</time> <span class="tz-abbr" data-tz-abbr>{{ lt.abbreviation }}</span>{% if lt.approximate %} <span class="muted" title="This state or country spans several time zones; add a ZIP or city to be sure">approx.</span>{% endif %} <span class="reach-label" data-reach-label>{{ lt.reach_label }}</span>{% if not compact %}<span class="muted" data-tz-offset></span>{% endif %}</span>{% endif %}
 {%- endmacro %}
+
+{# Avatar (ADR-0030): the photo when there is one, else initials. One lazy-loaded image per
+   person; ``p`` needs id, name and has_photo. Sizes are CSS classes (the CSP forbids inline styles). #}
+{% macro avatar(p, size=28) -%}
+{%- if p.has_photo -%}
+<img class="av av-{{ size }}" src="/contacts/{{ p.id }}/photo" alt="" width="{{ size }}" height="{{ size }}" loading="lazy" decoding="async">
+{%- else -%}
+<span class="av av-{{ size }} initials" aria-hidden="true">{{ p.name | initials }}</span>
+{%- endif -%}
+{%- endmacro %}

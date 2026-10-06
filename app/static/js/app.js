@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initSelection();
   initImportReview();
   initPreview();
+  initOrg();
   initFormRows();
   $$("[data-manager-picker]").forEach((root) =>
     initPicker(root, {
@@ -693,6 +694,90 @@ function initPreview() {
       }
     });
   }
+}
+
+// ------------------------------------------------------------------ org chart (S-16, S-17, ADR-0030)
+
+// Outline: a chevron opens or closes the people below a row. Focus: on wide screens a card opens
+// that person in the side pane (the same fragment as the search preview); choosing it again, or a
+// narrow screen or modified click, opens the card.
+function initOrg() {
+  initOrgOutline();
+  initOrgFocus();
+}
+
+function initOrgOutline() {
+  const list = $("[data-org-outline]");
+  if (!list) return;
+  const rows = $$("[data-org-row]", list);
+  const refresh = () => {
+    // A row shows when every manager above it is open; walk down keeping one flag per depth.
+    const shown = [];
+    rows.forEach((row) => {
+      const depth = Number(row.dataset.depth);
+      const visible = depth === 0 || shown[depth - 1] === true;
+      row.hidden = !visible;
+      const toggle = $("[data-org-toggle]", row);
+      shown[depth] = visible && !!toggle && toggle.getAttribute("aria-expanded") === "true";
+    });
+  };
+  list.addEventListener("click", (e) => {
+    const toggle = e.target.closest("[data-org-toggle]");
+    if (!toggle) return;
+    toggle.setAttribute("aria-expanded", toggle.getAttribute("aria-expanded") === "true" ? "false" : "true");
+    refresh();
+  });
+}
+
+function initOrgFocus() {
+  const layout = $("[data-org-layout]");
+  const pane = $("[data-org-pane]");
+  if (!layout || !pane) return;
+  const wide = window.matchMedia("(min-width: 62.5rem)");
+  const empty = pane.innerHTML;
+  const cards = $$("[data-org-cards] .org-card");
+  let current = null;
+  let generation = 0;
+
+  const enable = () => {
+    pane.hidden = !wide.matches;
+    layout.classList.toggle("with-pane", wide.matches);
+  };
+  enable();
+  wide.addEventListener("change", enable);
+
+  const mark = () =>
+    cards.forEach((card) => card.classList.toggle("previewing", card.dataset.contactId === current));
+
+  const show = async (id) => {
+    current = id;
+    mark();
+    const mine = ++generation;
+    const response = await fetch(`/contacts/${id}/preview`, { headers: { Accept: "text/html" } });
+    if (mine !== generation) return; // a newer choice is on its way
+    if (!response.ok) {
+      pane.innerHTML = empty;
+      current = null;
+      mark();
+      return;
+    }
+    pane.innerHTML = await response.text();
+    pane.scrollTop = 0;
+  };
+
+  const list = $("[data-org-cards]");
+  if (list) {
+    list.addEventListener("click", (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const link = e.target.closest("a[data-org-select]");
+      if (!link || !wide.matches) return;
+      const id = link.closest("[data-contact-id]").dataset.contactId;
+      if (id === current) return; // already shown: open the card
+      e.preventDefault();
+      show(id);
+    });
+  }
+  if (layout.dataset.orgInitial && wide.matches) show(layout.dataset.orgInitial);
 }
 
 // ------------------------------------------------------------------ filter chips (S-04, ADR-0017)

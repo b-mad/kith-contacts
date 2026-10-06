@@ -59,3 +59,4 @@ not change meaning — those are logged in the requirements change log only.
 | [0027](0027-multi-value-filters.md) | Pick several Company, Team, Tag or List values on the contacts screen | Accepted | S-15, S-04, S-07 |
 | [0028](0028-photo-enlarge-view.md) | Click a photo for a larger view with name, title and company | Accepted | C-24, C-09 |
 | [0029](0029-copy-slack-handles.md) | Copy the selected contacts' Slack handles to paste into Slack | Accepted | M-07 |
+| [0030](0030-org-chart-focus-and-outline-views.md) | Show the org chart as a Focus view and an Outline view | Accepted | S-06, S-16, S-17 |

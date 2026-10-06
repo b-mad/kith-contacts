@@ -1,19 +1,20 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m with context %}
 {% block title %}Org chart{% endblock %}
 {% block content %}
-<h1>Org chart</h1>
-{% if org.focus_id %}
-  <nav class="org-chain" aria-label="Management chain" data-testid="org-chain">
-    <a href="/org">All</a>
-    {% for m in org.chain %} › <a href="/org?root={{ m.id }}">{{ m.name }}</a>{% endfor %}
+<div class="org-titlebar">
+  <h1>Org chart</h1>
+  <form class="org-find" method="get" action="/org" role="search" data-testid="org-search">
+    <label class="visually-hidden" for="org-q">Find a person</label>
+    <input id="org-q" type="search" name="q" value="{{ q }}" placeholder="Find a person or title" autocomplete="off">
+    {% if view == "outline" %}<input type="hidden" name="view" value="outline">{% if levels != "2" %}<input type="hidden" name="levels" value="{{ levels }}">{% endif %}{% endif %}
+    {% if root %}<input type="hidden" name="root" value="{{ root }}">{% endif %}
+    <button type="submit">Find</button>
+  </form>
+  <nav class="org-seg" aria-label="View" data-testid="org-views">
+    <a href="{{ org_url('focus', root, levels, q) }}"{% if view == "focus" %} aria-current="page"{% endif %}>Focus</a>
+    <a href="{{ org_url('outline', root, levels, q) }}"{% if view == "outline" %} aria-current="page"{% endif %}>Outline</a>
   </nav>
-{% endif %}
-{% if org.roots %}
-  <ul class="org-tree org-root" data-testid="org-tree">
-    {% for node in org.roots %}{% with depth=0 %}{% include "org/_node.html" %}{% endwith %}{% endfor %}
-  </ul>
-  {% if org.unplaced %}<p class="muted small">{{ org.unplaced }} contact(s) have no manager and no reports, so they are not shown.</p>{% endif %}
-{% else %}
-  <p class="empty">Nobody has a manager yet. Set managers on contact cards to build the chart.</p>
-{% endif %}
+</div>
+{% if view == "outline" %}{% include "org/_outline.html" %}{% else %}{% include "org/_focus.html" %}{% endif %}
 {% endblock %}

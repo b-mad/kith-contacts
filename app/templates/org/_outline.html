@@ -1,0 +1,39 @@
+{# S-17: the Outline view (ADR-0030): the tree as rows. Team is not shown here. #}
+{% set terms = org_terms %}
+{% set hits = rows | selectattr("hit") | list | length %}
+<div class="org-toolbar">
+  <div class="org-levels" role="group" aria-label="Show levels">
+    <span class="muted">Show levels</span>
+    <span class="org-seg">
+      {% for l in level_choices %}<a href="{{ org_url('outline', root, l) }}"{% if l == levels and not q %} aria-current="true"{% endif %}>{{ "All" if l == "all" else l }}</a>{% endfor %}
+    </span>
+  </div>
+  <a class="button" href="{{ org_url('outline', root, '1') }}">Collapse all</a>
+  <a class="button" href="{{ org_url('outline', root, 'all') }}">Expand all</a>
+  <span class="org-status muted" role="status" data-testid="org-status">{% if q %}{{ hits }} match{{ "" if hits == 1 else "es" }} for “{{ q }}”{% else %}{{ rows | length }} people shown{% endif %}</span>
+</div>
+{% if rows %}
+<div class="org-list">
+  <div class="org-head" aria-hidden="true"><span>Name and title</span><span>Direct · in total</span><span></span></div>
+  <ul class="org-rows" data-org-outline data-testid="org-outline">
+    {% for row in rows %}{% set p = row.person %}
+    <li class="org-row{% if row.hit %} hit{% endif %}" data-org-row data-id="{{ p.id }}" data-depth="{{ row.depth }}"{% if row.hidden %} hidden{% endif %} data-testid="org-row">
+      <div class="org-row-main">
+        {% for _ in range(row.depth) %}<span class="org-guide" aria-hidden="true"></span>{% endfor %}
+        {% if row.expandable %}<button type="button" class="org-toggle" data-org-toggle aria-expanded="{{ 'true' if row.open else 'false' }}" aria-label="Reports of {{ p.name }}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"></path></svg></button>
+        {% else %}<span class="org-toggle-spacer"></span>{% endif %}
+        {{ m.avatar(p, 28) }}
+        <span class="org-who"><a class="org-name" href="/contacts/{{ p.id }}">{{ p.name | highlight(terms) }}</a>{% if p.title %}<span class="org-title">{{ p.title | highlight(terms) }}</span>{% endif %}</span>
+      </div>
+      <div class="org-count">{% if p.direct %}<b>{{ p.direct }}</b> · {{ p.total }}{% endif %}</div>
+      {% if p.direct %}<a class="org-go" href="{{ org_url('focus', p.id) }}" aria-label="Show the team of {{ p.name }} in Focus view"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="2.5"></circle><circle cx="8" cy="8" r="6"></circle></svg></a>{% else %}<span></span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% elif q %}
+<p class="empty" data-testid="org-no-match">No one in the chart matches “{{ q }}”.</p>
+{% else %}
+<p class="empty">Nobody has a manager yet. Set managers on contact cards to build the chart.</p>
+{% endif %}
+{% if org.unplaced %}<p class="muted small">{{ org.unplaced }} contact(s) have no manager and no reports, so they are not shown.</p>{% endif %}

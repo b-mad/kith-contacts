@@ -354,7 +354,8 @@ def test_teams_group_chat_org_chart_and_photo(base_url: str, tmp_path: object) -
         # S-06: org chart from the card.
         page.goto(f"{base_url}/contacts/{boss['id']}")
         page.get_by_test_id("org-link").click()
-        expect(page.get_by_test_id("org-tree")).to_contain_text("Teamsy Report")
+        expect(page.get_by_test_id("org-focus")).to_contain_text("Teamsy Boss")
+        expect(page.get_by_test_id("org-cards")).to_contain_text("Teamsy Report")
 
         # C-09: upload a photo on the card.
         page.goto(f"{base_url}/contacts/{boss['id']}")

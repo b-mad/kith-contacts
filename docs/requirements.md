@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.23 |
+| Version | 1.24 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-06 |
@@ -121,7 +121,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | S-03 | Prefix and typo-tolerant matching ("lab res", "Mria"). | Must | 2 |
 | S-04 | Filters: contact type, company, team, manager, tag, list; combinable. Company, team, tag and list take several values (S-15). | Must | 2 |
 | S-05 | Results update as you type (< 200 ms). | Must | 2 |
-| S-06 | Org view: pick a manager and browse reports, up and down the chain. | Should | 3 |
+| S-06 | Org chart: browse reporting lines up and down the chain, as a **Focus** view (default) or an **Outline** (S-16, S-17). People with no manager and no reports are left out, with a note saying how many (ADR-0030). | Should | 3 |
 | S-07 | Saved searches (e.g. "Vendors tagged HL7"). | Could | 4 |
 | S-08 | Natural-language or semantic search ("the person who helped with the FDA submission"), using a local model; results show the text that matched (ADR-0013). | Could | 5 |
 | S-09 | Filter by recent interaction (contacted in the last 7, 30, 90 or 365 days, from the activity log; notes don't count) and sort by last contact; results show the last contact date (ADR-0014). | Should | 5 |
@@ -131,6 +131,8 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | S-13 | **Map** view of any search, list, tag or selection: states shaded by how many contacts are there, zooming to clustered points at ZIP or city level; home, work or all addresses; a count of contacts that could not be placed; offline — no map tiles or other outside requests; presenting mode applies (ADR-0023). | Should | 12 |
 | S-14 | "Near" filter: contacts within a chosen number of miles of a city, ZIP code or another contact (ADR-0023). | Could | 12 |
 | S-15 | Several values per filter: the main contacts screen lets the user pick more than one Company, Team, Tag or List. Within one filter a contact matches any chosen value; Tag and List can instead require all of them. Different filters combine with "and". Choices live in the URL, can be saved as a search (S-07), and are accepted by the search API (ADR-0027). | Should | 2 |
+| S-16 | Org chart **Focus** view (the default): the management chain with photos, the focused person (photo, name, title · team), peers as chips, and direct reports as cards with photo, name, title, team and "N direct · M in total"; choosing a card focuses that person; with no focus, the top-level leaders are listed. Photos are shown when present, otherwise initials; presenting mode applies (ADR-0030). | Should | 3 |
+| S-17 | Org chart **Outline** view: the whole tree with a chevron per row, avatar, name, title and "direct · in total" counts; show 1, 2, 3 or all levels, collapse or expand all, and a search that highlights matches and opens their ancestors; works from the keyboard; presenting mode applies (ADR-0030). | Should | 3 |
 
 ### Tags
 
@@ -295,7 +297,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 0 — Foundation ✅ | Repo, PostgreSQL, instance config; dev instance on localhost | N-01, N-02, N-10, I-01, I-02, I-04 | 3–4 days |
 | 1 — Contact core ✅ | Store and edit rich contacts | C-01–C-08, M-04, I-03, I-05 | 1 week |
 | 2 — Find and act (MVP) ✅ | Context search, tags, lists, copy emails | S-01–S-05, T-01–T-02, L-01–L-04, M-01–M-03, C-10, C-14 | 2 weeks |
-| 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, T-03–T-04, C-09, M-05, D-01–D-04, D-06, N-06, I-06–I-08 | 1–2 weeks |
+| 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, S-16, S-17, T-03–T-04, C-09, M-05, D-01–D-04, D-06, N-06, I-06–I-08 | 1–2 weeks |
 | 4 — Depth ✅ | Power-user features | C-11–C-13, S-07, T-05, L-05 (list tags), I-09 | 1–2 weeks |
 | 5 — Smart | Semantic search, recent interactions and directory sync | S-08–S-10, D-05 | 2+ weeks |
 | 6 — Look and feel ✅ | Theme modes, three palettes, accessibility pass, layout refresh, command palette | A-01–A-06, N-09, S-12 | 8–10 days |
@@ -443,6 +445,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.24 | 2026-10-06 | S-06 reworded; S-16 (org chart Focus view, the default) and S-17 (Outline view) added. | 0030 |
 | 1.23 | 2026-10-06 | M-07 added: Copy Slack handles for the selected contacts, to tag people in a Slack chat or start a group message (Slack has no group-message link, so nothing is opened). | 0029 |
 | 1.22.1 | 2026-10-06 | Clarified C-04: the Slack handle is a display label and may contain spaces and punctuation (it is never used to build a link). No requirement added or removed. | — |
 | 1.22 | 2026-10-06 | C-24 added: click a photo for a larger view with name, title and company. | 0028 |

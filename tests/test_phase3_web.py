@@ -265,7 +265,7 @@ def test_org_page(seeded_client: TestClient) -> None:
     focused = seeded_client.get(f"/org?root={maria_id}").text
     card = seeded_client.get(f"/contacts/{maria_id}").text
 
-    assert 'data-testid="org-tree"' in whole
+    assert 'data-testid="org-cards"' in whole  # ADR-0030: Focus is the default view
     assert "Priya Raman" in whole
     assert 'data-testid="org-chain"' in focused
     assert "Dev Patel" in focused
