@@ -187,3 +187,22 @@ To go back before step 6, stop Kith Contacts and start the old program folder (i
 from the repository, repeat the step 2 command with `start` in place of `stop`). Anything
 changed in Kith Contacts since step 4 is not in the old install.
 <!-- old-name:end -->
+
+## Publishing a release (I-13, N-13)
+
+The install zip is not kept in git. A GitHub Actions workflow (`.github/workflows/release.yml`)
+builds it and attaches it to a GitHub Release, together with its SHA-256 checksum.
+
+1. Raise `version` in `pyproject.toml`, run `make check`, and merge the change to `main`.
+2. Wait for CI on `main` to pass.
+3. Tag that commit and push the tag:
+
+   ```bash
+   git tag v1.0.1
+   git push origin v1.0.1
+   ```
+
+The workflow stops if the tag does not match the version in `pyproject.toml` or if the tagged
+commit is not on `main`. To check the zip before tagging, run `make bundle` and open
+`dist/Kith-Contacts-<version>.zip`. To fix a bad release, delete the release and the tag on
+GitHub, correct the problem and tag again.

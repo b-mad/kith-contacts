@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.18 |
+| Version | 1.19 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-05 |
@@ -439,8 +439,9 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
-| 1.17 | 2026-10-05 | N-13 added in a new Phase 14: publish as open source under the Apache License 2.0 with third-party notices, project files and a clean history. Proposed. | 0025 |
+| 1.19 | 2026-10-06 | Clarified how the install zip (I-13) is published: a tag workflow builds it with `make bundle` and attaches it, with a checksum, to a GitHub Release; the zip is not committed to git. No requirement added or removed. | 0025 |
 | 1.18 | 2026-10-05 | ADR-0025 accepted; N-13 implemented in the repository: `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES`, `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, an About section in Settings, licence files in the install zip, a README for strangers, `.example` sample data and tests that fail on an unlisted asset or a real address. Phase 14 stays open until the owner-only steps (history rewrite, name and policy checks, GitHub settings) are done. | 0025 |
+| 1.17 | 2026-10-05 | N-13 added in a new Phase 14: publish as open source under the Apache License 2.0 with third-party notices, project files and a clean history. Proposed. | 0025 |
 | 1.16 | 2026-10-05 | N-12 added in a new Phase 13: the product is named Kith Contacts everywhere (UI, launchers, bundle, Compose project, data folder, export format, model cache) for the public open-source release; the owner's install moves once through backup and restore (I-12). Delivered. | 0024 |
 | 1.15 | 2026-10-04 | C-22 place lookup, C-23 local time, S-13 map, S-14 near filter and M-06 directions added in a new Phase 12. Data model gains place columns on `contact_address`. N-04 clarified (links the user clicks). Open question on map data closed. | 0023 |
 | 1.14 | 2026-10-04 | C-20 birthdays, C-21 birthday reminders on Reconnect and P-08 private contact types added in a new Phase 11. Data model gains `contact.birthday` and `contact_type.is_private`. Clarified P-02 (birthdays are personal) and D-01, D-02, D-03, I-09 (birthdays included). | 0022 |
