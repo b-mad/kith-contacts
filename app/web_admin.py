@@ -34,19 +34,26 @@ from app.exchange import (
     FIELD_LABELS,
     FIELDS,
     GOOGLE_HEADERS,
+    IMPORT_PAGE_SIZE,
+    SHOW_FILTERS,
     PlannedRow,
+    carried_fields,
     export_contact_json,
     export_csv,
     export_json,
+    filter_rows,
     guess_mapping,
     mapping_guide,
+    paginate,
     plan_import,
     read_csv,
     rows_from_csv,
     rows_from_json,
     rows_from_vcards,
     run_import,
+    update_selection,
 )
+from app.importdiff import COMPARED_SUMMARY
 from app.maps import PROVIDERS, save_provider
 from app.migrate import upgrade_to_head
 from app.models import Contact, ContactPhoto, Tag
@@ -288,6 +295,14 @@ def contact_json(request: Request, contact_id: int, session: SessionDep) -> Resp
 # ---------------------------------------------------------------- import (D-01, D-02, I-09)
 
 
+SHOW_LABELS = {
+    "all": "All rows",
+    "ready": "Ready to import",
+    "duplicates": "Possible duplicates",
+    "errors": "Rows with errors",
+}
+
+
 def _import_context(
     session: Session,
     *,
@@ -298,8 +313,16 @@ def _import_context(
     planned: list[PlannedRow],
     default_type_id: int,
     list_name: str,
+    selected: set[int],
+    page: int = 1,
+    show: str = "all",
 ) -> dict[str, Any]:
     ok = [r for r in planned if r.ok and not r.duplicate_of]
+    dups = [r for r in planned if r.ok and r.duplicate_of]
+    show = show if show in SHOW_FILTERS else "all"
+    rows = filter_rows(planned, show)
+    page_rows, page, pages = paginate(rows, page)
+    on_page = {r.number for r in page_rows}
     return {
         "kind": kind,
         "raw": raw,
@@ -308,16 +331,35 @@ def _import_context(
         "field_labels": FIELD_LABELS,
         "field_groups": FIELD_GROUPS,
         "planned": planned,
-        "preview": planned[:25],
+        "preview": page_rows,
+        "page": page,
+        "pages": pages,
+        "page_size": IMPORT_PAGE_SIZE,
+        "first_shown": (page - 1) * IMPORT_PAGE_SIZE + 1 if rows else 0,
+        "last_shown": (page - 1) * IMPORT_PAGE_SIZE + len(page_rows),
+        "filtered_total": len(rows),
+        "show": show,
+        "show_label": SHOW_LABELS[show],
+        "show_filters": [(key, SHOW_LABELS[key]) for key in SHOW_FILTERS],
+        "selected": selected,
+        "selected_csv": ",".join(str(n) for n in sorted(selected)),
+        "shown_csv": ",".join(str(r.number) for r in page_rows),
+        "selected_elsewhere": len(selected - on_page),
+        "compared": COMPARED_SUMMARY,
         "counts": {
             "total": len(planned),
             "ready": len(ok),
-            "duplicates": sum(1 for r in planned if r.ok and r.duplicate_of),
+            "duplicates": len(dups),
+            "identical": sum(1 for r in dups if r.duplicate and r.duplicate.full_match),
+            "differ": sum(1 for r in dups if r.duplicate and not r.duplicate.full_match),
+            "importable": sum(1 for r in planned if r.ok),
             "errors": sum(1 for r in planned if not r.ok),
+            "selected": len(selected),
         },
         "types": list_contact_types(session),
         "default_type_id": default_type_id,
         "list_name": list_name,
+        "error": None,
     }
 
 
@@ -371,6 +413,27 @@ async def _read_upload(form: FormData) -> tuple[str, str]:
     return str(form.get("kind", "csv")), raw
 
 
+def _ints(raw: object) -> set[int]:
+    return {int(part) for part in str(raw).split(",") if part.strip().isdigit()}
+
+
+def _selection(planned: list[PlannedRow], form: FormData) -> set[int]:
+    """D-07: the rows to import. The first preview picks the ready rows; after that the form
+    carries the selection, with this page's ticks applied over it."""
+    return update_selection(
+        planned,
+        previous=_ints(form.get("selected", "")) if "selected" in form else None,
+        shown=_ints(form.get("shown", "")),
+        picked={int(str(v)) for v in form.getlist("pick") if str(v).isdigit()},
+        bulk=str(form.get("bulk", "")),
+    )
+
+
+def _page_number(form: FormData) -> int:
+    raw = str(form.get("goto") or form.get("current_page") or "1")
+    return int(raw) if raw.isdigit() else 1
+
+
 def _plan(
     session: Session, form: FormData, kind: str, raw: str, region: str = "US"
 ) -> dict[str, Any]:
@@ -396,7 +459,14 @@ def _plan(
         else:
             mapping = guess_mapping(headers)
         records = rows_from_csv(body, mapping, headers)
-    planned = plan_import(session, records, default_type_id, month_first=month_first(region))
+    planned = plan_import(
+        session,
+        records,
+        default_type_id,
+        month_first=month_first(region),
+        phone_region=region,
+        carried=carried_fields(kind, mapping, records),
+    )
     return _import_context(
         session,
         kind=kind,
@@ -406,6 +476,9 @@ def _plan(
         planned=planned,
         default_type_id=default_type_id,
         list_name=str(form.get("list_name", "")),
+        selected=_selection(planned, form),
+        page=_page_number(form),
+        show=str(form.get("show", "all")),
     )
 
 
@@ -435,10 +508,15 @@ async def import_run(request: Request, session: SessionDep) -> Response:
     try:
         kind, raw = await _read_upload(form)
         context = _plan(session, form, kind, raw, _settings(request).phone_region)
+        explicit = "selected" in form  # the review page sends its selection (D-07)
+        if explicit and not context["selected"]:
+            context["error"] = "Select at least one contact to import."
+            return _render(request, "import/preview.html", context, status_code=422)
         result = run_import(
             session,
             context["planned"],
             include_duplicates=form.get("include_duplicates") == "on",
+            only=context["selected"] if explicit else None,
             list_name=str(form.get("list_name", "")) or None,
             phone_region=_settings(request).phone_region,
         )

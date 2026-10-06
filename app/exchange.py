@@ -13,7 +13,7 @@ import csv
 import io
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any
@@ -25,12 +25,20 @@ from sqlalchemy.orm import Session, selectinload
 from app.addresses import lines_of
 from app.birthdays import parse_birthday
 from app.contacts import ContactError, check_manager, create_contact, resolve_company
+from app.importdiff import (
+    ALL_FIELDS,
+    DuplicateInfo,
+    diff_profiles,
+    profile_of_contact,
+    profile_of_row,
+)
 from app.links import normalize_linkedin
 from app.lists import add_members, find_or_create_list
 from app.models import (
     Contact,
     ContactEmail,
     ContactList,
+    ContactPhoto,
     ContactType,
     CustomField,
     ListMember,
@@ -46,13 +54,21 @@ FORMAT = "kith-contacts/1"
 LEGACY_FORMATS = ("contacts-app/1",)  # old-name-ok
 MAX_IMPORT_ROWS = 5000
 MAX_IMPORT_BYTES = 5 * 1024 * 1024
+#: A JSON export can carry every contact's photo (D-03, I-09), so it may be much larger.
+MAX_JSON_IMPORT_BYTES = 64 * 1024 * 1024
 
 
-def _all_contacts(session: Session) -> list[Contact]:
+def _all_contacts(session: Session, *, photos: bool = False) -> list[Contact]:
+    """Every contact with what an export needs; ``photos`` also loads the image bytes
+    (one query for all of them, not one per contact)."""
+    photo_load = selectinload(Contact.photo)
+    if photos:
+        photo_load = photo_load.undefer(ContactPhoto.data)
     return list(
         session.scalars(
             select(Contact)
             .options(
+                photo_load,
                 selectinload(Contact.contact_type),
                 selectinload(Contact.emails),
                 selectinload(Contact.phones),
@@ -154,7 +170,9 @@ def contact_record(contact: Contact, *, include_photo: bool = False) -> dict[str
 
 
 def export_json(session: Session, instance_name: str) -> dict[str, Any]:
-    contacts = _all_contacts(session)
+    """D-03: the whole instance. Photos are included so another instance's import restores
+    them (I-09); each is already resized to at most 512 px (C-09)."""
+    contacts = _all_contacts(session, photos=True)
     return {
         "format": FORMAT,
         "exported_at": datetime.now(UTC).isoformat(),
@@ -181,7 +199,7 @@ def export_json(session: Session, instance_name: str) -> dict[str, Any]:
                 .order_by(ContactList.name)
             )
         ],
-        "contacts": [contact_record(c) for c in contacts],
+        "contacts": [contact_record(c, include_photo=True) for c in contacts],
     }
 
 
@@ -567,8 +585,8 @@ def _text(value: object) -> str | None:
 def rows_from_json(raw: str) -> list[dict[str, Any]]:
     """Records from a ``kith-contacts/1`` JSON export (older exports: ``LEGACY_FORMATS``) —
     one contact or a whole instance (I-09)."""
-    if len(raw.encode("utf-8")) > MAX_IMPORT_BYTES:
-        raise ContactError("File is larger than 5 MB", "file")
+    if len(raw.encode("utf-8")) > MAX_JSON_IMPORT_BYTES:
+        raise ContactError("File is larger than 64 MB", "file")
     try:
         doc = json.loads(raw)
     except ValueError:
@@ -654,6 +672,8 @@ class PlannedRow:
     errors: list[str] = field(default_factory=list)
     duplicate_of: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)  # JSON imports (I-09)
+    type_name: str | None = None  # the type as written in the file (compared in D-07)
+    duplicate: DuplicateInfo | None = None  # D-07: what it matched and how the two compare
 
     @property
     def ok(self) -> bool:
@@ -762,17 +782,29 @@ def plan_import(
     default_type_id: int,
     *,
     month_first: bool = True,
+    phone_region: str = "US",
+    carried: Collection[str] | None = None,
 ) -> list[PlannedRow]:
     """Validate rows and flag duplicates (same email, or same name + company).
 
     ``month_first``: how the instance writes dates, for a birthday like 3/4 (C-20).
+    Each duplicate is compared with the contact it matched, or the earlier row of the file it
+    repeats (D-07); ``carried`` names the fields the file can hold (``None``: all of them)
+    and ``phone_region`` is how its phone numbers are read.
     """
     types = {t.name.lower(): t.id for t in session.scalars(select(ContactType))}
-    known_emails = {e.lower() for e in session.scalars(select(ContactEmail.email))}
-    known_people = {
-        (n.lower(), (c or "").lower())
-        for n, c in session.execute(select(Contact.display_name, Contact.company)).all()
-    }
+    # What a row can be a duplicate of: (stored contact id, None) or (None, earlier row number).
+    known_emails: dict[str, tuple[int | None, int | None]] = {}
+    for email, contact_id in session.execute(
+        select(ContactEmail.email, ContactEmail.contact_id).order_by(ContactEmail.id)
+    ).all():
+        known_emails.setdefault(email.lower(), (contact_id, None))
+    known_people: dict[tuple[str, str], tuple[int | None, int | None]] = {}
+    for contact_id, n, c in session.execute(
+        select(Contact.id, Contact.display_name, Contact.company).order_by(Contact.id)
+    ).all():
+        known_people.setdefault((n.lower(), (c or "").lower()), (contact_id, None))
+    pending: list[tuple[PlannedRow, int | None, int | None]] = []
     planned: list[PlannedRow] = []
     for number, record in enumerate(records, start=1):
         row = PlannedRow(number=number)
@@ -847,6 +879,7 @@ def plan_import(
         if record.get("_custom_fields"):
             data["custom_fields"] = record["_custom_fields"]
         row.data = data
+        row.type_name = str(record["type"]) if record.get("type") else None
         row.extra = dict(record.get("_extra") or {})
         row.manager_name = record.get("manager")
         row.tags = _split_tags(record.get("tags", ""))
@@ -859,17 +892,183 @@ def plan_import(
                 else e["msg"].removeprefix("Value error, ")
                 for e in exc.errors()
             ]
-        dup_email = next((e for e in seen if e in known_emails), None)
+        dup_email = next(
+            (e for item in data["emails"] if (e := item["email"].strip().lower()) in known_emails),
+            None,
+        )
         person = (name.lower(), (data.get("company") or "").lower())
         if dup_email:
             row.duplicate_of = f"email {dup_email} already exists"
+            pending.append((row, *known_emails[dup_email]))
         elif name and person in known_people:
             row.duplicate_of = "same name and company already exists"
-        known_emails |= seen
+            pending.append((row, *known_people[person]))
+        for e in seen:
+            known_emails.setdefault(e, (None, number))
         if name:
-            known_people.add(person)
+            known_people.setdefault(person, (None, number))
         planned.append(row)
+    _compare_duplicates(session, planned, pending, carried, phone_region)
     return planned
+
+
+def _compare_duplicates(
+    session: Session,
+    planned: Sequence[PlannedRow],
+    pending: Sequence[tuple[PlannedRow, int | None, int | None]],
+    carried: Collection[str] | None,
+    phone_region: str,
+) -> None:
+    """D-07: fill ``row.duplicate`` with a field-by-field comparison (full match or not)."""
+    if not pending:
+        return
+    ids = {contact_id for _, contact_id, _ in pending if contact_id is not None}
+    stored: dict[int, Contact] = {}
+    if ids:
+        stored = {
+            c.id: c
+            for c in session.scalars(
+                select(Contact)
+                .where(Contact.id.in_(ids))
+                .options(
+                    selectinload(Contact.contact_type),
+                    selectinload(Contact.emails),
+                    selectinload(Contact.phones),
+                    selectinload(Contact.addresses),
+                    selectinload(Contact.manager),
+                    selectinload(Contact.tags),
+                    selectinload(Contact.memberships).selectinload(ListMember.contact_list),
+                    selectinload(Contact.custom_fields),
+                    selectinload(Contact.activities),
+                    selectinload(Contact.photo),
+                )
+                .execution_options(populate_existing=True)
+            ).all()
+        }
+
+    def profile(row: PlannedRow) -> dict[str, Any]:
+        return profile_of_row(
+            row.data,
+            tags=row.tags,
+            manager_name=row.manager_name,
+            type_name=row.type_name,
+            extra=row.extra,
+            phone_region=phone_region,
+        )
+
+    for row, contact_id, other_row in pending:
+        incoming = profile(row)
+        if contact_id is not None and contact_id in stored:
+            contact = stored[contact_id]
+            row.duplicate = DuplicateInfo(
+                contact_id,
+                contact.display_name,
+                None,
+                diff_profiles(profile_of_contact(contact, phone_region), incoming, carried),
+            )
+        elif other_row is not None:
+            first = planned[other_row - 1]
+            row.duplicate = DuplicateInfo(
+                None,
+                str(first.data.get("display_name") or f"row {other_row}"),
+                other_row,
+                diff_profiles(profile(first), incoming, carried),
+            )
+
+
+#: Fields a vCard can hold; a CSV holds the ones its mapped columns point at (D-07).
+_VCARD_FIELDS = frozenset(
+    {"display_name", "first_name", "last_name", "nickname", "company", "department", "title",
+     "notes", "tags", "linkedin_url", "birthday", "emails", "phones", "addresses"}
+)  # fmt: skip
+
+
+def carried_fields(
+    kind: str, mapping: dict[int, str] | None = None, records: Sequence[dict[str, Any]] = ()
+) -> frozenset[str]:
+    """Which compared fields a file of this kind says anything about (D-07).
+
+    Without this, a CSV with a few columns would show every stored tag, list and activity
+    as "missing" from the file.
+    """
+    if kind == "json":
+        has_photo = any((r.get("_extra") or {}).get("photo") for r in records)
+        return ALL_FIELDS if has_photo else ALL_FIELDS - {"photo"}
+    if kind == "vcard":
+        return _VCARD_FIELDS
+    out = {"display_name"}  # every row gets a name, written or derived
+    for target in (mapping or {}).values():
+        if target.startswith("email"):
+            out.add("emails")
+        elif target.startswith("phone"):
+            out.add("phones")
+        elif target.startswith("address"):
+            out.add("addresses")
+        elif target in ALL_FIELDS:
+            out.add(target)
+    return frozenset(out)
+
+
+# ---------------------------------------------------------------- import: review (D-07)
+
+IMPORT_PAGE_SIZE = 25
+SHOW_FILTERS = ("all", "ready", "duplicates", "errors")
+
+
+def filter_rows(planned: Sequence[PlannedRow], show: str) -> list[PlannedRow]:
+    """The preview's filter: everything, only what is ready, only duplicates, only errors."""
+    if show == "ready":
+        return [r for r in planned if r.ok and not r.duplicate_of]
+    if show == "duplicates":
+        return [r for r in planned if r.ok and r.duplicate_of]
+    if show == "errors":
+        return [r for r in planned if not r.ok]
+    return list(planned)
+
+
+def paginate[T](
+    rows: Sequence[T], page: int, size: int = IMPORT_PAGE_SIZE
+) -> tuple[list[T], int, int]:
+    """(rows on the page, the page number kept within range, number of pages)."""
+    pages = max(1, -(-len(rows) // size))
+    page = min(max(page, 1), pages)
+    return list(rows[(page - 1) * size : page * size]), page, pages
+
+
+def default_selection(planned: Sequence[PlannedRow]) -> set[int]:
+    """Row numbers imported unless the person chooses otherwise: valid, not a duplicate."""
+    return {r.number for r in planned if r.ok and not r.duplicate_of}
+
+
+def update_selection(
+    planned: Sequence[PlannedRow],
+    *,
+    previous: set[int] | None,
+    shown: Collection[int],
+    picked: Collection[int],
+    bulk: str = "",
+) -> set[int]:
+    """The rows to import after the person ticked boxes on one page of the preview.
+
+    ``previous`` is the selection as last shown (``None`` on the first preview), ``shown``
+    the rows on the page that was submitted and ``picked`` the ones ticked there; rows on
+    other pages keep their state. ``bulk``: all, none, page or default. Rows with errors
+    are never selected.
+    """
+    importable = {r.number for r in planned if r.ok}
+    if previous is None:
+        selected = default_selection(planned)
+    else:
+        selected = (previous - set(shown)) | set(picked)
+    if bulk == "all":
+        selected = set(importable)
+    elif bulk == "none":
+        selected = set()
+    elif bulk == "default":
+        selected = default_selection(planned)
+    elif bulk == "page":
+        selected |= set(shown)
+    return selected & importable
 
 
 @dataclass
@@ -877,6 +1076,7 @@ class ImportResult:
     created: list[int] = field(default_factory=list)
     skipped_duplicates: int = 0
     skipped_errors: int = 0
+    skipped_unselected: int = 0
     managers_linked: int = 0
     list_id: int | None = None
 
@@ -886,10 +1086,15 @@ def run_import(
     planned: Sequence[PlannedRow],
     *,
     include_duplicates: bool = False,
+    only: Collection[int] | None = None,
     list_name: str | None = None,
     phone_region: str = "US",
 ) -> ImportResult:
-    """Create contacts; then link managers by name; optionally put them all in a list."""
+    """Create contacts; then link managers by name; optionally put them all in a list.
+
+    ``only``: row numbers to import (D-07); every other row is left out and
+    ``include_duplicates`` no longer matters, since a duplicate the person ticked is wanted.
+    """
     result = ImportResult()
     pending_managers: list[tuple[int, str]] = []
     extras: list[tuple[int, dict[str, Any]]] = []
@@ -899,7 +1104,11 @@ def run_import(
         if not row.ok:
             result.skipped_errors += 1
             continue
-        if row.duplicate_of and not include_duplicates:
+        if only is not None:
+            if row.number not in only:
+                result.skipped_unselected += 1
+                continue
+        elif row.duplicate_of and not include_duplicates:
             result.skipped_duplicates += 1
             continue
         data = dict(row.data)

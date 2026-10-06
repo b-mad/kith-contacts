@@ -1,0 +1,45 @@
+{# D-07: how an incoming row compares with the contact (or earlier row) it duplicates. #}
+{% macro cell(d, side) %}
+  {%- if d.collection -%}
+    <ul class="plain small">
+      {%- for item in d.items if (item.state in ("same", "missing") if side == "stored" else item.state in ("same", "added")) -%}
+        <li class="item-{{ item.state }}">{{ item.text }}{% if item.state == "missing" %} <span class="muted">(not in the file)</span>{% elif item.state == "added" %} <span class="muted">(not in your contact)</span>{% endif %}</li>
+      {%- else -%}
+        <li class="muted">—</li>
+      {%- endfor -%}
+    </ul>
+  {%- else -%}
+    {%- set value = d.stored if side == "stored" else d.incoming -%}
+    {%- if d.key == "photo" -%}{{ "Has a photo" if value else "—" }}{%- else -%}<span class="prewrap{{ ' strong' if d.status == 'changed' else '' }}">{{ value or "—" }}</span>{%- endif -%}
+  {%- endif -%}
+{% endmacro %}
+
+{% macro verdict(d, in_file) %}
+  {%- if d.status == "changed" %}<span class="pill warn">Different</span>
+  {%- elif d.status == "added" %}<span class="pill ok">{{ "Only in this row" if in_file else "Only in the file" }}</span>
+  {%- elif d.status == "missing" %}<span class="pill muted">{{ "Only in the earlier row" if in_file else "Only in your contact" }}</span>
+  {%- else %}<span class="muted small">Same</span>{% endif -%}
+{% endmacro %}
+
+{% macro table(dup) %}
+  {% set in_file = dup.in_file %}
+  <table class="contacts diff-table" data-testid="import-diff">
+    <caption class="visually-hidden">Differences between the file and {{ dup.contact_name }}</caption>
+    <thead><tr>
+      <th scope="col">Field</th>
+      <th scope="col">{{ "Earlier row " ~ dup.row_number if in_file else "Your contact" }}</th>
+      <th scope="col">{{ "This row" if in_file else "In the file" }}</th>
+      <th scope="col">Result</th>
+    </tr></thead>
+    <tbody>
+      {% for d in dup.differences + dup.unchanged %}
+        <tr class="diff-{{ d.status }}" data-testid="diff-{{ d.key }}" data-status="{{ d.status }}">
+          <th scope="row">{{ d.label }}</th>
+          <td>{{ cell(d, "stored") }}</td>
+          <td>{{ cell(d, "incoming") }}</td>
+          <td>{{ verdict(d, in_file) }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endmacro %}

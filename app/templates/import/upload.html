@@ -9,7 +9,7 @@ You'll see a preview and can adjust the column mapping before anything is saved.
 {% if error %}<p class="error-summary" role="alert" data-testid="import-error">{{ error }}</p>{% endif %}
 <form method="post" action="/import/preview" enctype="multipart/form-data" class="contact-form" data-testid="import-form">{{ m.csrf() }}
   <div class="field">
-    <label for="file">File (CSV, vCard or JSON, up to 5 MB)</label>
+    <label for="file">File (CSV or vCard up to 5 MB; JSON up to 64 MB)</label>
     <input id="file" name="file" type="file" accept=".csv,.txt,.vcf,.vcard,.json,text/csv,text/vcard,application/json" required data-testid="import-file">
   </div>
   <div class="row">

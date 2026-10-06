@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.19 |
+| Version | 1.20 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
-| Last updated | 2026-10-05 |
+| Last updated | 2026-10-06 |
 | Change process | [ADR-0002](adr/0002-requirements-as-versioned-source-of-truth.md) |
 
 > **This file is the source of truth for what the application must do.**
@@ -167,10 +167,11 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | --- | --- | --- | --- |
 | D-01 | Import contacts from CSV with column mapping and preview. | Should | 3 |
 | D-02 | Import and export vCard (.vcf). | Should | 3 |
-| D-03 | Export all data (contacts, tags, lists) to CSV and JSON. | Must | 3 |
+| D-03 | Export all data (contacts, tags, lists) to CSV and JSON. The JSON export includes each contact's photo, so importing it into another instance restores them (ADR-0026). | Must | 3 |
 | D-04 | One-click backup and restore of the instance's database (`pg_dump` / `pg_restore`). | Must | 3 |
 | D-05 | Optional directory sync from Microsoft Graph or Slack to prefill employees (title, manager, team). | Could | 5 |
 | D-06 | In-app import help: an information icon on the import pages opens a help page explaining the column mapping (column in the file → field), what each field holds, and where the columns of a Google Contacts, Outlook or LinkedIn export go (ADR-0020). | Should | 3 |
+| D-07 | Review an import before it runs (ADR-0026): the preview is paged (25 rows) with a filter for ready rows, possible duplicates and errors; every valid row has a checkbox, with select this page, all, none and ready rows only, and ticks are kept across pages; only ticked rows are imported (ready rows start ticked, duplicates do not). A possible duplicate is compared field by field with the contact it matches, or the earlier row of the file: a full match says there is nothing new, otherwise a detail view lists each field that is different, only in the file or only in the stored contact. Import never changes a stored contact; a ticked duplicate is added as a new contact and can be merged afterwards (C-12). | Should | 3 |
 
 ### Instances and environments
 
@@ -184,7 +185,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | I-06 | Nightly `pg_dump` per production instance with 14-day retention to a local folder (`BACKUP_DIR`); restore command per instance. | Must | 3 |
 | I-07 | Copy a production database into dev (optionally anonymized) to reproduce issues. | Should | 3 |
 | I-08 | Contact types are configurable per instance from the settings page. | Should | 3 |
-| I-09 | Move or copy a contact between instances via export/import (vCard or JSON). JSON keeps extra fields, activity, lists, photo, the keep-in-touch cadence and snooze, and private flags. | Could | 4 |
+| I-09 | Move or copy a contact between instances via export/import (vCard or JSON). JSON keeps extra fields, activity, lists, photo, the keep-in-touch cadence and snooze, and private flags; a whole-instance JSON export carries photos too. | Could | 4 |
 | I-10 | Container deployment: one Compose file runs PostgreSQL and up to two instances (Work, Personal) built from the app image. Each instance's database and role are created automatically on first start (I-02 unchanged); passwords are generated then and kept in Docker volumes; the database has no published port; instances listen on 127.0.0.1 only and restart with Docker. | Must | 9 |
 | I-11 | Before applying migrations to a production instance that already has a schema, the app takes a backup (`…_before-upgrade.dump`) and refuses to migrate if the backup fails. | Must | 9 |
 | I-12 | A new container instance with an empty database restores the newest backup already in its backup folder on first start, so moving to a new computer is copying one folder. | Should | 9 |
@@ -437,8 +438,9 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 ## Change log
 
-| Version | Date | Change | ADR |
+| Version | 1.20 |
 | --- | --- | --- | --- |
+| 1.20 | 2026-10-06 | D-07 import review added (Phase 3): paged preview, choose rows with select all / individual, and a field-by-field comparison of each possible duplicate. D-03 and I-09 clarified: the whole-instance JSON export carries photos (JSON imports may be up to 64 MB; CSV and vCard stay 5 MB). | 0026 |
 | 1.19 | 2026-10-06 | Clarified how the install zip (I-13) is published: a tag workflow builds it with `make bundle` and attaches it, with a checksum, to a GitHub Release; the zip is not committed to git. No requirement added or removed. | 0025 |
 | 1.18 | 2026-10-05 | ADR-0025 accepted; N-13 implemented in the repository: `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES`, `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, an About section in Settings, licence files in the install zip, a README for strangers, `.example` sample data and tests that fail on an unlisted asset or a real address. Phase 14 stays open until the owner-only steps (history rewrite, name and policy checks, GitHub settings) are done. | 0025 |
 | 1.17 | 2026-10-05 | N-13 added in a new Phase 14: publish as open source under the Apache License 2.0 with third-party notices, project files and a clean history. Proposed. | 0025 |

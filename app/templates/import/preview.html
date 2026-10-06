@@ -1,17 +1,40 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
+{% import "import/_diff.html" as diff %}
 {% block title %}Import preview{% endblock %}
+
+{% macro pager(where) %}
+  <nav class="import-pager" aria-label="Pages of rows{{ ' (top)' if where == 'top' else '' }}">
+    <span class="muted small" data-testid="import-range{{ '-top' if where == 'top' else '' }}">
+      {% if filtered_total %}Rows {{ first_shown }} to {{ last_shown }} of {{ filtered_total }}{% else %}No rows to show{% endif %}
+      {% if show != "all" %}({{ show_label }}){% endif %}
+      · page {{ page }} of {{ pages }}
+    </span>
+    {% if pages > 1 %}
+      <button type="submit" name="goto" value="1" formaction="/import/preview"{% if page == 1 %} disabled{% endif %}>First</button>
+      <button type="submit" name="goto" value="{{ page - 1 }}" formaction="/import/preview"{% if page == 1 %} disabled{% endif %} data-testid="import-prev{{ '-top' if where == 'top' else '' }}">Previous</button>
+      <button type="submit" name="goto" value="{{ page + 1 }}" formaction="/import/preview"{% if page == pages %} disabled{% endif %} data-testid="import-next{{ '-top' if where == 'top' else '' }}">Next</button>
+      <button type="submit" name="goto" value="{{ pages }}" formaction="/import/preview"{% if page == pages %} disabled{% endif %}>Last</button>
+    {% endif %}
+  </nav>
+{% endmacro %}
+
 {% block content %}
+{% set cols = 10 + (1 if kind == "json" else 0) %}
 <h1>Import preview</h1>
+{% if error %}<p class="error-summary" role="alert" data-testid="import-error">{{ error }}</p>{% endif %}
 <p data-testid="import-summary">
   <strong>{{ counts.ready }}</strong> ready to import ·
-  <strong>{{ counts.duplicates }}</strong> possible duplicate{{ "" if counts.duplicates == 1 else "s" }} ·
+  <strong>{{ counts.duplicates }}</strong> possible duplicate{{ "" if counts.duplicates == 1 else "s" }}{% if counts.duplicates %} <span data-testid="import-dup-split">({{ counts.identical }} identical, {{ counts.differ }} differ)</span>{% endif %} ·
   <strong>{{ counts.errors }}</strong> with errors · {{ counts.total }} rows in the file.
 </p>
 
-<form method="post" action="/import/run" class="contact-form" data-testid="import-run-form">{{ m.csrf() }}
+<form method="post" action="/import/run" class="contact-form" data-testid="import-run-form" data-import-form data-selected-elsewhere="{{ selected_elsewhere }}">{{ m.csrf() }}
   <input type="hidden" name="kind" value="{{ kind }}">
   <textarea name="raw" hidden>{{ raw }}</textarea>
+  <input type="hidden" name="selected" value="{{ selected_csv }}">
+  <input type="hidden" name="shown" value="{{ shown_csv }}">
+  <input type="hidden" name="current_page" value="{{ page }}">
 
   {% if kind == "csv" %}
   <fieldset>
@@ -46,12 +69,40 @@
     </div>
   </div>
 
+  <div class="form-actions">
+    <button type="submit" class="primary" data-testid="import-run">Import <span data-import-count data-testid="import-count">{{ counts.selected }}</span> selected</button>
+    <button type="submit" formaction="/import/preview" data-testid="import-update">Update preview</button>
+    <a href="/import">Start over</a>
+  </div>
+
+  <h2>Choose what to import</h2>
+  <p class="muted small">Ready rows are ticked. Possible duplicates are not: open one to see how it differs from the contact it matches, then tick it if you still want it. Your ticks are kept as you move between pages.</p>
+
+  <div class="import-toolbar" role="group" aria-label="Select rows">
+    <label class="inline-field"><span>Show</span>
+      <select name="show" data-testid="import-show">
+        {% for key, label in show_filters %}<option value="{{ key }}"{% if key == show %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <button type="submit" name="goto" value="1" formaction="/import/preview" data-testid="import-filter">Apply</button>
+    <span class="import-toolbar-gap" aria-hidden="true"></span>
+    <button type="submit" name="bulk" value="page" formaction="/import/preview" data-testid="import-select-page">Select this page</button>
+    <button type="submit" name="bulk" value="all" formaction="/import/preview" data-testid="import-select-all">Select all {{ counts.importable }}</button>
+    <button type="submit" name="bulk" value="none" formaction="/import/preview" data-testid="import-select-none">Select none</button>
+    <button type="submit" name="bulk" value="default" formaction="/import/preview" data-testid="import-select-ready">Ready rows only</button>
+    <span class="small" role="status" data-testid="import-selected"><span data-import-count>{{ counts.selected }}</span> selected of {{ counts.importable }}</span>
+  </div>
+
+  {{ pager("top") }}
+
   <div class="table-wrap">
-  <table class="contacts" data-testid="import-preview-table">
-    <thead><tr><th scope="col">Row</th><th scope="col">Name</th><th scope="col">Company</th><th scope="col">Title</th><th scope="col">Email</th><th scope="col">Address</th><th scope="col">Manager</th><th scope="col">Tags</th>{% if kind == "json" %}<th scope="col">Also</th>{% endif %}<th scope="col">Status</th></tr></thead>
+  <table class="contacts import-table" data-testid="import-preview-table">
+    <thead><tr><th scope="col" class="select-col"><input type="checkbox" aria-label="Select every row on this page" data-import-page data-testid="import-page-toggle"></th><th scope="col">Row</th><th scope="col">Name</th><th scope="col">Company</th><th scope="col">Title</th><th scope="col">Email</th><th scope="col">Address</th><th scope="col">Manager</th><th scope="col">Tags</th>{% if kind == "json" %}<th scope="col">Also</th>{% endif %}<th scope="col">Status</th></tr></thead>
     <tbody>
       {% for r in preview %}
-        <tr data-testid="import-row" class="{{ 'row-error' if not r.ok else ('row-dup' if r.duplicate_of else '') }}">
+        {% set dup = r.duplicate %}
+        <tr data-testid="import-row" data-row="{{ r.number }}" class="{{ 'row-error' if not r.ok else ('row-dup' if r.duplicate_of else '') }}">
+          <td class="select-col"><input type="checkbox" name="pick" value="{{ r.number }}" class="import-pick" aria-label="Import row {{ r.number }}: {{ r.data.display_name or 'unnamed' }}"{% if r.number in selected %} checked{% endif %}{% if not r.ok %} disabled{% endif %} data-testid="import-pick"></td>
           <td>{{ r.number }}</td>
           <td>{{ r.data.display_name }}</td>
           <td>{{ r.data.company or "" }}</td>
@@ -64,21 +115,37 @@
           <td>
             {% if not r.ok %}<span class="pill bad">Error</span> <span class="small">{{ r.errors | join("; ") }}</span>
             {% elif r.duplicate_of %}<span class="pill warn">Duplicate?</span> <span class="small">{{ r.duplicate_of }}</span>
+              {% if dup %}<div class="small dup-verdict" data-testid="import-verdict">
+                {% if dup.full_match %}<span class="pill ok">Full match</span>{% else %}<span class="pill warn">{{ dup.differences | length }} difference{{ "" if dup.differences | length == 1 else "s" }}</span>{% endif %}
+                {% if dup.in_file %}with row {{ dup.row_number }} of this file{% else %}with <a href="/contacts/{{ dup.contact_id }}" target="_blank" rel="noopener">{{ dup.contact_name }}</a>{% endif %}
+                {% if dup.full_match %}— nothing new to add{% endif %}
+              </div>{% endif %}
             {% else %}<span class="pill ok">Ready</span>{% endif %}
           </td>
         </tr>
+        {% if dup and not dup.full_match %}
+        <tr class="diff-row" data-testid="import-diff-row" data-row="{{ r.number }}">
+          <td></td>
+          <td colspan="{{ cols }}">
+            <details data-testid="import-details">
+              <summary>Show what differs from {{ ("row " ~ dup.row_number ~ " of this file") if dup.in_file else dup.contact_name }}</summary>
+              {{ diff.table(dup) }}
+              <p class="muted small">Compared: {{ compared }}.{% if not dup.in_file %} Nothing in your contact is changed by importing; a ticked duplicate is added as a new contact, and you can merge the two afterwards from Possible duplicates.{% endif %}</p>
+            </details>
+          </td>
+        </tr>
+        {% endif %}
+      {% else %}
+        <tr><td colspan="{{ cols }}" class="empty">No rows match this filter.</td></tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
-  {% if planned | length > preview | length %}<p class="muted small">Showing the first {{ preview | length }} of {{ planned | length }} rows.</p>{% endif %}
 
-  {% if counts.duplicates %}
-    <label class="check"><input type="checkbox" name="include_duplicates" data-testid="include-duplicates"> Import possible duplicates too</label>
-  {% endif %}
+  {{ pager("bottom") }}
+
   <div class="form-actions">
-    <button type="submit" class="primary" data-testid="import-run">Import {{ counts.ready }} contact{{ "" if counts.ready == 1 else "s" }}</button>
-    <button type="submit" formaction="/import/preview" data-testid="import-update">Update preview</button>
+    <button type="submit" class="primary" data-testid="import-run-bottom">Import <span data-import-count>{{ counts.selected }}</span> selected</button>
     <a href="/import">Start over</a>
   </div>
 </form>

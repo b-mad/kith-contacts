@@ -807,3 +807,21 @@ body.env-production .present-toggle:not([aria-pressed="true"]):hover { backgroun
 .near-field input { width: 12rem; }
 .near-field.on input { border-color: var(--accent); }
 .distance { color: var(--muted); }
+
+/* D-07: import review — filter, selection, paging, differences (ADR-0026) */
+.import-toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
+.import-toolbar .inline-field { display: inline-flex; gap: 0.4rem; align-items: center; font-weight: normal; }
+.import-toolbar .inline-field select { width: auto; }
+.import-toolbar-gap { flex: 0 0 1rem; }
+.import-pager { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
+.import-pager .muted { margin-right: auto; }
+.import-table td.select-col, .import-table th.select-col { width: 2rem; text-align: center; }
+.import-table td.empty { text-align: center; }
+.dup-verdict { margin-top: 0.25rem; }
+tr.diff-row > td { background: var(--surface-2); padding: 0.5rem 0.75rem; }
+tr.diff-row summary { cursor: pointer; color: var(--accent); }
+.diff-table { margin: 0.5rem 0; }
+.diff-table td, .diff-table th { vertical-align: top; }
+.diff-table .strong { font-weight: 700; }
+.diff-table tr.diff-same { color: var(--muted); }
+.diff-table li.item-missing, .diff-table li.item-added { font-weight: 600; }

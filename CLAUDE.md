@@ -118,7 +118,8 @@ delete a failing test to get a green run unless the requirement was withdrawn.
 | `app/tags.py`, `app/lists.py` | Tags (incl. related tags, T-05) and project lists (incl. list tags, L-05) |
 | `app/web_lists.py` | Pages for lists and tags |
 | `app/backup.py`, `scripts/backup.py` | pg_dump/pg_restore backups, retention, restore, copy-to-dev (ADR-0011) |
-| `app/exchange.py`, `app/vcard.py` | CSV/JSON/vCard export; CSV/vCard/JSON import with preview (JSON carries fields, activity, lists and photo between instances, I-09) |
+| `app/exchange.py`, `app/vcard.py` | CSV/JSON/vCard export; CSV/vCard/JSON import with preview (JSON carries fields, activity, lists and photo between instances, I-09; the whole-instance export includes photos, D-03). Also the import review's filter, paging and row selection (D-07) |
+| `app/importdiff.py` | Compares an import row with the stored contact (or earlier row) it duplicates: normalised profiles, full match or a field-by-field difference list (D-07, ADR-0026) |
 | `app/org.py`, `app/related.py` | Org chart and related-contacts scoring |
 | `app/contact_types.py`, `app/photos.py` | Type admin; photo validation/resizing |
 | `app/web_admin.py` | Settings, backups, import/export, org, tag/type admin, photo routes |

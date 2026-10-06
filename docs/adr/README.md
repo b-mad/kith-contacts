@@ -55,3 +55,4 @@ not change meaning — those are logged in the requirements change log only.
 | [0023](0023-map-local-time-and-directions.md) | Offline contact map, local time per contact, directions links | Accepted | C-22, C-23, S-13, S-14, M-06, N-04 |
 | [0024](0024-rename-to-kith-contacts.md) | Name the product Kith Contacts, everywhere | Accepted | N-12 |
 | [0025](0025-open-source-release-and-licence.md) | Publish as open source under the Apache License 2.0 | Accepted | N-13 |
+| [0026](0026-import-review-and-photos-in-export.md) | Review an import page by page, choose the rows, compare duplicates, and export photos | Accepted | D-07, D-03, I-09 |

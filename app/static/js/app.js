@@ -22,6 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initLogPrompt();
   initSearch();
   initSelection();
+  initImportReview();
   initPreview();
   initFormRows();
   $$("[data-manager-picker]").forEach((root) =>
@@ -689,6 +690,9 @@ function initFilterChips() {
   });
 }
 
+// S-15: Company, Team, Tag and List chips hold several values. Each is a popover of checkboxes
+// that works without JavaScript; this keeps the summary and × in step, adds a find box to long
+// lists, and closes the popover on a click elsewhere or Escape.
 // ------------------------------------------------------------------ shortcuts (N-09) and palette (S-12)
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -862,4 +866,27 @@ function initPalette() {
     if (li) run(items[Number(li.dataset.index)]);
   });
   dialog.addEventListener("click", (e) => { if (e.target === dialog) dialog.close(); }); // backdrop
+}
+
+// D-07: import review. Keeps the "N selected" counts live and lets the header box tick the page.
+// Without JavaScript the buttons under "Choose what to import" do the same on the server.
+function initImportReview() {
+  const form = $("[data-import-form]");
+  if (!form) return;
+  const elsewhere = Number(form.dataset.selectedElsewhere || 0);
+  const boxes = () => $$(".import-pick", form).filter((box) => !box.disabled);
+  const header = $("[data-import-page]", form);
+  const sync = () => {
+    const mine = boxes();
+    const total = mine.filter((box) => box.checked).length + elsewhere;
+    $$("[data-import-count]", form).forEach((el) => { el.textContent = String(total); });
+    if (header) header.checked = mine.length > 0 && mine.every((box) => box.checked);
+  };
+  form.addEventListener("change", (e) => {
+    if (e.target.matches("[data-import-page]")) {
+      boxes().forEach((box) => { box.checked = e.target.checked; });
+    }
+    if (e.target.matches(".import-pick, [data-import-page]")) sync();
+  });
+  sync();
 }

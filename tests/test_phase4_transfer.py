@@ -278,3 +278,31 @@ def test_json_ignores_a_bad_cadence(client: TestClient, db_session: Session) -> 
     assert copy is not None
     assert copy.kit_interval is None
     assert copy.is_private is False
+
+
+@pytest.mark.req("D-03", "I-09")
+def test_whole_instance_export_restores_photos_in_another_instance(
+    client: TestClient, db_session: Session, personal: TestClient
+) -> None:
+    """The full export (not just "copy one contact") carries photos, so importing it elsewhere
+    restores them."""
+    cid = _rich_contact(client, db_session)
+    res = client.get("/export/contacts.json")
+    assert res.status_code == 200
+    exported = next(c for c in res.json()["contacts"] if c["id"] == cid)
+    assert exported["photo"]["content_type"] == "image/jpeg"
+
+    token = _token(personal)
+    ran = personal.post(
+        "/import/run",
+        content=urlencode({"csrf_token": token, "kind": "json", "raw": res.text}),
+        headers={"content-type": "application/x-www-form-urlencoded"},
+        follow_redirects=False,
+    )
+    assert ran.status_code == 303
+    hits = personal.get("/api/search", params={"q": "nora"}).json()
+    copied = personal.get(f"/api/contacts/{hits[0]['contact']['id']}").json()
+    assert copied["has_photo"] is True
+    photo = personal.get(f"/contacts/{copied['id']}/photo")
+    assert photo.status_code == 200
+    assert photo.headers["content-type"] == "image/jpeg"
