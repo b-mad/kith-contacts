@@ -147,6 +147,7 @@ def test_live_search_select_and_copy_for_outlook_or_gmail(base_url: str) -> None
                 "display_name": "Quinn Copyton",
                 "contact_type_id": types["Employee"],
                 "emails": [{"email": "quinn@acme.example"}],
+                "slack_handle": "Quinn Copyton",
                 "team": "Copy Team",
             },
         )
@@ -157,6 +158,7 @@ def test_live_search_select_and_copy_for_outlook_or_gmail(base_url: str) -> None
                 "display_name": "Rhea Copyton",
                 "contact_type_id": types["Employee"],
                 "emails": [{"email": "rhea@acme.example"}],
+                "slack_handle": "@rhea.c",
                 "team": "Copy Team",
             },
         )
@@ -209,6 +211,14 @@ def test_live_search_select_and_copy_for_outlook_or_gmail(base_url: str) -> None
         assert (
             page.evaluate("navigator.clipboard.readText()")
             == "quinn@acme.example, rhea@acme.example"
+        )
+
+        # M-07: Slack handles for the selection; the contact without one is named.
+        page.get_by_test_id("copy-slack").click()
+        assert page.evaluate("navigator.clipboard.readText()") == "@Quinn Copyton, @rhea.c"
+        expect(page.get_by_test_id("action-status")).to_contain_text("Copied 2 Slack handles")
+        expect(page.get_by_test_id("action-status")).to_contain_text(
+            "1 skipped (no Slack handle): Sol Nomail"
         )
 
         # Compose in Gmail with Cc (M-03).

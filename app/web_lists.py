@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 
-from app.contacts import ContactError, ContactNotFound, primary_email
+from app.contacts import ContactError, ContactNotFound, primary_email, slack_for_copy
 from app.links import mailto_url
 from app.lists import (
     add_list_tag,
@@ -105,6 +105,7 @@ def _member_rows(contact_list: ContactList) -> list[dict[str, Any]]:
                 "contact": contact,
                 "role_note": (member.role_note or "") if reachable else "",
                 "email": primary_email(contact) if reachable else None,
+                "slack": slack_for_copy(contact),
                 "phone": contact.phones[0].number if contact.phones and reachable else None,
                 "archived": contact.archived_at is not None,
             }

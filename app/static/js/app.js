@@ -121,6 +121,7 @@ function initSelection() {
     if (on) {
       selected.set(id, {
         email: row.dataset.email || "", name: row.dataset.name || "", address: row.dataset.address || "",
+        slack: row.dataset.slack || "",
       });
     }
     else selected.delete(id);
@@ -240,6 +241,33 @@ function initSelection() {
     openMenu(copyMenu);
   });
   $$("[data-copy-for]", bar).forEach((b) => b.addEventListener("click", () => copy(b.dataset.copyFor)));
+
+  // ---- copy Slack handles (M-07, ADR-0029): Slack has no group-message link, so paste them there
+  $("[data-copy-slack]", bar).addEventListener("click", async () => {
+    const people = [...selected.values()];
+    const handles = [...new Set(people.filter((p) => p.slack).map((p) => p.slack))];
+    const skipped = people.filter((p) => !p.slack).map((p) => p.name);
+    const note = skipped.length ? ` · ${skipped.length} skipped (no Slack handle): ${skipped.join(", ")}` : "";
+    closeMenus();
+    if (!handles.length) {
+      say(`Nobody selected has a Slack handle${note}`);
+      return;
+    }
+    const text = handles.join(", ");
+    const what = `${handles.length} Slack handle${handles.length === 1 ? "" : "s"}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      fallback.hidden = true;
+      say(`Copied ${what}${note}`);
+    } catch {
+      // N-07: no clipboard access, so show the text ready to copy by hand.
+      fallbackText.value = text;
+      fallback.hidden = false;
+      fallbackText.focus();
+      fallbackText.select();
+      say(`Select and copy ${what}${note}`);
+    }
+  });
 
   // ---- compose (M-03, ADR-0009, N-08)
   const composeMenu = $("[data-compose-menu]", bar);

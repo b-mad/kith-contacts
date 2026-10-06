@@ -31,7 +31,7 @@ from app.appearance import THEME_CHOICES, current_appearance, text_on
 from app.backup import BackupFile, ensure_recent_backup
 from app.birthdays import describe
 from app.config import Settings, load_settings
-from app.contacts import ContactError, ContactNotFound, place_missing
+from app.contacts import ContactError, ContactNotFound, place_missing, slack_for_copy
 from app.db import create_db_engine, make_session_factory
 from app.embedder import Embedder
 from app.geo import local_time_for
@@ -272,6 +272,7 @@ def create_app(
     app.state.templates.env.globals["maps_provider"] = lambda: current_provider(app.state)
     app.state.templates.env.globals["maps_providers"] = PROVIDERS
     app.state.templates.env.globals["go_address"] = _go_address
+    app.state.templates.env.globals["slack_for_copy"] = slack_for_copy  # M-07
     app.state.templates.env.globals["directions_to"] = lambda c: _directions_to(app, c)
     app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 

@@ -1,4 +1,4 @@
-{# Sticky bar for multi-select actions (M-01 to M-03, T-01, L-02). Needs JavaScript. #}
+{# Sticky bar for multi-select actions (M-01 to M-03, M-07, T-01, L-02). Needs JavaScript. #}
 {% import "_macros.html" as m with context %}
 <div class="action-bar" data-action-bar hidden data-testid="action-bar" role="region" aria-label="Selected contacts" data-maps-provider="{{ maps_provider() }}">
   <span class="selected-count" data-selected-count>0 selected</span>
@@ -11,6 +11,8 @@
       <button type="button" role="menuitem" data-copy-for="gmail" data-testid="copy-gmail">Gmail <span class="muted">(a, b)</span></button>
     </div>
   </div>
+
+  <button type="button" data-copy-slack title="Copy the Slack handles, to paste into a Slack message or a new group message" data-testid="copy-slack">Copy Slack handles</button>
 
   <div class="menu-wrap">
     <button type="button" data-compose data-testid="compose">Compose ▾</button>
@@ -75,7 +77,7 @@
   <button type="button" class="link" data-clear-selection>Clear</button>
   <p class="action-status" data-action-status role="status" aria-live="polite" data-testid="action-status"></p>
   <div class="copy-fallback" data-copy-fallback hidden>
-    <label for="copy-text">Copy these addresses (⌘C / Ctrl+C):</label>
+    <label for="copy-text">Copy this text (⌘C / Ctrl+C):</label>
     <textarea id="copy-text" rows="2" readonly data-copy-text></textarea>
   </div>
 </div>

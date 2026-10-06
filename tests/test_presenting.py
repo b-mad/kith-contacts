@@ -633,6 +633,25 @@ def test_names_view_shows_names_and_companies_only(client: TestClient, db_sessio
     assert "HL7" not in card
 
 
+@pytest.mark.req("M-07", "P-07")
+def test_slack_handles_are_copyable_unless_the_view_is_names_only(
+    client: TestClient, db_session: Session
+) -> None:
+    contact = _contact(
+        db_session, "Slacky Person", company="Northwind Health", slack_handle="Slacky Handle"
+    )
+    add_members(db_session, create_list(db_session, "Slack list"), [contact.id])
+    fresh(db_session)
+    assert 'data-slack="@Slacky Handle"' in client.get("/").text
+    present(client)
+    assert 'data-slack="@Slacky Handle"' in client.get("/").text  # a work field
+    use_settings(client, db_session, replace(DEFAULT, view="names"))
+    fresh(db_session)
+    page = client.get("/").text
+    assert "Slacky Handle" not in page
+    assert 'data-slack=""' in page
+
+
 # ---------------------------------------------------------------- search (P-04, P-06)
 
 

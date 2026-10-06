@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.22 |
+| Version | 1.23 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-06 |
@@ -161,6 +161,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | M-03 | **Compose**: opens a new message to the selected recipients in **Gmail**, **Outlook on the web** or the **default mail app** (`mailto:`), with a To / Cc choice (ADR-0009). | Should | 2 |
 | M-04 | One-click Slack DM, Teams chat, `tel:` and `mailto:` on each card. | Must | 1 |
 | M-05 | Teams group chat link for selected contacts (`users=a@x.example,b@y.example`). | Could | 3 |
+| M-07 | **Copy Slack handles**: copies the selected contacts' Slack handles (`@Maria Lopez, @Dev Patel`) to paste into Slack, skipping contacts without one and saying who was skipped; nothing is opened or sent to Slack (ADR-0029). | Could | 3 |
 | M-06 | **Directions** links: from the device's location to a contact (card and selection of one), from one selected contact to another, or a route through 3–11 selected contacts; opens Google Maps, or Apple Maps when the instance prefers it (routes always open in Google Maps) (ADR-0023). | Should | 12 |
 
 ### Data in and out
@@ -442,6 +443,8 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.23 | 2026-10-06 | M-07 added: Copy Slack handles for the selected contacts, to tag people in a Slack chat or start a group message (Slack has no group-message link, so nothing is opened). | 0029 |
+| 1.22.1 | 2026-10-06 | Clarified C-04: the Slack handle is a display label and may contain spaces and punctuation (it is never used to build a link). No requirement added or removed. | — |
 | 1.22 | 2026-10-06 | C-24 added: click a photo for a larger view with name, title and company. | 0028 |
 | 1.21 | 2026-10-06 | S-15 added: multi-value Company, Team, Tag and List filters on the contacts screen (checkbox dropdowns, "any / all of these" for Tag and List). S-04 updated; the List filter moves to the main filter row. | 0027 |
 | 1.20 | 2026-10-06 | D-07 import review added (Phase 3): paged preview, choose rows with select all / individual, and a field-by-field comparison of each possible duplicate. D-03 and I-09 clarified: the whole-instance JSON export carries photos (JSON imports may be up to 64 MB; CSV and vCard stay 5 MB). | 0026 |

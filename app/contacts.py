@@ -432,6 +432,14 @@ def primary_email(contact: Contact) -> str | None:
     return contact.emails[0].email if contact.emails else None
 
 
+def slack_for_copy(contact: Contact) -> str:
+    """M-07: the handle to copy, with its "@" ("" when none, or while presenting names only)."""
+    p = presenting()
+    if p is not None and p.names_only:
+        return ""
+    return slack_handle_display(contact.slack_handle) or ""
+
+
 def contact_links(contact: Contact) -> ContactLinks:
     """M-04 / ADR-0007: email, Teams, Slack and phone actions for a card."""
     email = primary_email(contact)
@@ -515,6 +523,7 @@ __all__ = [
     "place_missing",
     "primary_email",
     "restore_contact",
+    "slack_for_copy",
     "slack_handle_display",
     "to_out",
     "update_contact",

@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import atexit
 import os
+import shutil
+import tempfile
 import uuid
 from collections.abc import Iterator
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import psycopg
@@ -24,6 +28,12 @@ ADMIN_URL = os.environ.get(
 )
 
 
+# Backups made by tests go to a throwaway folder, never to ~/ContactsBackups/test, so a real
+# backup's date can't show up on a page under test (Settings lists them) and tests leave no files.
+TEST_BACKUP_DIR = Path(tempfile.mkdtemp(prefix="kith-test-backups-"))
+atexit.register(shutil.rmtree, TEST_BACKUP_DIR, ignore_errors=True)
+
+
 def make_settings(database_url: str, **overrides: object) -> Settings:
     values: dict[str, object] = {
         "instance_name": "Test",
@@ -33,6 +43,7 @@ def make_settings(database_url: str, **overrides: object) -> Settings:
         "instance_color": "#bf3989",
         # Tests inject a fake embedder where needed; never load a real model by accident.
         "semantic_search": "off",
+        "backup_dir": TEST_BACKUP_DIR,
     }
     values.update(overrides)
     return Settings.model_validate(values)  # values only; ignores env and env files

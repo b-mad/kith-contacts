@@ -92,6 +92,23 @@ def test_results_show_role_line_and_highlighted_context(
     assert 'data-email="maria@acme.example"' in html  # Copy emails still reads the row
 
 
+@pytest.mark.req("M-07")
+def test_results_rows_carry_the_slack_handle_for_copying(
+    client: TestClient, types: dict[str, int]
+) -> None:
+    make(
+        client,
+        display_name="Slacky One",
+        contact_type_id=types["Employee"],
+        slack_handle="Slacky One (Acme)",
+    )
+    make(client, display_name="Slacky Two", contact_type_id=types["Employee"])
+    html = client.get("/contacts/results", params={"q": "slacky"}).text
+    assert 'data-slack="@Slacky One (Acme)"' in html
+    assert 'data-slack="" data-name="Slacky Two"' in html
+    assert 'data-testid="copy-slack"' in client.get("/").text
+
+
 # ---------------------------------------------------------------- filter chips (S-04)
 
 

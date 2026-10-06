@@ -72,8 +72,10 @@ LinkedInUrl = Annotated[
 BirthdayText = Annotated[
     Annotated[str, StringConstraints(max_length=40)] | None, _Blank, AfterValidator(_birthday)
 ]
+# Slack display names may contain spaces and punctuation, so only an "@" inside the name
+# and line breaks are refused (C-04).
 SlackHandle = Annotated[
-    Annotated[str, StringConstraints(max_length=100, pattern=r"^@?[\w.\-]+$")] | None,
+    Annotated[str, StringConstraints(max_length=100, pattern=r"^@?[^\s@][^@\r\n]*$")] | None,
     _Blank,
     AfterValidator(_strip_at),
 ]

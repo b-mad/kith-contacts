@@ -73,7 +73,7 @@
     <tbody>
       {% for r in rows %}
         {% set c = r.contact %}
-        <tr data-contact-id="{{ c.id }}" data-email="{{ r.email or '' }}" data-name="{{ c.display_name }}" data-testid="member-row"{% if r.archived %} class="archived"{% endif %}>
+        <tr data-contact-id="{{ c.id }}" data-email="{{ r.email or '' }}" data-slack="{{ r.slack }}" data-name="{{ c.display_name }}" data-testid="member-row"{% if r.archived %} class="archived"{% endif %}>
           <td class="select-col"><input type="checkbox" class="select-contact" value="{{ c.id }}" aria-label="Select {{ c.display_name }}"></td>
           <td><a href="/contacts/{{ c.id }}">{{ c.display_name }}</a>{% if r.archived %} <span class="pill muted">Archived</span>{% endif %}</td>
           <td><span class="pill">{{ c.contact_type.name }}</span></td>

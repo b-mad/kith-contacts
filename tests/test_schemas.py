@@ -69,6 +69,19 @@ def test_slack_handle_strips_leading_at() -> None:
 
 
 @pytest.mark.req("C-04")
+def test_slack_handle_may_contain_spaces() -> None:
+    assert make(slack_handle="@Maria  Lopez ").slack_handle == "Maria  Lopez"
+    assert make(slack_handle="Maria Lopez (Acme)").slack_handle == "Maria Lopez (Acme)"
+
+
+@pytest.mark.req("C-04")
+@pytest.mark.parametrize("handle", ["@", "   @", "two\nlines", "a@b", "x" * 101])
+def test_slack_handle_rejects_unusable_values(handle: str) -> None:
+    with pytest.raises(ValidationError):
+        make(slack_handle=handle)
+
+
+@pytest.mark.req("C-04")
 @pytest.mark.parametrize("url", ["javascript:alert(1)", "http://slack.example", "ftp://x"])
 def test_chat_links_must_be_https(url: str) -> None:
     with pytest.raises(ValidationError, match="https"):
