@@ -7,7 +7,7 @@ Search by team, manager, project, tag, company or something from your notes ("th
 helped with the FDA submission"), group people into lists, and go from a list to a drafted
 email in two clicks. Your contacts stay on your machine.
 
-<!-- Add a screenshot here: ![Kith Contacts](docs/images/screenshot.png) -->
+![Kith Contacts](docs/images/contacts_page.png)
 
 ## What it does
 
