@@ -107,7 +107,7 @@ def test_the_checker_catches_what_it_should() -> None:
     assert not SAFE_DOMAIN.search("acme.com")
     assert SAFE_DOMAIN.search("acme.example")
     assert SAFE_DOMAIN.search("example.com")
-    assert SECRET.search("-----BEGIN RSA PRIVATE KEY-----")
+    assert SECRET.search("-----BEGIN RSA PRIVATE " + "KEY-----")  # split: not a real key
     assert SECRET.search("ghp_" + "a" * 36)
     assert HOME_PATH.search("/Users/someone/project")
     assert not HOME_PATH.search("/home/<you>/project")
