@@ -145,10 +145,10 @@ def test_filters_combine(seeded: Session) -> None:
     maria = by_name(seeded, "Maria Lopez")
     employee = seeded.scalars(select(ContactType).where(ContactType.name == "Employee")).one()
 
-    team = names(search(seeded, "", SearchFilters(team="data platform")))
+    team = names(search(seeded, "", SearchFilters(teams=("data platform",))))
     reports = names(search(seeded, "", SearchFilters(manager_id=maria.id)))
     both = names(search(seeded, "analytics", SearchFilters(manager_id=maria.id)))
-    company = names(search(seeded, "", SearchFilters(company="PEACHTREE LABS")))
+    company = names(search(seeded, "", SearchFilters(companies=("PEACHTREE LABS",))))
     typed = search(seeded, "", SearchFilters(type_id=employee.id))
 
     assert "Maria Lopez" in team
@@ -164,14 +164,17 @@ def test_filters_combine(seeded: Session) -> None:
 def test_tag_filter(seeded: Session) -> None:
     ids = [by_name(seeded, n).id for n in ("Dev Patel", "Yuki Tanaka")]
     add_tag(seeded, ids, "HL7")
-    assert set(names(search(seeded, "", SearchFilters(tag="hl7")))) == {"Dev Patel", "Yuki Tanaka"}
+    assert set(names(search(seeded, "", SearchFilters(tags=("hl7",))))) == {
+        "Dev Patel",
+        "Yuki Tanaka",
+    }
 
 
 @pytest.mark.req("S-04", "L-02")
 def test_list_filter(seeded: Session) -> None:
     project = create_list(seeded, "Q4 LIS integration")
     add_members(seeded, project, [by_name(seeded, "Robert Lin").id])
-    assert names(search(seeded, "", SearchFilters(list_id=project.id))) == ["Robert Lin"]
+    assert names(search(seeded, "", SearchFilters(list_ids=(project.id,)))) == ["Robert Lin"]
 
 
 @pytest.mark.req("C-10", "S-04")
@@ -191,7 +194,7 @@ def test_archived_hidden_unless_requested(seeded: Session) -> None:
 
 
 def test_sort_without_query(seeded: Session) -> None:
-    by_company = names(search(seeded, "", SearchFilters(team="Data Platform"), sort="name"))
+    by_company = names(search(seeded, "", SearchFilters(teams=("Data Platform",)), sort="name"))
     assert by_company == sorted(by_company, key=str.lower)
 
 

@@ -13,21 +13,39 @@ from app.models import SavedSearch
 from app.privacy import presenting, private_refs
 
 SAVED_PARAMS = (
-    "q", "type", "company", "team", "manager", "tag", "list", "favorites", "archived", "contacted",
-    "due", "near", "within",  # near: S-14
+    "q", "type", "company", "team", "manager", "tag", "tag_match", "list", "list_match",
+    "favorites", "archived", "contacted", "due", "near", "within",  # near: S-14
 )  # fmt: skip
+#: S-15: these may repeat (``company=A&company=B``); every other parameter keeps its last value.
+MULTI_PARAMS = frozenset({"company", "team", "tag", "list"})
 MAX_NAME = 100
 MAX_QUERY = 1000
 
 
-def clean_query(params: Mapping[str, str] | str) -> str:
+def clean_query(params: Mapping[str, str] | Sequence[tuple[str, str]] | str) -> str:
     """Keep only known, non-empty search parameters, in a stable order.
 
     ``sort`` is left out: a saved search is about *who*, not how they are ordered.
     """
-    values = dict(parse_qsl(params)) if isinstance(params, str) else dict(params)
-    kept = [(k, " ".join(str(values[k]).split())[:200]) for k in SAVED_PARAMS if values.get(k)]
-    return urlencode([(k, v) for k, v in kept if v])
+    if isinstance(params, str):
+        pairs = parse_qsl(params)
+    elif isinstance(params, Mapping):
+        pairs = [(str(k), str(v)) for k, v in params.items()]
+    else:
+        pairs = [(str(k), str(v)) for k, v in params]
+    kept: list[tuple[str, str]] = []
+    for key in SAVED_PARAMS:
+        values = [" ".join(v.split())[:200] for k, v in pairs if k == key]
+        values = [v for v in values if v]
+        if key in MULTI_PARAMS:
+            seen = dict.fromkeys(values)  # no repeats, order kept
+            kept += [(key, v) for v in list(seen)[:25]]
+        elif key in {"tag_match", "list_match"}:
+            if values and values[-1] == "all":  # "any" is the default and stays out of the URL
+                kept.append((key, "all"))
+        elif values:
+            kept.append((key, values[-1]))
+    return urlencode(kept)
 
 
 def _clean_name(raw: str) -> str:
@@ -54,11 +72,11 @@ def list_saved_searches(session: Session) -> Sequence[SavedSearch]:
 
 
 def _mentions(query: str, tags: set[str], lists: set[int], contacts: set[int]) -> bool:
-    values = dict(parse_qsl(query))
+    pairs = parse_qsl(query)
     return (
-        values.get("tag", "").lower() in tags
-        or _id(values.get("list")) in lists
-        or _id(values.get("manager")) in contacts
+        any(v.lower() in tags for k, v in pairs if k == "tag")
+        or any(_id(v) in lists for k, v in pairs if k == "list")
+        or any(_id(v) in contacts for k, v in pairs if k == "manager")
     )
 
 

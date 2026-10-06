@@ -48,18 +48,42 @@
       <button type="submit" name="clear" value="{{ name }}" class="chip-x" aria-label="Remove {{ label }} filter" title="Remove {{ label }} filter" data-chip-clear data-testid="clear-{{ name }}"{% if not active %} hidden{% endif %}>×</button>
     </span>
   {%- endmacro %}
-  {% set more_on = (filters.list_id is not none) + (contacted is not none) + filters.include_archived + (near is not none) %}
+  {# S-15: Company, Team, Tag and List take several values. A popover of checkboxes, so it works
+     by keyboard and without JavaScript (the Search button then applies it). Within one filter a
+     person matches any value; Tag and List can ask for all of them. #}
+  {% macro multi(name, label, values, match_name=none, match="any") -%}
+    {% set n = values | length %}
+    <span class="chip-field multi-field{% if n %} on{% endif %}" data-chip data-multi data-label="{{ label }}">
+      <details class="multi-chip" data-multi-details>
+        <summary class="filter-chip{% if n %} on{% endif %}" data-testid="filter-{{ name }}" data-multi-summary>{{ label }}{% if n == 1 %}: {{ values[0] }}{% elif n > 1 %}: {{ n }} selected{% endif %}</summary>
+        <div class="multi-panel" role="group" aria-label="{{ label }} filter">
+          <ul class="plain multi-options" data-multi-options>{{ caller() }}</ul>
+          {% if match_name %}
+          <div class="multi-match" data-testid="match-{{ name }}">
+            <label class="check"><input type="radio" name="{{ match_name }}" value=""{% if match != "all" %} checked{% endif %}> Any of these</label>
+            <label class="check"><input type="radio" name="{{ match_name }}" value="all"{% if match == "all" %} checked{% endif %}> All of these</label>
+          </div>
+          {% endif %}
+        </div>
+      </details>
+      <button type="submit" name="clear" value="{{ name }}" class="chip-x" aria-label="Remove {{ label }} filter" title="Remove {{ label }} filter" data-chip-clear data-testid="clear-{{ name }}"{% if not n %} hidden{% endif %}>×</button>
+    </span>
+  {%- endmacro %}
+  {% set more_on = (contacted is not none) + filters.include_archived + (near is not none) %}
+  {% set picked_companies = filters.companies | map("lower") | list %}
+  {% set picked_teams = filters.teams | map("lower") | list %}
+  {% set picked_tags = filters.tags | map("lower") | list %}
   <div class="filters" role="group" aria-label="Filters" data-testid="filters">
     {% call chip("type", "Type", filters.type_id is not none) %}{% for t in types %}<option value="{{ t.id }}"{% if filters.type_id == t.id %} selected{% endif %}>{{ t.name }}</option>{% endfor %}{% endcall %}
-    {% call chip("company", "Company", filters.company) %}{% for c in companies %}<option{% if filters.company and filters.company|lower == c|lower %} selected{% endif %}>{{ c }}</option>{% endfor %}{% endcall %}
-    {% call chip("team", "Team", filters.team) %}{% for t in teams %}<option{% if filters.team and filters.team|lower == t|lower %} selected{% endif %}>{{ t }}</option>{% endfor %}{% endcall %}
-    {% call chip("tag", "Tag", filters.tag) %}{% for t in tags %}<option value="{{ t.name }}"{% if filters.tag and filters.tag|lower == t.name|lower %} selected{% endif %}>{{ t.name }} ({{ t.count }})</option>{% endfor %}{% endcall %}
+    {% call multi("company", "Company", filters.companies) %}{% for c in companies %}<li><label><input type="checkbox" name="company" value="{{ c }}" data-name="{{ c }}"{% if c|lower in picked_companies %} checked{% endif %}> {{ c }}</label></li>{% else %}<li class="muted small">No companies yet</li>{% endfor %}{% endcall %}
+    {% call multi("team", "Team", filters.teams) %}{% for t in teams %}<li><label><input type="checkbox" name="team" value="{{ t }}" data-name="{{ t }}"{% if t|lower in picked_teams %} checked{% endif %}> {{ t }}</label></li>{% else %}<li class="muted small">No teams yet</li>{% endfor %}{% endcall %}
+    {% call multi("tag", "Tag", filters.tags, "tag_match", filters.tag_match) %}{% for t in tags %}<li><label><input type="checkbox" name="tag" value="{{ t.name }}" data-name="{{ t.name }}"{% if t.name|lower in picked_tags %} checked{% endif %}> {{ t.name }} <span class="muted small">({{ t.count }})</span></label></li>{% else %}<li class="muted small">No tags yet</li>{% endfor %}{% endcall %}
+    {% call multi("list", "List", list_names, "list_match", filters.list_match) %}{% for l in lists %}<li><label><input type="checkbox" name="list" value="{{ l.id }}" data-name="{{ l.name }}"{% if l.id in filters.list_ids %} checked{% endif %}> {{ l.name }}</label></li>{% else %}<li class="muted small">No lists yet</li>{% endfor %}{% endcall %}
     <label class="filter-chip filter-toggle"><input type="checkbox" name="favorites" value="1"{% if filters.favorites %} checked{% endif %} data-testid="filter-favorites"> <span aria-hidden="true">★</span> Favorites</label>
     <label class="filter-chip filter-toggle"><input type="checkbox" name="due" value="1"{% if filters.due_by %} checked{% endif %} data-testid="filter-due"> Due to reconnect</label>
     <details class="more-filters" data-testid="more-filters" data-more-filters>
       <summary class="filter-chip{% if more_on %} on{% endif %}">More filters{% if more_on %} · {{ more_on }}{% endif %}</summary>
       <div class="more-panel">
-        {% call chip("list", "List", filters.list_id is not none) %}{% for l in lists %}<option value="{{ l.id }}"{% if filters.list_id == l.id %} selected{% endif %}>{{ l.name }}</option>{% endfor %}{% endcall %}
         {% call chip("contacted", "Last contacted", contacted is not none) %}{% for n in contacted_choices %}<option value="{{ n }}"{% if contacted == n %} selected{% endif %}>Contacted in the last {{ n }} days</option>{% endfor %}{% endcall %}
         <label class="filter-chip filter-toggle"><input type="checkbox" name="archived" value="1"{% if filters.include_archived %} checked{% endif %} data-testid="filter-archived"> Include archived</label>
         {# S-14 #}

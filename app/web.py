@@ -66,6 +66,9 @@ from app.search import (
     apply_time_query,
     distinct_values,
     last_interactions,
+    match_mode,
+    multi_ids,
+    multi_texts,
     query_terms,
     search,
 )
@@ -348,22 +351,32 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
     cleared = set(request.query_params.getlist("clear"))
     if "near" in cleared:
         cleared.add("within")
-    p = {k: v for k, v in request.query_params.items() if k not in cleared and k != "clear"}
+    cleared |= {f"{name}_match" for name in cleared & {"tag", "list"}}  # S-15
+    pairs = [
+        (k, v) for k, v in request.query_params.multi_items() if k not in cleared and k != "clear"
+    ]
+    p = dict(pairs)
+
+    def many(name: str) -> list[str]:  # S-15: Company, Team, Tag and List may repeat
+        return [v for k, v in pairs if k == name]
+
     q = p.get("q", "").strip()[:200]
     view = "map" if p.get("view") == "map" else "list"  # S-13
     near = _near(session, p.get("near", ""), p.get("within"))  # S-14
     manager_id = _int(p.get("manager"))
-    list_id = _int(p.get("list"))
+    list_ids = multi_ids(many("list"))
     contacted = _int(p.get("contacted"))
     contacted = contacted if contacted in CONTACTED_CHOICES else None
     due = p.get("due") == "1"  # S-11
     filters = SearchFilters(
         type_id=_int(p.get("type")),
-        company=p.get("company") or None,
-        team=p.get("team") or None,
+        companies=multi_texts(many("company")),
+        teams=multi_texts(many("team")),
         manager_id=manager_id,
-        tag=p.get("tag") or None,
-        list_id=list_id,
+        tags=multi_texts(many("tag")),
+        tag_match=match_mode(p.get("tag_match")),
+        list_ids=list_ids,
+        list_match=match_mode(p.get("list_match")),
         favorites=p.get("favorites") == "1",
         include_archived=p.get("archived") == "1",
         active_from=contacted_since(contacted) if contacted else None,
@@ -402,9 +415,9 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
             manager = get_contact(session, manager_id)
         except ContactNotFound:
             manager = None
-    list_name = next(
-        (cl.name for cl, _ in all_lists(session, include_archived=True) if cl.id == list_id), None
-    )
+    list_names = [
+        cl.name for cl, _ in all_lists(session, include_archived=True) if cl.id in list_ids
+    ]
     rows = [(to_out(h.contact), h.matched, h.fuzzy, h.hidden) for h in hits]
     distances: dict[int, float] = {}
     if near is not None and near.label is not None:
@@ -442,11 +455,11 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         "tags": tag_counts(session),
         "lists": active_lists(session),
         "manager": manager,
-        "list_name": list_name,
+        "list_names": list_names,
         "notice": notice_text(request),
         "saved": list_saved_searches(session),
-        "current_query": clean_query(dict(p)),
-        "related_tags": related_tags(session, filters.tag) if filters.tag else [],
+        "current_query": clean_query(pairs),
+        "related_tags": related_tags(session, filters.tags[0]) if len(filters.tags) == 1 else [],
     }
 
 

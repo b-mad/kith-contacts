@@ -758,13 +758,17 @@ def test_preview_pane_chips_and_keyboard(base_url: str) -> None:
 
         # Filters are chips; a chosen one is filled and the results follow.
         page.keyboard.press("Escape")
-        page.get_by_test_id("filter-team").select_option("Preview Team")
+        # Team is a checkbox popover (S-15): tick a value and the chip fills in.
+        page.get_by_test_id("filter-team").click()
+        page.get_by_placeholder("Type to find a team…").fill("preview")  # type to narrow the list
+        page.get_by_label("Preview Team").check()
         expect(
             page.get_by_test_id("clear-team")
         ).to_be_visible()  # a filled chip with a remove button
+        expect(page.get_by_test_id("filter-team")).to_contain_text("Preview Team")
         page.get_by_test_id("clear-team").click()
         expect(page.get_by_test_id("clear-team")).to_be_hidden()
-        expect(page.get_by_test_id("filter-team")).to_have_value("")
+        expect(page.get_by_test_id("filter-team")).not_to_contain_text("Preview Team")
         page.get_by_test_id("more-filters").locator("summary").click()
         expect(page.get_by_test_id("filter-contacted")).to_be_visible()
         page.keyboard.press("Escape")  # the popover closes

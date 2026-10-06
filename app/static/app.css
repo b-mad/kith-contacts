@@ -808,6 +808,30 @@ body.env-production .present-toggle:not([aria-pressed="true"]):hover { backgroun
 .near-field.on input { border-color: var(--accent); }
 .distance { color: var(--muted); }
 
+/* S-15: Company, Team, Tag and List filters take several values (ADR-0027) */
+.multi-chip { display: inline-block; position: relative; }
+.multi-chip > summary { list-style: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.multi-chip > summary::-webkit-details-marker { display: none; }
+.multi-chip > summary::after { content: "▾"; font-size: 0.75rem; }
+.multi-chip[open] > summary::after { content: "▴"; }
+.chip-field.on > .multi-chip > summary.filter-chip { padding-right: 2.4rem; }
+.chip-field.on > .multi-chip > summary::after { content: none; }
+.multi-panel {
+  position: absolute; z-index: 20; top: calc(100% + 0.35rem); left: 0; min-width: 14rem; max-width: min(24rem, 90vw);
+  max-height: 22rem; overflow-y: auto; padding: 0.5rem;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: 10px;
+  box-shadow: 0 6px 18px var(--shadow-color);
+}
+.multi-options { margin: 0; flex-direction: column; flex-wrap: nowrap; gap: 0; }
+.multi-options li { margin: 0; }
+.multi-options label { display: flex; gap: 0.5rem; align-items: center; min-height: 2rem; padding: 0.15rem 0.35rem; border-radius: 6px; font-weight: normal; cursor: pointer; }
+.multi-options label:hover { background: var(--surface-2); }
+.multi-options input { margin: 0; width: 1rem; height: 1rem; flex: none; }
+.multi-options li[hidden] { display: none; }
+.multi-find { width: 100%; margin-bottom: 0.4rem; position: sticky; top: 0; background: var(--surface); }
+.multi-options li.multi-none { padding: 0.35rem; }
+.multi-match { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px solid var(--border); font-size: 0.85rem; }
+
 /* D-07: import review — filter, selection, paging, differences (ADR-0026) */
 .import-toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
 .import-toolbar .inline-field { display: inline-flex; gap: 0.4rem; align-items: center; font-weight: normal; }

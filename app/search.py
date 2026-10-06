@@ -43,6 +43,7 @@ from app.timephrase import INTERACTION_KINDS, TimeQuery, parse_time_query
 
 FUZZY_THRESHOLD = 0.3
 NAME_WEIGHT = "'{a}'::\"char\"[]"  # ts_filter weight array: names only
+MultiMatch = Literal["any", "all"]
 SortKey = Literal["relevance", "name", "company", "team", "type", "updated", "last_contact"]
 SORT_KEYS: tuple[SortKey, ...] = (
     "relevance", "name", "company", "team", "type", "updated", "last_contact",
@@ -115,17 +116,44 @@ def to_tsquery_text(terms: Sequence[str], operator: Literal["&", "|"]) -> str:
 
 # ---------------------------------------------------------------- filters
 
+MAX_MULTI_VALUES = 25  # S-15: values per filter; a longer list is cut, not an error
+
+
+def multi_texts(values: Iterable[str]) -> tuple[str, ...]:
+    """S-15: filter values from a query string — trimmed, no blanks, no repeats ignoring case."""
+    seen: dict[str, str] = {}
+    for raw in values:
+        text = " ".join(raw.split())[:200]
+        if text:
+            seen.setdefault(text.lower(), text)
+    return tuple(seen.values())[:MAX_MULTI_VALUES]
+
+
+def multi_ids(values: Iterable[str]) -> tuple[int, ...]:
+    """S-15: ids from a query string, in order, without repeats."""
+    found = dict.fromkeys(int(v) for v in values if v.strip().isdigit())
+    return tuple(found)[:MAX_MULTI_VALUES]
+
+
+def match_mode(value: str | None) -> MultiMatch:
+    return "all" if value == "all" else "any"
+
 
 @dataclass(frozen=True)
 class SearchFilters:
     """S-04: combinable filters."""
 
     type_id: int | None = None
-    company: str | None = None
-    team: str | None = None
+    # S-15: Company, Team, Tag and List take several values. Within one filter, a person
+    # matches any of the values (a person has one company); Tag and List can instead require
+    # all of them. Different filters always combine with "and".
+    companies: tuple[str, ...] = ()
+    teams: tuple[str, ...] = ()
     manager_id: int | None = None
-    tag: str | None = None
-    list_id: int | None = None
+    tags: tuple[str, ...] = ()
+    tag_match: MultiMatch = "any"
+    list_ids: tuple[int, ...] = ()
+    list_match: MultiMatch = "any"
     favorites: bool = False
     include_archived: bool = False
     # S-09/S-10: people with an interaction (not a note) in this period, optionally of these kinds.
@@ -165,28 +193,33 @@ class SearchFilters:
             stmt = stmt.where(Contact.archived_at.is_(None))
         if self.type_id is not None:
             stmt = stmt.where(Contact.contact_type_id == self.type_id)
-        if self.company:
-            stmt = stmt.where(func.lower(Contact.company) == self.company.lower())
-        if self.team:
-            stmt = stmt.where(func.lower(Contact.team) == self.team.lower())
+        if self.companies:
+            stmt = stmt.where(func.lower(Contact.company).in_([c.lower() for c in self.companies]))
+        if self.teams:
+            stmt = stmt.where(func.lower(Contact.team).in_([t.lower() for t in self.teams]))
         if self.manager_id is not None:
             stmt = stmt.where(Contact.manager_id == self.manager_id)
-        if self.tag:
-            stmt = stmt.where(
-                Contact.id.in_(
-                    select(contact_tag.c.contact_id)
-                    .join(Tag, Tag.id == contact_tag.c.tag_id)
-                    .where(func.lower(Tag.name) == self.tag.lower())
+        if self.tags:
+            wanted = [t.lower() for t in self.tags]
+            for names in [wanted] if self.tag_match == "any" else [[t] for t in wanted]:
+                stmt = stmt.where(
+                    Contact.id.in_(
+                        select(contact_tag.c.contact_id)
+                        .join(Tag, Tag.id == contact_tag.c.tag_id)
+                        .where(func.lower(Tag.name).in_(names))
+                    )
                 )
-            )
-        if self.list_id is not None:
-            stmt = stmt.where(
-                Contact.id.in_(
-                    select(ListMember.contact_id)
-                    .join(ContactList, ContactList.id == ListMember.list_id)  # private lists: P-02
-                    .where(ListMember.list_id == self.list_id)
+        if self.list_ids:
+            for ids in (
+                [self.list_ids] if self.list_match == "any" else [(i,) for i in self.list_ids]
+            ):
+                stmt = stmt.where(
+                    Contact.id.in_(
+                        select(ListMember.contact_id)
+                        .join(ContactList, ContactList.id == ListMember.list_id)  # private: P-02
+                        .where(ListMember.list_id.in_(ids))
+                    )
                 )
-            )
         if self.favorites:
             stmt = stmt.where(Contact.is_favorite.is_(True))
         if self.due_by is not None:
@@ -232,11 +265,11 @@ class SearchFilters:
         return any(
             (
                 self.type_id is not None,
-                self.company,
-                self.team,
+                bool(self.companies),
+                bool(self.teams),
                 self.manager_id is not None,
-                self.tag,
-                self.list_id is not None,
+                bool(self.tags),
+                bool(self.list_ids),
                 self.favorites,
                 self.has_period,
                 self.due_by is not None,

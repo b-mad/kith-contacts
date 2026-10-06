@@ -100,8 +100,8 @@ def test_filters_are_chips_with_less_used_ones_under_more(
     client: TestClient, types: dict[str, int]
 ) -> None:
     page = client.get("/").text
-    assert 'class="filter-chip" aria-label="Company"' in page
-    assert '<option value="">Company</option>' in page
+    assert 'data-testid="filter-company" data-multi-summary>Company</summary>' in page  # S-15
+    assert '<option value="">Type</option>' in page  # Type stays a single choice
     assert 'data-testid="more-filters" data-more-filters>' in page  # a closed popover
     assert '<option value="" selected>Best match</option>' in page
     listed = client.get("/?contacted=30&archived=1").text

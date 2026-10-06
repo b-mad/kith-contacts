@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.20 |
+| Version | 1.21 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-06 |
@@ -118,7 +118,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | S-01 | One search box matches across name, email, company, title, team, manager name, "works on", notes, tags and list names — and, from Phase 4, custom field values and activity summaries (ADR-0012). | Must | 2 |
 | S-02 | Results rank by relevance and show the matching context (e.g. "team: Data Platform · manager: Maria Lopez"), with the matched words highlighted (ADR-0017). | Must | 2 |
 | S-03 | Prefix and typo-tolerant matching ("lab res", "Mria"). | Must | 2 |
-| S-04 | Filters: contact type, company, team, manager, tag, list; combinable. | Must | 2 |
+| S-04 | Filters: contact type, company, team, manager, tag, list; combinable. Company, team, tag and list take several values (S-15). | Must | 2 |
 | S-05 | Results update as you type (< 200 ms). | Must | 2 |
 | S-06 | Org view: pick a manager and browse reports, up and down the chain. | Should | 3 |
 | S-07 | Saved searches (e.g. "Vendors tagged HL7"). | Could | 4 |
@@ -129,6 +129,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | S-12 | Command palette (Ctrl/⌘ + K): jump to a person, list, tag or saved search, or run a common action (add a contact, Reconnect, Present, theme); presenting mode applies (ADR-0017). | Should | 6 |
 | S-13 | **Map** view of any search, list, tag or selection: states shaded by how many contacts are there, zooming to clustered points at ZIP or city level; home, work or all addresses; a count of contacts that could not be placed; offline — no map tiles or other outside requests; presenting mode applies (ADR-0023). | Should | 12 |
 | S-14 | "Near" filter: contacts within a chosen number of miles of a city, ZIP code or another contact (ADR-0023). | Could | 12 |
+| S-15 | Several values per filter: the main contacts screen lets the user pick more than one Company, Team, Tag or List. Within one filter a contact matches any chosen value; Tag and List can instead require all of them. Different filters combine with "and". Choices live in the URL, can be saved as a search (S-07), and are accepted by the search API (ADR-0027). | Should | 2 |
 
 ### Tags
 
@@ -438,8 +439,9 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 ## Change log
 
-| Version | 1.20 |
+| Version | 1.21 |
 | --- | --- | --- | --- |
+| 1.21 | 2026-10-06 | S-15 added: multi-value Company, Team, Tag and List filters on the contacts screen (checkbox dropdowns, "any / all of these" for Tag and List). S-04 updated; the List filter moves to the main filter row. | 0027 |
 | 1.20 | 2026-10-06 | D-07 import review added (Phase 3): paged preview, choose rows with select all / individual, and a field-by-field comparison of each possible duplicate. D-03 and I-09 clarified: the whole-instance JSON export carries photos (JSON imports may be up to 64 MB; CSV and vCard stay 5 MB). | 0026 |
 | 1.19 | 2026-10-06 | Clarified how the install zip (I-13) is published: a tag workflow builds it with `make bundle` and attaches it, with a checksum, to a GitHub Release; the zip is not committed to git. No requirement added or removed. | 0025 |
 | 1.18 | 2026-10-05 | ADR-0025 accepted; N-13 implemented in the repository: `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES`, `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, an About section in Settings, licence files in the install zip, a README for strangers, `.example` sample data and tests that fail on an unlisted asset or a real address. Phase 14 stays open until the owner-only steps (history rewrite, name and policy checks, GitHub settings) are done. | 0025 |

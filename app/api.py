@@ -27,7 +27,14 @@ from app.contacts import (
 from app.db import get_session
 from app.privacy import shown_summary, shows_dates
 from app.schemas import ContactCreate, ContactOut, ContactRef, ContactTypeOut, ContactUpdate
-from app.search import SearchFilters, apply_time_query, last_interactions, search
+from app.search import (
+    MultiMatch,
+    SearchFilters,
+    apply_time_query,
+    last_interactions,
+    multi_texts,
+    search,
+)
 from app.search import SortKey as SearchSort
 from app.semantic import SemanticService, search_by_meaning
 from app.tags import tag_counts
@@ -105,27 +112,35 @@ def search_contacts(
     session: SessionDep,
     q: Annotated[str, Query(max_length=200)] = "",
     type: int | None = None,
-    company: str | None = None,
-    team: str | None = None,
+    company: Annotated[list[str] | None, Query(description="repeat for several")] = None,
+    team: Annotated[list[str] | None, Query(description="repeat for several")] = None,
     manager: int | None = None,
-    tag: str | None = None,
-    list: int | None = None,
+    tag: Annotated[list[str] | None, Query(description="repeat for several")] = None,
+    tag_match: MultiMatch = "any",
+    list_ids: Annotated[list[int] | None, Query(alias="list", description="repeat")] = None,
+    list_match: MultiMatch = "any",
     favorites: bool = False,
     include_archived: bool = False,
     contacted: Annotated[int | None, Query(ge=1, le=3650, description="days")] = None,
 ) -> list[SearchResult]:
     """Context search (S-01 to S-04): ranked hits with the fields that matched.
 
+    ``company``, ``team``, ``tag`` and ``list`` may be repeated: a person matches any of the
+    values given for one filter (``tag_match=all`` / ``list_match=all`` require every one);
+    different filters combine with "and" (S-15).
+
     ``contacted=30`` keeps people with an interaction in the last 30 days (S-09); time
     phrases in ``q`` ("recently", "last week") do the same for that period (S-10).
     """
     filters = SearchFilters(
         type_id=type,
-        company=company,
-        team=team,
+        companies=multi_texts(company or []),
+        teams=multi_texts(team or []),
         manager_id=manager,
-        tag=tag,
-        list_id=list,
+        tags=multi_texts(tag or []),
+        tag_match=tag_match,
+        list_ids=tuple(dict.fromkeys(list_ids or [])),
+        list_match=list_match,
         favorites=favorites,
         include_archived=include_archived,
         active_from=contacted_since(contacted) if contacted else None,
@@ -170,8 +185,8 @@ def search_meaning(
     session: SessionDep,
     q: Annotated[str, Query(min_length=1, max_length=200)],
     type: int | None = None,
-    tag: str | None = None,
-    list: int | None = None,
+    tag: Annotated[list[str] | None, Query(description="repeat for several")] = None,
+    list_ids: Annotated[list[int] | None, Query(alias="list", description="repeat")] = None,
     include_archived: bool = False,
 ) -> list[MeaningResult]:
     """Search by meaning (S-08): people whose notes, projects or activity are closest to ``q``.
@@ -184,7 +199,12 @@ def search_meaning(
             status.HTTP_503_SERVICE_UNAVAILABLE,
             service.unavailable or "Search by meaning is starting; try again shortly",
         )
-    filters = SearchFilters(type_id=type, tag=tag, list_id=list, include_archived=include_archived)
+    filters = SearchFilters(
+        type_id=type,
+        tags=multi_texts(tag or []),
+        list_ids=tuple(dict.fromkeys(list_ids or [])),
+        include_archived=include_archived,
+    )
     return [
         MeaningResult(
             contact=to_out(m.contact), score=round(m.score, 3), source=m.source, text=m.text

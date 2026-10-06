@@ -175,9 +175,19 @@ def _directions_to(app: FastAPI, c: Any) -> str | None:
     return directions_url([where], current_provider(app.state)) if where else None
 
 
+def static_version(path: str) -> int:
+    """File time of a static asset, appended as ``?v=`` so an updated stylesheet or script is
+    fetched at once instead of a browser keeping its old copy."""
+    try:
+        return int((APP_DIR / "static" / path).stat().st_mtime)
+    except OSError:
+        return 0
+
+
 def build_templates(settings: Settings) -> Jinja2Templates:
     templates = Jinja2Templates(directory=APP_DIR / "templates")
     templates.env.globals["instance"] = settings
+    templates.env.globals["static_version"] = static_version
     templates.env.globals["csrf_field"] = web.CSRF_FIELD
     templates.env.filters["phone"] = display_phone
     templates.env.filters["slack_handle"] = slack_handle_display

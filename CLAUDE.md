@@ -114,7 +114,7 @@ delete a failing test to get a green run unless the requirement was withdrawn.
 | `app/schemas.py` | Pydantic input/output models and validation rules |
 | `app/contacts.py` | Contact business logic — routes stay thin and call this |
 | `app/links.py` | Pure helpers for mailto/tel/Slack/Teams links, LinkedIn profile normalisation (C-18) and phone format |
-| `app/search.py` | Context search, filters, match context, and `refresh_search` (ADR-0010) |
+| `app/search.py` | Context search, filters (several values per Company/Team/Tag/List, S-15), match context, and `refresh_search` (ADR-0010) |
 | `app/tags.py`, `app/lists.py` | Tags (incl. related tags, T-05) and project lists (incl. list tags, L-05) |
 | `app/web_lists.py` | Pages for lists and tags |
 | `app/backup.py`, `scripts/backup.py` | pg_dump/pg_restore backups, retention, restore, copy-to-dev (ADR-0011) |

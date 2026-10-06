@@ -18,6 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initPalette();
   initShortcuts();
   initFilterChips();
+  initMultiChips();
   initThemeSwitch();
   initLogPrompt();
   initSearch();
@@ -693,6 +694,83 @@ function initFilterChips() {
 // S-15: Company, Team, Tag and List chips hold several values. Each is a popover of checkboxes
 // that works without JavaScript; this keeps the summary and × in step, adds a find box to long
 // lists, and closes the popover on a click elsewhere or Escape.
+function initMultiChips() {
+  const chips = $$("[data-multi]");
+  chips.forEach((chip) => {
+    const details = $("[data-multi-details]", chip);
+    const summary = $("[data-multi-summary]", chip);
+    const clear = $("[data-chip-clear]", chip);
+    const options = $("[data-multi-options]", chip);
+    const label = chip.dataset.label;
+    const boxes = () => $$('[data-multi-options] input[type="checkbox"]', chip);
+    const sync = () => {
+      const names = boxes().filter((box) => box.checked).map((box) => box.dataset.name || box.value);
+      const text = names.length === 0 ? label
+        : names.length === 1 ? `${label}: ${names[0]}` : `${label}: ${names.length} selected`;
+      summary.textContent = text;
+      summary.title = names.join(", ");
+      chip.classList.toggle("on", names.length > 0);
+      summary.classList.toggle("on", names.length > 0);
+      clear.hidden = names.length === 0;
+    };
+    chip.addEventListener("change", (e) => { if (e.target.matches('input[type="checkbox"]')) sync(); });
+    clear.addEventListener("click", (e) => {
+      e.preventDefault();
+      boxes().forEach((box) => { box.checked = false; });
+      sync();
+      details.open = false;
+      options.dispatchEvent(new Event("change", { bubbles: true }));
+      summary.focus();
+    });
+    { // a find box: type to narrow a long list (over 100 companies), then tick what you want
+      const find = document.createElement("input");
+      find.type = "search";
+      find.className = "multi-find";
+      find.placeholder = `Type to find a ${label.toLowerCase()}…`;
+      find.autocomplete = "off";
+      find.setAttribute("aria-label", `Find a ${label.toLowerCase()}`);
+      const none = document.createElement("li");
+      none.className = "muted small multi-none";
+      none.textContent = "No matches";
+      none.hidden = true;
+      options.append(none);
+      const narrow = () => {
+        const needle = find.value.trim().toLowerCase();
+        let shown = 0;
+        $$("li:not(.multi-none)", options).forEach((li) => {
+          const hide = needle !== "" && !li.textContent.toLowerCase().includes(needle);
+          li.hidden = hide;
+          if (!hide) shown += 1;
+        });
+        none.hidden = shown > 0;
+      };
+      find.addEventListener("input", narrow);
+      find.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") e.preventDefault(); // Enter must not submit the whole form
+        if (e.key === "Escape" && find.value) { e.stopPropagation(); find.value = ""; narrow(); }
+      });
+      details.addEventListener("toggle", () => { if (!details.open) { find.value = ""; narrow(); } });
+      options.before(find);
+    }
+    details.addEventListener("toggle", () => {
+      if (!details.open) return;
+      chips.forEach((other) => { const d = $("[data-multi-details]", other); if (d !== details) d.open = false; });
+      const find = $(".multi-find", chip);
+      if (find) find.focus();
+    });
+  });
+  document.addEventListener("click", (e) => {
+    chips.forEach((chip) => { const d = $("[data-multi-details]", chip); if (d.open && !chip.contains(e.target)) d.open = false; });
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const open = chips.find((chip) => $("[data-multi-details]", chip).open);
+    if (!open) return;
+    $("[data-multi-details]", open).open = false;
+    $("[data-multi-summary]", open).focus();
+  });
+}
+
 // ------------------------------------------------------------------ shortcuts (N-09) and palette (S-12)
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
