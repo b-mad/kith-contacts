@@ -66,9 +66,9 @@
       {{ m.text_input("Title", "title", values, errors) }}
     </div>
     <div class="row three">
-      {{ m.text_input("Team", "team", values, errors) }}
-      {{ m.text_input("Department", "department", values, errors) }}
-      {{ m.text_input("Location", "location", values, errors) }}
+      {{ m.text_input("Team", "team", values, errors, suggestions="team-names") }}
+      {{ m.text_input("Department", "department", values, errors, suggestions="department-names") }}
+      {{ m.text_input("Location", "location", values, errors, suggestions="location-names") }}
     </div>
     <div class="field manager-picker{% if errors.get('manager_id') %} has-error{% endif %}" data-manager-picker data-exclude="{{ contact_id or '' }}">
       <label for="manager_label">Manager</label>
@@ -91,7 +91,7 @@
       {% for e in emails %}
         <div class="row-item">
           <input type="email" name="email_address" value="{{ e.address }}" aria-label="Email {{ loop.index }}" placeholder="name@example.com">
-          <input type="text" name="email_label" value="{{ e.label }}" aria-label="Email {{ loop.index }} label" placeholder="work, personal…" class="label-input">
+          <input type="text" name="email_label" list="label-names" value="{{ e.label }}" aria-label="Email {{ loop.index }} label" placeholder="work, personal…" class="label-input">
           <label class="check"><input type="radio" name="primary_email" value="{{ loop.index0 }}"{% if e.is_primary %} checked{% endif %}> Primary</label>
           <button type="button" class="link" data-remove-row aria-label="Remove email {{ loop.index }}">Remove</button>
         </div>
@@ -100,7 +100,7 @@
     <template id="email-row">
       <div class="row-item">
         <input type="email" name="email_address" aria-label="Email" placeholder="name@example.com">
-        <input type="text" name="email_label" aria-label="Email label" placeholder="work, personal…" class="label-input">
+        <input type="text" name="email_label" list="label-names" aria-label="Email label" placeholder="work, personal…" class="label-input">
         <label class="check"><input type="radio" name="primary_email" value=""> Primary</label>
         <button type="button" class="link" data-remove-row aria-label="Remove email">Remove</button>
       </div>
@@ -115,7 +115,7 @@
       {% for p in phones %}
         <div class="row-item">
           <input type="tel" name="phone_number" value="{{ p.number }}" aria-label="Phone {{ loop.index }}" placeholder="(404) 555-0100">
-          <input type="text" name="phone_label" value="{{ p.label }}" aria-label="Phone {{ loop.index }} label" placeholder="mobile, work…" class="label-input">
+          <input type="text" name="phone_label" list="label-names" value="{{ p.label }}" aria-label="Phone {{ loop.index }} label" placeholder="mobile, work…" class="label-input">
           <button type="button" class="link" data-remove-row aria-label="Remove phone {{ loop.index }}">Remove</button>
         </div>
       {% endfor %}
@@ -123,7 +123,7 @@
     <template id="phone-row">
       <div class="row-item">
         <input type="tel" name="phone_number" aria-label="Phone" placeholder="(404) 555-0100">
-        <input type="text" name="phone_label" aria-label="Phone label" placeholder="mobile, work…" class="label-input">
+        <input type="text" name="phone_label" list="label-names" aria-label="Phone label" placeholder="mobile, work…" class="label-input">
         <button type="button" class="link" data-remove-row aria-label="Remove phone">Remove</button>
       </div>
     </template>
@@ -137,7 +137,7 @@
     <div class="rows" data-rows="address" data-testid="address-rows">
       {% for a in addresses %}{% set an = "Address " ~ loop.index %}
       <div class="row-item address-item">
-        <input type="text" name="address_label" value="{{ a.label }}" aria-label="{{ an }} label" placeholder="home, work…" class="label-input">
+        <input type="text" name="address_label" list="label-names" value="{{ a.label }}" aria-label="{{ an }} label" placeholder="home, work…" class="label-input">
         <textarea name="address_street" rows="2" aria-label="{{ an }} street" placeholder="Street">{{ a.street }}</textarea>
         <input type="text" name="address_city" value="{{ a.city }}" aria-label="{{ an }} city" placeholder="City" autocomplete="off">
         <input type="text" name="address_region" value="{{ a.region }}" aria-label="{{ an }} state or region" placeholder="State" autocomplete="off">
@@ -150,7 +150,7 @@
     <template id="address-row">
       {% set a = {"label": "", "street": "", "city": "", "region": "", "postal_code": "", "country": ""} %}{% set an = "Address" %}
       <div class="row-item address-item">
-        <input type="text" name="address_label" value="{{ a.label }}" aria-label="{{ an }} label" placeholder="home, work…" class="label-input">
+        <input type="text" name="address_label" list="label-names" value="{{ a.label }}" aria-label="{{ an }} label" placeholder="home, work…" class="label-input">
         <textarea name="address_street" rows="2" aria-label="{{ an }} street" placeholder="Street">{{ a.street }}</textarea>
         <input type="text" name="address_city" value="{{ a.city }}" aria-label="{{ an }} city" placeholder="City" autocomplete="off">
         <input type="text" name="address_region" value="{{ a.region }}" aria-label="{{ an }} state or region" placeholder="State" autocomplete="off">
@@ -208,6 +208,11 @@
     <button type="button" class="link" data-add-row="field">+ Add field</button>
     {{ m.field_error(errors, "custom_fields") }}
   </fieldset>
+
+  {# C-25: existing values to pick from; any text is still accepted and an existing spelling is reused on save #}
+  {% for name in ("team", "department", "location", "label") %}
+  <datalist id="{{ name }}-names">{% for v in suggestions[name] %}<option value="{{ v }}">{% endfor %}</datalist>
+  {% endfor %}
 
   <div class="form-actions">
     <button type="submit" class="primary" data-testid="save">{{ "Save changes" if editing else "Add contact" }}</button>

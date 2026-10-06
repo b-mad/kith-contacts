@@ -60,3 +60,4 @@ not change meaning — those are logged in the requirements change log only.
 | [0028](0028-photo-enlarge-view.md) | Click a photo for a larger view with name, title and company | Accepted | C-24, C-09 |
 | [0029](0029-copy-slack-handles.md) | Copy the selected contacts' Slack handles to paste into Slack | Accepted | M-07 |
 | [0030](0030-org-chart-focus-and-outline-views.md) | Show the org chart as a Focus view and an Outline view | Accepted | S-06, S-16, S-17 |
+| [0031](0031-suggest-existing-values-in-contact-fields.md) | Suggest existing values in the contact form and reuse their spelling | Accepted | C-25, C-14 |

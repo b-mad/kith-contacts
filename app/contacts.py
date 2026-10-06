@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from typing import Any, Literal
 
 from sqlalchemy import Select, func, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import InstrumentedAttribute, Session, selectinload
 
 from app.addresses import normalize_address
 from app.geo import place_of
@@ -176,6 +177,119 @@ def check_manager(session: Session, contact_id: int | None, manager_id: int | No
             )
         current = row.manager_id
     raise ContactError("Reporting chain is too deep", "manager_id")  # pragma: no cover
+
+
+# ---------------------------------------------------------------- reuse existing spellings (C-25)
+
+# (value column, owning contact's id column) for the free-text fields that suggest and reuse values.
+_Column = tuple[InstrumentedAttribute[str | None], InstrumentedAttribute[int | None]]
+_SPELLED_FIELDS: tuple[str, ...] = ("team", "department", "location")
+_LABEL_COLUMNS: tuple[_Column, ...] = (
+    (ContactEmail.label, ContactEmail.contact_id),
+    (ContactPhone.label, ContactPhone.contact_id),
+    (ContactAddress.label, ContactAddress.contact_id),
+)
+MAX_SUGGESTIONS = 500
+
+
+def _tidy(text: str | None) -> str:
+    return " ".join((text or "").split())
+
+
+def _best_spelling(counts: Counter[str]) -> str:
+    """The most used spelling; ties go to the alphabetically first."""
+    return min(counts.items(), key=lambda item: (-item[1], item[0]))[0]
+
+
+def resolve_spelling(
+    session: Session, columns: Sequence[_Column], raw: str | None, exclude_id: int | None = None
+) -> str | None:
+    """C-25: reuse an existing spelling when the value matches ignoring case and spaces.
+
+    ``exclude_id`` leaves one contact's own rows out, so fixing the case of a value nobody
+    else uses still works."""
+    name = _tidy(raw)
+    if not name:
+        return None
+    counts: Counter[str] = Counter()
+    for column, owner in columns:
+        stmt = (
+            select(column, func.count()).where(func.lower(column) == name.lower()).group_by(column)
+        )
+        if exclude_id is not None:
+            stmt = stmt.where(owner != exclude_id)
+        for value, uses in session.execute(stmt):
+            counts[value] += uses
+    return _best_spelling(counts) if counts else name
+
+
+class _Spellings:
+    """Spellings to reuse while one contact is saved: scalar fields and email/phone/address types.
+
+    A type spelled one way earlier in the same save is reused for the later rows."""
+
+    def __init__(self, session: Session, exclude_id: int | None = None) -> None:
+        self.session = session
+        self.exclude_id = exclude_id
+        self._labels: dict[str, str | None] = {}
+
+    def field(self, name: str, raw: str | None) -> str | None:
+        column = getattr(Contact, name)
+        return resolve_spelling(self.session, [(column, Contact.id)], raw, self.exclude_id)
+
+    def label(self, raw: str | None) -> str | None:
+        name = _tidy(raw)
+        if not name:
+            return None
+        key = name.lower()
+        if key not in self._labels:
+            self._labels[key] = resolve_spelling(
+                self.session, _LABEL_COLUMNS, name, self.exclude_id
+            )
+        return self._labels[key]
+
+    def emails(self, items: list[EmailIn]) -> list[EmailIn]:
+        return [e.model_copy(update={"label": self.label(e.label)}) for e in items]
+
+    def phones(self, items: list[PhoneIn]) -> list[PhoneIn]:
+        return [p.model_copy(update={"label": self.label(p.label)}) for p in items]
+
+    def addresses(self, items: list[AddressIn]) -> list[AddressIn]:
+        return [a.model_copy(update={"label": self.label(a.label)}) for a in items]
+
+
+def _usage(session: Session, columns: Sequence[_Column]) -> dict[str, Counter[str]]:
+    """Spellings in use, grouped by their case- and space-folded form."""
+    folded: dict[str, Counter[str]] = defaultdict(Counter)
+    for column, _owner in columns:
+        rows = session.execute(
+            select(column, func.count()).where(column.is_not(None)).group_by(column)
+        )
+        for value, uses in rows:
+            text = _tidy(value)
+            if text:
+                folded[text.lower()][text] += uses
+    return folded
+
+
+def field_suggestions(session: Session) -> dict[str, list[str]]:
+    """C-25: values in use, for the form's suggestion lists (Team, Department, Location and the
+    shared email/phone/address type). Presenting mode applies: the session already withholds
+    private contacts and personal-label rows, Location is left out when it is hidden, and
+    "names and companies only" offers nothing."""
+    out: dict[str, list[str]] = {"team": [], "department": [], "location": [], "label": []}
+    p = presenting()
+    if p is not None and p.names_only:
+        return out
+    for name in _SPELLED_FIELDS:
+        if name == "location" and p is not None and p.hides("location"):
+            continue
+        usage = _usage(session, [(getattr(Contact, name), Contact.id)])
+        out[name] = [_best_spelling(usage[key]) for key in sorted(usage)][:MAX_SUGGESTIONS]
+    labels = _usage(session, _LABEL_COLUMNS)
+    ranked = sorted(labels, key=lambda key: (-sum(labels[key].values()), key))
+    out["label"] = [_best_spelling(labels[key]) for key in ranked][:MAX_SUGGESTIONS]
+    return out
 
 
 # ---------------------------------------------------------------- writes
@@ -363,11 +477,14 @@ def create_contact(
     check_manager(session, None, data.manager_id)
     contact = Contact(**{f: getattr(data, f) for f in _SCALAR_FIELDS})
     contact.company = resolve_company(session, data.company)
+    spelled = _Spellings(session)
+    for name in _SPELLED_FIELDS:
+        setattr(contact, name, spelled.field(name, getattr(data, name)))
     session.add(contact)
     session.flush()
-    _apply_emails(session, contact, data.emails)
-    _apply_phones(contact, data.phones, phone_region)
-    _apply_addresses(contact, data.addresses, phone_region)
+    _apply_emails(session, contact, spelled.emails(data.emails))
+    _apply_phones(contact, spelled.phones(data.phones), phone_region)
+    _apply_addresses(contact, spelled.addresses(data.addresses), phone_region)
     if data.custom_fields:
         _apply_custom_fields(session, contact, data.custom_fields)
     session.flush()
@@ -391,12 +508,16 @@ def update_contact(
             setattr(contact, field, getattr(data, field))
     if "company" in sent:
         contact.company = resolve_company(session, data.company)
+    spelled = _Spellings(session, exclude_id=contact.id)
+    for name in _SPELLED_FIELDS:
+        if name in sent:
+            setattr(contact, name, spelled.field(name, getattr(data, name)))
     if data.emails is not None:
-        _apply_emails(session, contact, data.emails)
+        _apply_emails(session, contact, spelled.emails(data.emails))
     if data.phones is not None:
-        _apply_phones(contact, data.phones, phone_region)
+        _apply_phones(contact, spelled.phones(data.phones), phone_region)
     if data.addresses is not None:
-        _apply_addresses(contact, data.addresses, phone_region)
+        _apply_addresses(contact, spelled.addresses(data.addresses), phone_region)
     if data.custom_fields is not None:
         _apply_custom_fields(session, contact, data.custom_fields)
     contact.updated_at = datetime.now(UTC)
@@ -514,6 +635,7 @@ __all__ = [
     "contact_links",
     "create_contact",
     "custom_field_names",
+    "field_suggestions",
     "get_contact",
     "last_contact",
     "list_contact_types",

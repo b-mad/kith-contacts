@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.24 |
+| Version | 1.25 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-06 |
@@ -111,6 +111,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | C-22 | Each address is placed from offline data when saved: latitude, longitude, IANA time zone and how precisely it was placed (ZIP, city, state, country), US ZIP first; existing addresses are placed at start-up (ADR-0023). | Should | 12 |
 | C-23 | The card, search preview and search results show a contact's local time and time zone (from their first placed address), how far ahead or behind the viewer it is, and whether it is a good time to reach them (working hours, edges of the day, night or weekend) in words, not color alone (ADR-0023). | Should | 12 |
 | C-24 | Clicking a contact's photo (in search results, the preview pane or the card) opens a larger view of it with their name, title and company; Esc, the Close button or a click outside closes it. Follows presenting mode, and people without a photo have nothing to enlarge (ADR-0028). | Should | 3 |
+| C-25 | The add and edit forms offer the values already in use as suggestions for Team, Department, Location and the type of each email, phone and address (typing narrows them; any text is still accepted). On save, a value matching an existing one ignoring case and extra spaces is stored with the existing spelling, as Company does (C-14). Presenting mode applies (ADR-0031). | Should | 3 |
 
 ### Search and discovery
 
@@ -297,7 +298,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 0 — Foundation ✅ | Repo, PostgreSQL, instance config; dev instance on localhost | N-01, N-02, N-10, I-01, I-02, I-04 | 3–4 days |
 | 1 — Contact core ✅ | Store and edit rich contacts | C-01–C-08, M-04, I-03, I-05 | 1 week |
 | 2 — Find and act (MVP) ✅ | Context search, tags, lists, copy emails | S-01–S-05, T-01–T-02, L-01–L-04, M-01–M-03, C-10, C-14 | 2 weeks |
-| 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, S-16, S-17, T-03–T-04, C-09, M-05, D-01–D-04, D-06, N-06, I-06–I-08 | 1–2 weeks |
+| 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, S-16, S-17, T-03–T-04, C-09, C-25, M-05, D-01–D-04, D-06, N-06, I-06–I-08 | 1–2 weeks |
 | 4 — Depth ✅ | Power-user features | C-11–C-13, S-07, T-05, L-05 (list tags), I-09 | 1–2 weeks |
 | 5 — Smart | Semantic search, recent interactions and directory sync | S-08–S-10, D-05 | 2+ weeks |
 | 6 — Look and feel ✅ | Theme modes, three palettes, accessibility pass, layout refresh, command palette | A-01–A-06, N-09, S-12 | 8–10 days |
@@ -445,6 +446,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.25 | 2026-10-06 | C-25 added: suggestions of existing values for Team, Department, Location and email, phone and address types, and reuse of an existing spelling on save. | 0031 |
 | 1.24 | 2026-10-06 | S-06 reworded; S-16 (org chart Focus view, the default) and S-17 (Outline view) added. | 0030 |
 | 1.23 | 2026-10-06 | M-07 added: Copy Slack handles for the selected contacts, to tag people in a Slack chat or start a group message (Slack has no group-message link, so nothing is opened). | 0029 |
 | 1.22.1 | 2026-10-06 | Clarified C-04: the Slack handle is a display label and may contain spaces and punctuation (it is never used to build a link). No requirement added or removed. | — |
