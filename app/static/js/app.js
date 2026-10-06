@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initShortcuts();
   initFilterChips();
   initMultiChips();
+  initPhotoView();
   initThemeSwitch();
   initLogPrompt();
   initSearch();
@@ -769,6 +770,34 @@ function initMultiChips() {
     $("[data-multi-details]", open).open = false;
     $("[data-multi-summary]", open).focus();
   });
+}
+
+// ------------------------------------------------------------------ photo view (C-24)
+
+function initPhotoView() {
+  const dialog = $("[data-photo-view]");
+  if (!dialog || typeof dialog.showModal !== "function") return;
+  const fill = (selector, text) => {
+    const node = $(selector, dialog);
+    node.textContent = text || "";
+    node.hidden = !text;
+  };
+  // Capture phase: a photo sits inside a result row and a preview, whose own clicks must not run.
+  document.addEventListener("click", (e) => {
+    const trigger = e.target.closest("[data-photo-zoom]");
+    if (!trigger) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const img = $("[data-photo-view-img]", dialog);
+    img.src = trigger.dataset.photoSrc;
+    img.alt = `Photo of ${trigger.dataset.name}`;
+    fill("[data-photo-view-name]", trigger.dataset.name);
+    fill("[data-photo-view-title]", trigger.dataset.title);
+    fill("[data-photo-view-company]", trigger.dataset.company);
+    dialog.showModal();
+  }, true);
+  dialog.addEventListener("click", (e) => { if (e.target === dialog) dialog.close(); }); // backdrop
+  dialog.addEventListener("close", () => { $("[data-photo-view-img]", dialog).removeAttribute("src"); });
 }
 
 // ------------------------------------------------------------------ shortcuts (N-09) and palette (S-12)

@@ -714,7 +714,7 @@ body:not(.env-production) .palette-open { color: var(--instance-on); }
 body.env-production .palette-open { color: var(--fg); border-color: var(--border-strong); }
 @media (max-width: 40rem) { .palette-open-text, .palette-open kbd { display: none; } }
 
-dialog.palette, dialog.shortcuts {
+dialog.palette, dialog.shortcuts, dialog.photo-view {
   border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); color: var(--fg);
   box-shadow: 0 18px 48px var(--shadow-color); padding: 0;
 }
@@ -849,3 +849,15 @@ tr.diff-row summary { cursor: pointer; color: var(--accent); }
 .diff-table .strong { font-weight: 700; }
 .diff-table tr.diff-same { color: var(--muted); }
 .diff-table li.item-missing, .diff-table li.item-added { font-weight: 600; }
+
+/* C-24: click a photo for a larger view with name, title and company */
+.photo-zoom { display: inline-flex; padding: 0; margin: 0; border: 0; background: none; border-radius: 50%; cursor: zoom-in; flex: none; line-height: 0; }
+.photo-zoom:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.photo-zoom:hover img { filter: brightness(0.92); }
+dialog.photo-view { width: min(34rem, 94vw); padding: 1.25rem 1.5rem; text-align: center; }
+dialog.photo-view figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.9rem; }
+dialog.photo-view img { display: block; width: auto; height: auto; max-width: 100%; max-height: 60vh; border-radius: 12px; object-fit: contain; background: var(--surface-2); }
+dialog.photo-view figcaption { display: flex; flex-direction: column; gap: 0.15rem; }
+dialog.photo-view figcaption strong { font-size: 1.3rem; }
+dialog.photo-view figcaption span { color: var(--muted); }
+dialog.photo-view form { margin-top: 1rem; }

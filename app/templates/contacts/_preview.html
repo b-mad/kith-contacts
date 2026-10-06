@@ -5,7 +5,7 @@
 {% set ph = pv and pv.placeholders %}
 <article class="preview" data-preview-id="{{ c.id }}" aria-labelledby="preview-name" data-testid="preview">
   <header class="preview-head">
-    {% if c.has_photo %}<img class="photo preview-photo" src="/contacts/{{ c.id }}/photo" alt="" width="64" height="64">
+    {% if c.has_photo %}<button type="button" class="photo-zoom" data-photo-zoom data-photo-src="/contacts/{{ c.id }}/photo" data-name="{{ c.display_name }}" data-title="{{ c.title or '' }}" data-company="{{ c.company or '' }}" aria-label="Enlarge photo of {{ c.display_name }}" data-testid="photo-zoom"><img class="photo preview-photo" src="/contacts/{{ c.id }}/photo" alt="" width="64" height="64"></button>
     {% else %}<span class="photo preview-photo initials" aria-hidden="true">{{ c.display_name | initials }}</span>{% endif %}
     <div class="preview-who">
       <h2 id="preview-name" class="preview-name">{{ c.display_name }}{% if c.is_favorite %} <span class="star" aria-label="Favorite">★</span>{% endif %}</h2>

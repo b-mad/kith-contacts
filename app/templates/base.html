@@ -120,6 +120,20 @@
     </ul>
   </dialog>
 
+  {# C-24: a larger view of a contact's photo with their name, title and company. Filled by app.js
+     from the clicked photo, so presenting mode (which changes what the page shows) applies. #}
+  <dialog class="photo-view" aria-labelledby="photo-view-name" data-photo-view data-testid="photo-view">
+    <figure>
+      <img alt="" data-photo-view-img>
+      <figcaption>
+        <strong id="photo-view-name" data-photo-view-name></strong>
+        <span data-photo-view-title></span>
+        <span data-photo-view-company></span>
+      </figcaption>
+    </figure>
+    <form method="dialog"><button type="submit" class="primary" data-testid="photo-view-close">Close</button></form>
+  </dialog>
+
   {# N-09: every keyboard shortcut, opened with ? outside a text field. #}
   <dialog class="shortcuts" aria-labelledby="shortcuts-title" data-shortcuts data-testid="shortcuts">
     <h2 id="shortcuts-title">Keyboard shortcuts</h2>

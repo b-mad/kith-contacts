@@ -57,3 +57,4 @@ not change meaning — those are logged in the requirements change log only.
 | [0025](0025-open-source-release-and-licence.md) | Publish as open source under the Apache License 2.0 | Accepted | N-13 |
 | [0026](0026-import-review-and-photos-in-export.md) | Review an import page by page, choose the rows, compare duplicates, and export photos | Accepted | D-07, D-03, I-09 |
 | [0027](0027-multi-value-filters.md) | Pick several Company, Team, Tag or List values on the contacts screen | Accepted | S-15, S-04, S-07 |
+| [0028](0028-photo-enlarge-view.md) | Click a photo for a larger view with name, title and company | Accepted | C-24, C-09 |

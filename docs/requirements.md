@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.21 |
+| Version | 1.22 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-06 |
@@ -110,6 +110,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | C-21 | Reconnect lists birthdays in the next 14 days, today first, with the age they turn; 29 February falls on 28 February in other years (ADR-0022). | Should | 11 |
 | C-22 | Each address is placed from offline data when saved: latitude, longitude, IANA time zone and how precisely it was placed (ZIP, city, state, country), US ZIP first; existing addresses are placed at start-up (ADR-0023). | Should | 12 |
 | C-23 | The card, search preview and search results show a contact's local time and time zone (from their first placed address), how far ahead or behind the viewer it is, and whether it is a good time to reach them (working hours, edges of the day, night or weekend) in words, not color alone (ADR-0023). | Should | 12 |
+| C-24 | Clicking a contact's photo (in search results, the preview pane or the card) opens a larger view of it with their name, title and company; Esc, the Close button or a click outside closes it. Follows presenting mode, and people without a photo have nothing to enlarge (ADR-0028). | Should | 3 |
 
 ### Search and discovery
 
@@ -439,8 +440,9 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 ## Change log
 
-| Version | 1.21 |
+| Version | 1.22 |
 | --- | --- | --- | --- |
+| 1.22 | 2026-10-06 | C-24 added: click a photo for a larger view with name, title and company. | 0028 |
 | 1.21 | 2026-10-06 | S-15 added: multi-value Company, Team, Tag and List filters on the contacts screen (checkbox dropdowns, "any / all of these" for Tag and List). S-04 updated; the List filter moves to the main filter row. | 0027 |
 | 1.20 | 2026-10-06 | D-07 import review added (Phase 3): paged preview, choose rows with select all / individual, and a field-by-field comparison of each possible duplicate. D-03 and I-09 clarified: the whole-instance JSON export carries photos (JSON imports may be up to 64 MB; CSV and vCard stay 5 MB). | 0026 |
 | 1.19 | 2026-10-06 | Clarified how the install zip (I-13) is published: a tag workflow builds it with `make bundle` and attaches it, with a checksum, to a GitHub Release; the zip is not committed to git. No requirement added or removed. | 0025 |

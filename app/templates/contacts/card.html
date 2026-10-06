@@ -9,7 +9,7 @@
   <header class="card-head">
     <div class="card-identity">
       <div class="photo-wrap">
-        {% if c.has_photo %}<img class="photo" src="/contacts/{{ c.id }}/photo" alt="Photo of {{ c.display_name }}" width="96" height="96" data-testid="photo">
+        {% if c.has_photo %}<button type="button" class="photo-zoom" data-photo-zoom data-photo-src="/contacts/{{ c.id }}/photo" data-name="{{ c.display_name }}" data-title="{{ c.title or '' }}" data-company="{{ c.company or '' }}" aria-label="Enlarge photo of {{ c.display_name }}" data-testid="photo-zoom"><img class="photo" src="/contacts/{{ c.id }}/photo" alt="Photo of {{ c.display_name }}" width="96" height="96" data-testid="photo"></button>
         {% else %}<span class="photo initials" aria-hidden="true">{{ c.display_name | initials }}</span>{% endif %}
       </div>
       <div>

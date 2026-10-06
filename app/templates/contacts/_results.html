@@ -39,7 +39,7 @@
   {% set email = c.emails[0].email if c.emails else "" %}
   <li class="result-card{% if c.archived %} archived{% endif %}" data-contact-id="{{ c.id }}" data-address="{{ go_address(c) }}" data-email="{{ email }}" data-name="{{ c.display_name }}" data-testid="{{ 'meaning-row' if why else 'result-row' }}">
     <input type="checkbox" class="select-contact" value="{{ c.id }}" aria-label="Select {{ c.display_name }}">
-    {% if c.has_photo %}<img class="avatar" src="/contacts/{{ c.id }}/photo" alt="" width="36" height="36">{% else %}<span class="avatar initials" aria-hidden="true">{{ c.display_name | initials }}</span>{% endif %}
+    {% if c.has_photo %}<button type="button" class="photo-zoom" data-photo-zoom data-photo-src="/contacts/{{ c.id }}/photo" data-name="{{ c.display_name }}" data-title="{{ c.title or '' }}" data-company="{{ c.company or '' }}" aria-label="Enlarge photo of {{ c.display_name }}" data-testid="photo-zoom"><img class="avatar" src="/contacts/{{ c.id }}/photo" alt="" width="36" height="36"></button>{% else %}<span class="avatar initials" aria-hidden="true">{{ c.display_name | initials }}</span>{% endif %}
     <div class="person-text">
       <div class="person-line">
         <a class="person-name" href="/contacts/{{ c.id }}" data-preview-link>{{ c.display_name }}</a>{% if c.is_favorite %} <span class="star" aria-label="Favorite">★</span>{% endif %}
