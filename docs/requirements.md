@@ -440,7 +440,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 ## Change log
 
-| Version | 1.22 |
+| Version | Date | Change | ADR |
 | --- | --- | --- | --- |
 | 1.22 | 2026-10-06 | C-24 added: click a photo for a larger view with name, title and company. | 0028 |
 | 1.21 | 2026-10-06 | S-15 added: multi-value Company, Team, Tag and List filters on the contacts screen (checkbox dropdowns, "any / all of these" for Tag and List). S-04 updated; the List filter moves to the main filter row. | 0027 |
