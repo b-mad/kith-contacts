@@ -166,7 +166,7 @@ old install is not touched until the last step, so it is also the way back.
    - If you started it from this repository with `deploy/mac/start.sh`, that script is now
      `Stop Kith Contacts` and looks for the new project, so it would not stop the old one. Run,
      from the repository:
-     `export APP_VERSION=1.1.0 CONTACTS_BACKUPS="$HOME/ContactManager/Backups"`, then
+     `export APP_VERSION=1.2.0 CONTACTS_BACKUPS="$HOME/ContactManager/Backups"`, then
      `docker compose --project-name contact-manager --env-file "$HOME/ContactManager/settings.env" -f compose.yaml --profile work --profile personal stop`
      (the service and volume names did not change, so the new `compose.yaml` addresses the old
      project). `docker ps --filter label=com.docker.compose.project=contact-manager` should then
