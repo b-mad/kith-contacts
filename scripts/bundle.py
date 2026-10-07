@@ -23,8 +23,10 @@ from __future__ import annotations
 
 import argparse
 import html
+import os
 import subprocess
 import sys
+import time
 import zipfile
 from collections.abc import Iterable
 from pathlib import Path
@@ -117,8 +119,34 @@ def tracked(paths: Iterable[str]) -> list[Path]:
     return [ROOT / name for name in out.decode().split("\0") if name]
 
 
-def _info(name: str, executable: bool) -> zipfile.ZipInfo:
-    info = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+def release_time() -> tuple[int, int, int, int, int, int]:
+    """The timestamp every file in the zip carries: the release commit's time (UTC).
+
+    Fixed per commit, so the same commit always gives the same zip, and different per release.
+    A constant would be a trap: Docker's builder skips files whose path, size and modified time
+    look unchanged, and ``pyproject.toml`` keeps its size when 1.1.0 becomes 1.2.0, so an
+    upgraded install kept building the old version. ``SOURCE_DATE_EPOCH`` overrides it.
+    """
+    given = os.environ.get("SOURCE_DATE_EPOCH", "").strip()
+    if given.isdigit():
+        seconds = int(given)
+    else:
+        out = subprocess.run(
+            ["git", "log", "-1", "--format=%ct"],  # noqa: S607
+            cwd=ROOT,
+            capture_output=True,
+            check=True,
+            text=True,
+        ).stdout.strip()
+        seconds = int(out)
+    stamp = time.gmtime(max(seconds, 315532800))  # zip dates start in 1980
+    return (stamp.tm_year, stamp.tm_mon, stamp.tm_mday, stamp.tm_hour, stamp.tm_min, stamp.tm_sec)
+
+
+def _info(
+    name: str, executable: bool, stamp: tuple[int, int, int, int, int, int]
+) -> zipfile.ZipInfo:
+    info = zipfile.ZipInfo(name, date_time=stamp)
     info.compress_type = zipfile.ZIP_DEFLATED
     info.create_system = 3  # Unix, so the permissions below are honoured on macOS
     info.external_attr = (0o100755 if executable else 0o100644) << 16
@@ -138,25 +166,28 @@ def build(dest: Path, version: str | None = None) -> Path:
     dest.mkdir(parents=True, exist_ok=True)
     target = dest / f"Kith-Contacts-{version}.zip"
     files = tracked(PROGRAM_PATHS)
+    stamp = release_time()
     if not any(f.name == "compose.yaml" for f in files):
         raise SystemExit("compose.yaml not found: run this from the repository")
     with zipfile.ZipFile(target, "w") as zf:
         zf.writestr(
-            _info(f"{top}/Start here.html", False),
+            _info(f"{top}/Start here.html", False, stamp),
             guide_html(GUIDE.read_text(encoding="utf-8"), version),
         )
         for name in LICENCE_FILES:
-            zf.writestr(_info(f"{top}/{name}", False), _content(ROOT / name))
+            zf.writestr(_info(f"{top}/{name}", False, stamp), _content(ROOT / name))
         for launcher in sorted(LAUNCHERS.iterdir()):
             zf.writestr(
-                _info(f"{top}/{launcher.name}", launcher.suffix in EXECUTABLE),
+                _info(f"{top}/{launcher.name}", launcher.suffix in EXECUTABLE, stamp),
                 _content(launcher),
             )
         for path in sorted(files):
             if "__pycache__" in path.parts or not path.is_file():
                 continue
             rel = path.relative_to(ROOT).as_posix()
-            zf.writestr(_info(f"{top}/program/{rel}", path.suffix in EXECUTABLE), _content(path))
+            zf.writestr(
+                _info(f"{top}/program/{rel}", path.suffix in EXECUTABLE, stamp), _content(path)
+            )
     return target
 
 

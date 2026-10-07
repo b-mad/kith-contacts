@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.25 |
+| Version | 1.26 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-06 |
@@ -446,6 +446,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.26 | 2026-10-06 | I-13 clarified: the install zip's files carry the release commit's time, not a constant, so an upgrade rebuilds every changed file. No requirement added or removed. | 0019 |
 | 1.25 | 2026-10-06 | C-25 added: suggestions of existing values for Team, Department, Location and email, phone and address types, and reuse of an existing spelling on save. | 0031 |
 | 1.24 | 2026-10-06 | S-06 reworded; S-16 (org chart Focus view, the default) and S-17 (Outline view) added. | 0030 |
 | 1.23 | 2026-10-06 | M-07 added: Copy Slack handles for the selected contacts, to tag people in a Slack chat or start a group message (Slack has no group-message link, so nothing is opened). | 0029 |

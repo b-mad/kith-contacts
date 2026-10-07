@@ -166,7 +166,7 @@ old install is not touched until the last step, so it is also the way back.
    - If you started it from this repository with `deploy/mac/start.sh`, that script is now
      `Stop Kith Contacts` and looks for the new project, so it would not stop the old one. Run,
      from the repository:
-     `export APP_VERSION=1.2.0 CONTACTS_BACKUPS="$HOME/ContactManager/Backups"`, then
+     `export APP_VERSION=1.2.1 CONTACTS_BACKUPS="$HOME/ContactManager/Backups"`, then
      `docker compose --project-name contact-manager --env-file "$HOME/ContactManager/settings.env" -f compose.yaml --profile work --profile personal stop`
      (the service and volume names did not change, so the new `compose.yaml` addresses the old
      project). `docker ps --filter label=com.docker.compose.project=contact-manager` should then
@@ -206,3 +206,10 @@ The workflow stops if the tag does not match the version in `pyproject.toml` or 
 commit is not on `main`. To check the zip before tagging, run `make bundle` and open
 `dist/Kith-Contacts-<version>.zip`. To fix a bad release, delete the release and the tag on
 GitHub, correct the problem and tag again.
+
+Every file in the zip carries the tagged commit's time (or `SOURCE_DATE_EPOCH`), so the same
+commit always builds the same zip and each release differs from the last. Do not replace this
+with a constant: Docker's builder skips a file whose path, size and modified time look unchanged,
+and `pyproject.toml` keeps its size from `1.1.0` to `1.2.0`, so an upgrade kept building the old
+version (found in 1.2.0, fixed in 1.2.1). If an upgraded install still shows an old version,
+give the unzipped files new times (`find . -type f -exec touch {} +` in `program`) and start again.

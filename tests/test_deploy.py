@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import time
 import zipfile
 from pathlib import Path
 
@@ -221,6 +222,53 @@ def test_bundle_permissions_and_line_endings(zip_path: Path) -> None:
         assert b"\n" not in bat.replace(b"\r\n", b"")
         assert b"\n" not in ps1.replace(b"\r\n", b"")
         assert b"\r\n" not in zf.read(f"{top}/program/deploy/mac/start.sh")
+
+
+@pytest.mark.req("I-13")
+def test_bundle_timestamps_follow_the_release(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Docker's builder skips a file whose path, size and modified time look unchanged, and
+    pyproject.toml keeps its size from 1.1.0 to 1.2.0. A constant timestamp in the zip made an
+    upgraded install build the old version (found on a Mac), so the time must differ per release
+    and stay the same for the same one."""
+
+    def build(epoch: str, name: str) -> tuple[Path, dict[str, tuple[int, ...]]]:
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", epoch)
+        path = bundle.build(tmp_path / name)
+        with zipfile.ZipFile(path) as zf:
+            return path, {i.filename: tuple(i.date_time) for i in zf.infolist()}
+
+    first, first_times = build("1790000000", "first")
+    _, second_times = build("1790086400", "second")
+    again, _ = build("1790000000", "again")
+    pyproject = f"KithContacts-{app_version()}/program/pyproject.toml"
+    assert first_times[pyproject] != second_times[pyproject]
+    assert len(set(first_times.values())) == 1  # one time for the whole zip
+    assert first.read_bytes() == again.read_bytes()  # the same release builds the same zip
+    assert first_times[pyproject] != (2026, 1, 1, 0, 0, 0)  # the old constant
+
+
+@pytest.mark.req("I-13")
+def test_bundle_time_defaults_to_the_commit_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SOURCE_DATE_EPOCH", raising=False)
+    seconds = int(
+        subprocess.run(
+            ["git", "log", "-1", "--format=%ct"],  # noqa: S607
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+    stamp = time.gmtime(seconds)
+    assert bundle.release_time() == (
+        stamp.tm_year, stamp.tm_mon, stamp.tm_mday, stamp.tm_hour, stamp.tm_min, stamp.tm_sec
+    )  # fmt: skip
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "not a number")
+    assert bundle.release_time() == (
+        stamp.tm_year, stamp.tm_mon, stamp.tm_mday, stamp.tm_hour, stamp.tm_min, stamp.tm_sec
+    )  # fmt: skip
 
 
 @pytest.mark.req("I-10", "N-06")
