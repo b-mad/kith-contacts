@@ -12,7 +12,7 @@ filters that apply to every ORM read (ADR-0016) and need no stored column to kee
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Final
 
 from sqlalchemy import CTE, Integer, Select, literal, or_, select
@@ -84,6 +84,27 @@ def manager_tiers(session: Session, ids: Iterable[int] | None = None) -> dict[in
 def tier_options(session: Session) -> list[int]:
     """The tiers that have at least one manager, top first."""
     return sorted(set(manager_tiers(session).values()))
+
+
+def reporting_chain(contact: Contact, people: Mapping[int, Contact]) -> list[Contact]:
+    """The managers above a person, top first, so index ``n`` is the manager at tier ``n``.
+
+    Follows the same lines as ``manager_tiers``: the climb stops at a manager who is archived
+    or not in ``people`` (for example, private while presenting). The person is not in their
+    own chain.
+    """
+    chain: list[Contact] = []
+    seen = {contact.id}
+    current = contact.manager_id
+    while current is not None and current in people and current not in seen:
+        boss = people[current]
+        if boss.archived_at is not None or len(chain) >= MAX_TIER:
+            break
+        chain.append(boss)
+        seen.add(current)
+        current = boss.manager_id
+    chain.reverse()
+    return chain
 
 
 def shown_tiers(session: Session, ids: Iterable[int]) -> dict[int, int]:

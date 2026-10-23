@@ -83,7 +83,8 @@ def test_json_export_is_complete(seeded: Session) -> None:
 @pytest.mark.req("D-03")
 def test_csv_export_one_row_per_contact(seeded: Session) -> None:
     rows = list(csv.reader(io.StringIO(export_csv(seeded))))
-    assert rows[0] == CSV_COLUMNS
+    assert rows[0][: len(CSV_COLUMNS)] == CSV_COLUMNS
+    assert rows[0][len(CSV_COLUMNS) :] == ["L0", "L1"]  # D-08: the seed's deepest chain
     assert len(rows) == 51
     maria = dict(zip(rows[0], next(r for r in rows if r[0] == "Maria Lopez"), strict=True))
     assert maria["manager"] == "Priya Raman"

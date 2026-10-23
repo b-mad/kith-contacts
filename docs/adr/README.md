@@ -62,3 +62,4 @@ not change meaning — those are logged in the requirements change log only.
 | [0030](0030-org-chart-focus-and-outline-views.md) | Show the org chart as a Focus view and an Outline view | Accepted | S-06, S-16, S-17 |
 | [0031](0031-suggest-existing-values-in-contact-fields.md) | Suggest existing values in the contact form and reuse their spelling | Accepted | C-25, C-14 |
 | [0032](0032-manager-tier-filter.md) | Find managers by tier on the contacts screen | Accepted | S-18, S-04 |
+| [0033](0033-csv-export-manager-levels.md) | End the CSV export with the managers above each person, one column per level | Proposed | D-08, D-03 |

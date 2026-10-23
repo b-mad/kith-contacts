@@ -47,6 +47,7 @@ from app.models import (
 from app.schemas import ContactCreate
 from app.search import refresh_search
 from app.tags import add_tag
+from app.tiers import reporting_chain
 from app.vcard import ParsedCard
 
 FORMAT = "kith-contacts/1"
@@ -240,10 +241,17 @@ def _first_address(c: Contact) -> list[str | None]:
 
 
 def export_csv(session: Session) -> str:
+    """One row per contact. The last columns are L0, L1, ... (D-08): each person's managers from
+    the top of their reporting line down, as many columns as the longest chain needs (none if
+    nobody has a manager). Level numbers are the manager tiers of S-18."""
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(CSV_COLUMNS)
-    for c in _all_contacts(session):
+    contacts = _all_contacts(session)
+    people = {c.id: c for c in contacts}
+    chains = {c.id: reporting_chain(c, people) for c in contacts}
+    depth = max((len(chain) for chain in chains.values()), default=0)
+    writer.writerow([*CSV_COLUMNS, *(f"L{level}" for level in range(depth))])
+    for c in contacts:
         primary = next((e.email for e in c.emails if e.is_primary), "")
         writer.writerow(
             [
@@ -275,6 +283,8 @@ def export_csv(session: Session) -> str:
                     c.linkedin_url,
                     *_first_address(c),
                     c.birthday,
+                    *[boss.display_name for boss in chains[c.id]],
+                    *[""] * (depth - len(chains[c.id])),
                 )
             ]
         )
