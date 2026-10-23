@@ -75,6 +75,7 @@ from app.search import (
 )
 from app.semantic import MeaningHit, SemanticService, search_by_meaning
 from app.tags import add_tag, related_tags, remove_tag, tag_counts
+from app.tiers import NOT_A_MANAGER, parse_tiers, shown_tiers, tier_label, tier_options
 from app.timephrase import CONTACTED_CHOICES, contacted_since
 
 CSRF_COOKIE = "contacts_csrf"
@@ -276,6 +277,13 @@ def _meaning(
     return meaning, bool(meaning) and not all_words
 
 
+def _tier_ticked(options: list[int], tiers: tuple[int, ...], non_managers: bool) -> set[str]:
+    """S-18: the tier boxes that start ticked — all of them until a filter narrows it."""
+    if not tiers and not non_managers:
+        return {str(t) for t in options} | {NOT_A_MANAGER}
+    return {str(t) for t in tiers} | ({NOT_A_MANAGER} if non_managers else set())
+
+
 SORT_CHOICES: tuple[tuple[str, str], ...] = (
     ("", "Best match"),
     ("name", "Name"),
@@ -356,6 +364,12 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
     pairs = [
         (k, v) for k, v in request.query_params.multi_items() if k not in cleared and k != "clear"
     ]
+    # S-18: the tier chip starts with every box ticked; ticking all (or none) is no filter, so
+    # those boxes are dropped and URLs, saved searches and the clear button stay plain.
+    tier_choices = tier_options(session)
+    tiers, non_managers = parse_tiers([v for k, v in pairs if k == "tier"], tier_choices)
+    if not tiers and not non_managers:
+        pairs = [(k, v) for k, v in pairs if k != "tier"]
     p = dict(pairs)
 
     def many(name: str) -> list[str]:  # S-15: Company, Team, Tag and List may repeat
@@ -374,6 +388,8 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         companies=multi_texts(many("company")),
         teams=multi_texts(many("team")),
         manager_id=manager_id,
+        manager_tiers=tiers,
+        non_managers=non_managers,
         tags=multi_texts(many("tag")),
         tag_match=match_mode(p.get("tag_match")),
         list_ids=list_ids,
@@ -456,6 +472,11 @@ def _search_context(request: Request, session: Session) -> dict[str, Any]:
         "tags": tag_counts(session),
         "lists": active_lists(session),
         "manager": manager,
+        "tier_options": tier_choices,
+        "tier_ticked": _tier_ticked(tier_choices, tiers, non_managers),
+        "tier_names": [tier_label(t) for t in tiers]
+        + ([tier_label(NOT_A_MANAGER)] if non_managers else []),
+        "tiers": shown_tiers(session, listed),
         "list_names": list_names,
         "notice": notice_text(request),
         "saved": list_saved_searches(session),
@@ -884,6 +905,7 @@ def contact_card(request: Request, contact_id: int, session: SessionDep) -> HTML
             "hidden": hidden_counts(session, contact, presenting()),  # P-02 placeholders
             "is_private": contact.is_private,
             "type_private": contact.contact_type.is_private,  # P-08
+            "tiers": shown_tiers(session, [contact.id]),  # S-18
         },
     )
 

@@ -38,6 +38,7 @@ from app.search import (
 from app.search import SortKey as SearchSort
 from app.semantic import SemanticService, search_by_meaning
 from app.tags import tag_counts
+from app.tiers import parse_tiers, shown_tiers, tier_options
 from app.timephrase import contacted_since
 
 
@@ -105,6 +106,7 @@ class SearchResult(BaseModel):
     fuzzy: bool
     last_contact: date | None = None  # S-09
     interaction: InteractionOut | None = None  # S-10: latest one in the period searched
+    manager_tier: int | None = None  # S-18: 0 = top of a reporting line; none if not a manager
 
 
 @router.get("/search", response_model=list[SearchResult])
@@ -115,6 +117,9 @@ def search_contacts(
     company: Annotated[list[str] | None, Query(description="repeat for several")] = None,
     team: Annotated[list[str] | None, Query(description="repeat for several")] = None,
     manager: int | None = None,
+    manager_tier: Annotated[
+        list[str] | None, Query(description="repeat: 0, 1, 2… (L0, L1…) and/or none")
+    ] = None,
     tag: Annotated[list[str] | None, Query(description="repeat for several")] = None,
     tag_match: MultiMatch = "any",
     list_ids: Annotated[list[int] | None, Query(alias="list", description="repeat")] = None,
@@ -129,14 +134,20 @@ def search_contacts(
     values given for one filter (``tag_match=all`` / ``list_match=all`` require every one);
     different filters combine with "and" (S-15).
 
+    ``manager_tier`` may be repeated too: ``0`` is the top of a reporting line, ``1`` the
+    managers who report to it, and so on; ``none`` is people who manage nobody (S-18).
+
     ``contacted=30`` keeps people with an interaction in the last 30 days (S-09); time
     phrases in ``q`` ("recently", "last week") do the same for that period (S-10).
     """
+    tiers, non_managers = parse_tiers(manager_tier or [], tier_options(session))
     filters = SearchFilters(
         type_id=type,
         companies=multi_texts(company or []),
         teams=multi_texts(team or []),
         manager_id=manager,
+        manager_tiers=tiers,
+        non_managers=non_managers,
         tags=multi_texts(tag or []),
         tag_match=tag_match,
         list_ids=tuple(dict.fromkeys(list_ids or [])),
@@ -152,12 +163,14 @@ def search_contacts(
     dates = shows_dates()  # P-02: presenting may hide last-contact dates
     last = last_interactions(session, ids) if dates else {}
     in_period = last_interactions(session, ids, filters) if filters.has_period and dates else {}
+    tier_of = shown_tiers(session, ids)
     return [
         SearchResult(
             contact=to_out(hit.contact),
             matched=[MatchOut(field=f, value=v) for f, v in hit.matched],
             fuzzy=hit.fuzzy,
             last_contact=last[hit.contact.id].occurred_on if hit.contact.id in last else None,
+            manager_tier=tier_of.get(hit.contact.id),
             interaction=(
                 InteractionOut(
                     kind=in_period[hit.contact.id].kind,

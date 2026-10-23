@@ -11,13 +11,14 @@ from sqlalchemy.orm import Session
 from app.contacts import ContactError, ContactNotFound
 from app.models import SavedSearch
 from app.privacy import presenting, private_refs
+from app.tiers import NOT_A_MANAGER, tier_label
 
 SAVED_PARAMS = (
-    "q", "type", "company", "team", "manager", "tag", "tag_match", "list", "list_match",
+    "q", "type", "company", "team", "manager", "tier", "tag", "tag_match", "list", "list_match",
     "favorites", "archived", "contacted", "due", "near", "within",  # near: S-14
 )  # fmt: skip
 #: S-15: these may repeat (``company=A&company=B``); every other parameter keeps its last value.
-MULTI_PARAMS = frozenset({"company", "team", "tag", "list"})
+MULTI_PARAMS = frozenset({"company", "team", "tier", "tag", "list"})  # tier: S-18
 MAX_NAME = 100
 MAX_QUERY = 1000
 
@@ -130,6 +131,7 @@ _LABELS = {
     "company": "company",
     "team": "team",
     "manager": "manager #",
+    "tier": "manager tier",
     "tag": "tag",
     "list": "list #",
     "favorites": "favorites",
@@ -150,6 +152,8 @@ def describe_query(query: str) -> str:
             parts.append(f"{label} {value} days")
         elif key == "q":
             parts.append(f"{label} “{value}”")
+        elif key == "tier":
+            parts.append(f"{label} {tier_label(value if value == NOT_A_MANAGER else int(value))}")
         else:
             parts.append(f"{label}{'' if label.endswith('#') else ' '}{value}")
     return " · ".join(parts)

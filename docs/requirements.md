@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.26 |
+| Version | 1.27 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
-| Last updated | 2026-10-06 |
+| Last updated | 2026-10-23 |
 | Change process | [ADR-0002](adr/0002-requirements-as-versioned-source-of-truth.md) |
 
 > **This file is the source of truth for what the application must do.**
@@ -120,7 +120,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | S-01 | One search box matches across name, email, company, title, team, manager name, "works on", notes, tags and list names — and, from Phase 4, custom field values and activity summaries (ADR-0012). | Must | 2 |
 | S-02 | Results rank by relevance and show the matching context (e.g. "team: Data Platform · manager: Maria Lopez"), with the matched words highlighted (ADR-0017). | Must | 2 |
 | S-03 | Prefix and typo-tolerant matching ("lab res", "Mria"). | Must | 2 |
-| S-04 | Filters: contact type, company, team, manager, tag, list; combinable. Company, team, tag and list take several values (S-15). | Must | 2 |
+| S-04 | Filters: contact type, company, team, manager, manager tier (S-18), tag, list; combinable. Company, team, tag and list take several values (S-15). | Must | 2 |
 | S-05 | Results update as you type (< 200 ms). | Must | 2 |
 | S-06 | Org chart: browse reporting lines up and down the chain, as a **Focus** view (default) or an **Outline** (S-16, S-17). People with no manager and no reports are left out, with a note saying how many (ADR-0030). | Should | 3 |
 | S-07 | Saved searches (e.g. "Vendors tagged HL7"). | Could | 4 |
@@ -134,6 +134,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | S-15 | Several values per filter: the main contacts screen lets the user pick more than one Company, Team, Tag or List. Within one filter a contact matches any chosen value; Tag and List can instead require all of them. Different filters combine with "and". Choices live in the URL, can be saved as a search (S-07), and are accepted by the search API (ADR-0027). | Should | 2 |
 | S-16 | Org chart **Focus** view (the default): the management chain with photos, the focused person (photo, name, title · team), peers as chips, and direct reports as cards with photo, name, title, team and "N direct · M in total"; choosing a card focuses that person; with no focus, the top-level leaders are listed. Photos are shown when present, otherwise initials; presenting mode applies (ADR-0030). | Should | 3 |
 | S-17 | Org chart **Outline** view: the whole tree with a chevron per row, avatar, name, title and "direct · in total" counts; show 1, 2, 3 or all levels, collapse or expand all, and a search that highlights matches and opens their ancestors; works from the keyboard; presenting mode applies (ADR-0030). | Should | 3 |
+| S-18 | Manager tier filter: the contacts screen has a **Manager tier** chip with a box for each tier (L0, L1, L2…) and one for **Not a manager**, all ticked at first, which shows everyone. A manager is a person with at least one active direct report; the top of a reporting line (a person with no active manager) is L0 and each line below adds one, as in the org chart. Unticking narrows the list (untick Not a manager to see only managers). A manager's tier shows as an "L1 manager" pill on result cards and the full card. It combines with the other filters, lives in the URL, can be saved as a search (S-07) and is accepted by the search API (`manager_tier`); presenting mode applies (ADR-0032). | Should | 3 |
 
 ### Tags
 
@@ -243,7 +244,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | N-06 | Durability | Nightly `pg_dump` per production instance, 14-day retention, stored in a local folder outside Docker volumes; restore tested in CI. Container installs write backups to a host folder through a bind mount (ADR-0019). |
 | N-07 | Clipboard | Copy uses the browser Clipboard API (works on `localhost` as a secure context); a fallback shows the text to copy manually. |
 | N-08 | Email hand-off | `mailto:` links stay under ~2,000 characters; above that the app falls back to Copy emails and says why. |
-| N-09 | Usability | Keyboard-first: `/` focuses search, arrow keys move, space selects, `c` copies emails, Ctrl/⌘ + K opens the command palette and `?` lists every shortcut. Readable at 200% zoom; meets WCAG 2.2 Level AA, including contrast in every theme (A-04), visible focus and 24 × 24 px minimum targets; buttons and fields are at least 40 px tall (44 px at phone width) (ADR-0015, ADR-0017). |
+| N-09 | Usability | Keyboard-first: `/` focuses search, arrow keys move, space selects, `c` copies emails, `e` edits the person on their full card, Ctrl/⌘ + K opens the command palette and `?` lists every shortcut. Readable at 200% zoom; meets WCAG 2.2 Level AA, including contrast in every theme (A-04), visible focus and 24 × 24 px minimum targets; buttons and fields are at least 40 px tall (44 px at phone width) (ADR-0015, ADR-0017). |
 | N-10 | Maintainability | Typed Python (type hints checked by mypy, Pydantic models), versioned migrations, ≥ 80% test coverage overall and on search and list logic. |
 | N-11 | Portability | Full export to open formats (CSV, JSON, vCard) per instance so data is never locked in. |
 | N-12 | Identity | The product is named **Kith Contacts**. The name is used for everything a person sees or downloads (pages, launchers, messages, install guide, bundle zip, image title) and for the Compose project `kith-contacts`, the `~/KithContacts` data folder, the program folder, the image, the Python package, the JSON export format `kith-contacts/1` (import also accepts `contacts-app/1`) and the model cache `~/.cache/kith-contacts/`. "Kith" alone appears only in running text after the full name. Moving an existing install is the I-12 restore from its backups (ADR-0024). |
@@ -298,7 +299,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 0 — Foundation ✅ | Repo, PostgreSQL, instance config; dev instance on localhost | N-01, N-02, N-10, I-01, I-02, I-04 | 3–4 days |
 | 1 — Contact core ✅ | Store and edit rich contacts | C-01–C-08, M-04, I-03, I-05 | 1 week |
 | 2 — Find and act (MVP) ✅ | Context search, tags, lists, copy emails | S-01–S-05, T-01–T-02, L-01–L-04, M-01–M-03, C-10, C-14 | 2 weeks |
-| 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, S-16, S-17, T-03–T-04, C-09, C-25, M-05, D-01–D-04, D-06, N-06, I-06–I-08 | 1–2 weeks |
+| 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, S-16, S-17, S-18, T-03–T-04, C-09, C-25, M-05, D-01–D-04, D-06, N-06, I-06–I-08 | 1–2 weeks |
 | 4 — Depth ✅ | Power-user features | C-11–C-13, S-07, T-05, L-05 (list tags), I-09 | 1–2 weeks |
 | 5 — Smart | Semantic search, recent interactions and directory sync | S-08–S-10, D-05 | 2+ weeks |
 | 6 — Look and feel ✅ | Theme modes, three palettes, accessibility pass, layout refresh, command palette | A-01–A-06, N-09, S-12 | 8–10 days |
@@ -446,6 +447,8 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.27 | 2026-10-23 | S-18 added: filter the contacts screen by manager tier (L0 at the top of a reporting line, +1 for each line below, plus Not a manager); S-04 updated. | 0032 |
+| 1.26.1 | 2026-10-23 | N-09 clarified: `e` on a person's full card opens their edit form (not offered while presenting, P-05). No requirement added or removed. | — |
 | 1.26 | 2026-10-06 | I-13 clarified: the install zip's files carry the release commit's time, not a constant, so an upgrade rebuilds every changed file. No requirement added or removed. | 0019 |
 | 1.25 | 2026-10-06 | C-25 added: suggestions of existing values for Team, Department, Location and email, phone and address types, and reuse of an existing spelling on save. | 0031 |
 | 1.24 | 2026-10-06 | S-06 reworded; S-16 (org chart Focus view, the default) and S-17 (Outline view) added. | 0030 |

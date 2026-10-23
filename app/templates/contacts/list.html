@@ -79,6 +79,23 @@
     {% call multi("team", "Team", filters.teams) %}{% for t in teams %}<li><label><input type="checkbox" name="team" value="{{ t }}" data-name="{{ t }}"{% if t|lower in picked_teams %} checked{% endif %}> {{ t }}</label></li>{% else %}<li class="muted small">No teams yet</li>{% endfor %}{% endcall %}
     {% call multi("tag", "Tag", filters.tags, "tag_match", filters.tag_match) %}{% for t in tags %}<li><label><input type="checkbox" name="tag" value="{{ t.name }}" data-name="{{ t.name }}"{% if t.name|lower in picked_tags %} checked{% endif %}> {{ t.name }} <span class="muted small">({{ t.count }})</span></label></li>{% else %}<li class="muted small">No tags yet</li>{% endfor %}{% endcall %}
     {% call multi("list", "List", list_names, "list_match", filters.list_match) %}{% for l in lists %}<li><label><input type="checkbox" name="list" value="{{ l.id }}" data-name="{{ l.name }}"{% if l.id in filters.list_ids %} checked{% endif %}> {{ l.name }}</label></li>{% else %}<li class="muted small">No lists yet</li>{% endfor %}{% endcall %}
+    {# S-18: manager tier. Every box starts ticked (no filter); unticking narrows. L0 is the top of a
+       reporting line. Hidden when nobody manages anybody. #}
+    {% if tier_options %}
+    {% set tier_on = filters.manager_tiers or filters.non_managers %}
+    <span class="chip-field multi-field{% if tier_on %} on{% endif %}" data-chip data-multi data-multi-all data-no-find data-label="Manager tier">
+      <details class="multi-chip" data-multi-details>
+        <summary class="filter-chip{% if tier_on %} on{% endif %}" data-testid="filter-tier" data-multi-summary>Manager tier{% if tier_names | length == 1 %}: {{ tier_names[0] }}{% elif tier_names | length > 1 %}: {{ tier_names | length }} selected{% endif %}</summary>
+        <div class="multi-panel" role="group" aria-label="Manager tier filter">
+          <ul class="plain multi-options" data-multi-options>
+            {% for t in tier_options %}<li><label><input type="checkbox" name="tier" value="{{ t }}" data-name="L{{ t }}"{% if t | string in tier_ticked %} checked{% endif %}> L{{ t }}{% if t == 0 %} <span class="muted small">top of a reporting line</span>{% endif %}</label></li>{% endfor %}
+            <li><label><input type="checkbox" name="tier" value="none" data-name="Not a manager"{% if "none" in tier_ticked %} checked{% endif %}> Not a manager</label></li>
+          </ul>
+        </div>
+      </details>
+      <button type="submit" name="clear" value="tier" class="chip-x" aria-label="Remove Manager tier filter" title="Show every tier again" data-chip-clear data-testid="clear-tier"{% if not tier_on %} hidden{% endif %}>×</button>
+    </span>
+    {% endif %}
     <label class="filter-chip filter-toggle"><input type="checkbox" name="favorites" value="1"{% if filters.favorites %} checked{% endif %} data-testid="filter-favorites"> <span aria-hidden="true">★</span> Favorites</label>
     <label class="filter-chip filter-toggle"><input type="checkbox" name="due" value="1"{% if filters.due_by %} checked{% endif %} data-testid="filter-due"> Due to reconnect</label>
     <details class="more-filters" data-testid="more-filters" data-more-filters>
