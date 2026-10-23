@@ -63,6 +63,7 @@ MERGE_FIELDS: tuple[tuple[str, str], ...] = (
     ("linkedin_url", "LinkedIn"),
     ("pronunciation", "Pronunciation"),
     ("birthday", "Birthday"),  # C-20
+    ("time_zone", "Time zone"),  # C-26
 )
 # Free-text fields that are combined when both have different text.
 COMBINED_FIELDS = ("works_on", "notes")

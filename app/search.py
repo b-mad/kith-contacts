@@ -31,6 +31,7 @@ from sqlalchemy import (
     func,
     literal,
     literal_column,
+    or_,
     select,
     text,
 )
@@ -39,6 +40,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.geo import EARTH_MILES
 from app.models import Activity, Contact, ContactAddress, ContactList, ListMember, Tag, contact_tag
 from app.privacy import Presenting, presenting
+from app.tiers import manager_rows
 from app.timephrase import INTERACTION_KINDS, TimeQuery, parse_time_query
 
 FUZZY_THRESHOLD = 0.3
@@ -150,6 +152,10 @@ class SearchFilters:
     companies: tuple[str, ...] = ()
     teams: tuple[str, ...] = ()
     manager_id: int | None = None
+    # S-18: managers by tier (0 = top of a reporting line) and/or people who manage nobody.
+    # Both empty is no filter; the screen starts with every option ticked, which parses to that.
+    manager_tiers: tuple[int, ...] = ()
+    non_managers: bool = False
     tags: tuple[str, ...] = ()
     tag_match: MultiMatch = "any"
     list_ids: tuple[int, ...] = ()
@@ -199,6 +205,15 @@ class SearchFilters:
             stmt = stmt.where(func.lower(Contact.team).in_([t.lower() for t in self.teams]))
         if self.manager_id is not None:
             stmt = stmt.where(Contact.manager_id == self.manager_id)
+        if self.manager_tiers or self.non_managers:
+            lines, managers = manager_rows()
+            choices: list[ColumnElement[bool]] = []
+            if self.manager_tiers:
+                chosen = managers.where(lines.c.tier.in_(self.manager_tiers))
+                choices.append(Contact.id.in_(chosen.with_only_columns(lines.c.id)))
+            if self.non_managers:
+                choices.append(Contact.id.not_in(managers.with_only_columns(lines.c.id)))
+            stmt = stmt.where(or_(*choices))
         if self.tags:
             wanted = [t.lower() for t in self.tags]
             for names in [wanted] if self.tag_match == "any" else [[t] for t in wanted]:
@@ -268,6 +283,8 @@ class SearchFilters:
                 bool(self.companies),
                 bool(self.teams),
                 self.manager_id is not None,
+                bool(self.manager_tiers),
+                self.non_managers,
                 bool(self.tags),
                 bool(self.list_ids),
                 self.favorites,

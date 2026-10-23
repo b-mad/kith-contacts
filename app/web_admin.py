@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlencode
 
@@ -40,8 +39,6 @@ from app.exchange import (
     PlannedRow,
     carried_fields,
     export_contact_json,
-    export_csv,
-    export_json,
     filter_rows,
     guess_mapping,
     mapping_guide,
@@ -53,6 +50,17 @@ from app.exchange import (
     rows_from_vcards,
     run_import,
     update_selection,
+)
+from app.exports import (
+    DEFAULT_GROUPS,
+    OPTIONAL_GROUPS,
+    ExportError,
+    ExportOptions,
+    build_export,
+    log_export,
+    log_single,
+    parse_options,
+    recent_exports,
 )
 from app.importdiff import COMPARED_SUMMARY
 from app.maps import PROVIDERS, save_provider
@@ -80,7 +88,7 @@ from app.tags import (
     set_tag_color,
     tag_counts,
 )
-from app.vcard import parse_vcards, to_vcard, to_vcards
+from app.vcard import parse_vcards, to_vcard
 from app.web import (
     CsrfChecked,
     SessionDep,
@@ -98,10 +106,6 @@ router = APIRouter(include_in_schema=False)
 def _fail(session: Session, exc: ContactError) -> HTTPException:
     session.rollback()
     return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message)
-
-
-def _stamp() -> str:
-    return datetime.now(UTC).strftime("%Y%m%d")
 
 
 def _download(body: str | bytes, filename: str, media_type: str) -> Response:
@@ -131,6 +135,9 @@ def settings_page(request: Request, session: SessionDep) -> HTMLResponse:
             "semantic_counts": index_counts(session, request.app.state.semantic.model_id),
             "notice": notice_text(request),
             "error": request.query_params.get("error"),
+            "export_log": recent_exports(session),
+            "export_groups": OPTIONAL_GROUPS,
+            "default_groups": DEFAULT_GROUPS,
             "chosen": current_appearance(request.app.state),
             "theme_choices": THEME_CHOICES,
             "palette_choices": PALETTE_CHOICES,
@@ -257,26 +264,46 @@ async def restore_backup(request: Request, name: str) -> Response:
 # ---------------------------------------------------------------- export (D-02, D-03)
 
 
+def _send(session: Session, request: Request, options: ExportOptions) -> Response:
+    """Make the file, write the log row (D-10) and send it."""
+    settings = _settings(request)
+    file = build_export(session, settings.instance_name, settings.instance_slug, options)
+    log_export(session, options, file)
+    session.commit()
+    return _download(file.body, file.name, file.media_type)
+
+
+@router.post("/export/download", dependencies=CsrfChecked)
+async def export_download(request: Request, session: SessionDep) -> Response:
+    """D-09, D-10: the settings form. Sensitive choices need the confirmation box ticked."""
+    form = await request.form()
+    try:
+        options = parse_options(str(form.get("format", "")), form)
+        if options.sensitive and not form.get("confirm"):
+            raise ExportError("Tick the box to confirm you want to export this data.")
+    except ExportError as exc:
+        return RedirectResponse(
+            with_notice("/settings", "", error=str(exc)) + "#export-h", status.HTTP_303_SEE_OTHER
+        )
+    return _send(session, request, options)
+
+
+# The original links keep working, with the protective defaults of D-09.
+
+
 @router.get("/export/contacts.csv")
 def export_contacts_csv(request: Request, session: SessionDep) -> Response:
-    name = f"{_settings(request).instance_slug}-contacts-{_stamp()}.csv"
-    return _download("﻿" + export_csv(session), name, "text/csv; charset=utf-8")
+    return _send(session, request, ExportOptions(kind="csv"))
 
 
 @router.get("/export/contacts.json")
 def export_contacts_json(request: Request, session: SessionDep) -> Response:
-    settings = _settings(request)
-    body = json.dumps(export_json(session, settings.instance_name), indent=2, ensure_ascii=False)
-    return _download(body, f"{settings.instance_slug}-contacts-{_stamp()}.json", "application/json")
+    return _send(session, request, ExportOptions(kind="json"))
 
 
 @router.get("/export/contacts.vcf")
 def export_contacts_vcf(request: Request, session: SessionDep) -> Response:
-    from app.exchange import _all_contacts
-
-    contacts = [c for c in _all_contacts(session) if c.archived_at is None]
-    name = f"{_settings(request).instance_slug}-contacts-{_stamp()}.vcf"
-    return _download(to_vcards(contacts), name, "text/vcard; charset=utf-8")
+    return _send(session, request, ExportOptions(kind="vcf"))
 
 
 @router.get("/contacts/{contact_id}/vcard")
@@ -285,6 +312,8 @@ def contact_vcard(contact_id: int, session: SessionDep) -> Response:
     safe = (
         "".join(ch if ch.isalnum() else "-" for ch in contact.display_name).strip("-") or "contact"
     )
+    log_single(session, "contact_vcf")
+    session.commit()
     return _download(to_vcard(contact), f"{safe}.vcf", "text/vcard; charset=utf-8")
 
 
@@ -292,6 +321,8 @@ def contact_vcard(contact_id: int, session: SessionDep) -> Response:
 def contact_json(request: Request, contact_id: int, session: SessionDep) -> Response:
     """I-09: one contact with everything (and its photo), to import into another instance."""
     contact = _load(session, contact_id)
+    log_single(session, "contact_json")
+    session.commit()
     safe = (
         "".join(ch if ch.isalnum() else "-" for ch in contact.display_name).strip("-") or "contact"
     )

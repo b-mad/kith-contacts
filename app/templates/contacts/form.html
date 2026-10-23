@@ -161,6 +161,16 @@
     </template>
     <button type="button" class="link" data-add-row="address">+ Add address</button>
     {{ m.field_error(errors, "addresses") }}
+    <div class="field{% if errors.get('time_zone') %} has-error{% endif %}" data-testid="time-zone-field">
+      <label for="time_zone">Time zone</label>
+      <input type="text" id="time_zone" name="time_zone" list="time-zones" value="{{ values.get('time_zone', '') }}" placeholder="e.g. Central, or America/Chicago" autocomplete="off" aria-describedby="time_zone-hint">
+      <datalist id="time-zones">
+        {% for zone, name in common_zones %}<option value="{{ zone }}">{{ name }}</option>{% endfor %}
+        {% for zone in zone_names %}<option value="{{ zone }}"></option>{% endfor %}
+      </datalist>
+      <p class="hint" id="time_zone-hint">For when you know the time zone but not the address. An address with a ZIP or city sets the time zone itself and takes the place of this one.</p>
+      {{ m.field_error(errors, "time_zone") }}
+    </div>
   </fieldset>
 
   <fieldset>

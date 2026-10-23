@@ -44,6 +44,7 @@
       <div class="person-line">
         <a class="person-name" href="/contacts/{{ c.id }}" data-preview-link>{{ c.display_name }}</a>{% if c.is_favorite %} <span class="star" aria-label="Favorite">★</span>{% endif %}
         <span class="pill">{{ c.contact_type.name }}</span>
+        {% if tiers.get(c.id) is not none %}<span class="pill tier" title="Manager, level {{ tiers[c.id] }}: L0 is the top of a reporting line" data-testid="tier-pill">L{{ tiers[c.id] }} manager</span>{% endif %}
         {% if c.archived %}<span class="pill muted">Archived</span>{% endif %}
       </div>
       {% set sub = [c.title, c.team, c.company] | select | list %}

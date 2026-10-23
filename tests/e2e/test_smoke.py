@@ -1021,3 +1021,143 @@ def test_map_shows_people_offline_and_directions_follow_the_selection(base_url: 
         assert on_top
         assert outside == []  # N-04: nothing loaded from outside the app
         browser.close()
+
+
+@pytest.mark.req("N-09", "C-01", "P-05")
+def test_e_opens_the_edit_form_from_the_full_card(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        types = page.request.get(base_url + "/api/contact-types").json()
+        employee = next(t["id"] for t in types if t["name"] == "Employee")
+        edie = page.request.post(
+            base_url + "/api/contacts",
+            data={"display_name": "Edie Hotkey", "contact_type_id": employee},
+        ).json()
+        card = base_url + f"/contacts/{edie['id']}"
+
+        # Typing "e" in a field is just typing.
+        page.goto(card)
+        page.get_by_test_id("tag-add-input").press("e")
+        expect(page).to_have_url(card)
+
+        # Outside a field it opens the edit form; modified keys are left alone.
+        page.locator("h1").click()
+        page.keyboard.press("Control+e")
+        page.keyboard.press("Shift+E")
+        expect(page).to_have_url(card)
+        page.keyboard.press("e")
+        expect(page).to_have_url(re.compile(rf"/contacts/{edie['id']}/edit$"))
+
+        # An open dialog (the shortcut list) keeps the key to itself.
+        page.goto(card)
+        page.locator("h1").click()
+        page.keyboard.press("?")
+        expect(page.get_by_test_id("shortcuts")).to_be_visible()
+        page.keyboard.press("e")
+        expect(page).to_have_url(card)
+        page.keyboard.press("Escape")
+
+        # Presenting hides Edit (P-05), so the key does nothing.
+        page.keyboard.press("Shift+P")
+        expect(page.get_by_test_id("presenting-bar")).to_be_visible()
+        expect(page.get_by_test_id("edit")).to_have_count(0)
+        page.locator("h1").click()
+        page.keyboard.press("e")
+        expect(page).to_have_url(card)
+        page.get_by_test_id("stop-presenting").click()
+        browser.close()
+
+
+@pytest.mark.req("S-18", "S-05")
+def test_manager_tier_chip_starts_ticked_and_narrows_live(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        types = page.request.get(base_url + "/api/contact-types").json()
+        employee = next(t["id"] for t in types if t["name"] == "Employee")
+
+        def add(name: str, boss: int | None = None) -> int:
+            body = {"display_name": name, "contact_type_id": employee, "team": "Tier Team"}
+            if boss:
+                body["manager_id"] = boss
+            return int(page.request.post(base_url + "/api/contacts", data=body).json()["id"])
+
+        top = add("Tia Topline")
+        mid = add("Milo Midlevel", top)
+        add("Ines Individual", mid)
+
+        page.goto(base_url + "/?team=Tier+Team")
+        rows = page.get_by_test_id("result-row")
+        expect(rows).to_have_count(3)
+        chip = page.get_by_test_id("filter-tier")
+        expect(chip).to_have_text("Manager tier")
+        expect(page.get_by_test_id("clear-tier")).to_be_hidden()
+        chip.click()
+        boxes = page.locator('input[name="tier"]')
+        expect(boxes).to_have_count(3)  # L0, L1, Not a manager
+        for i in range(3):
+            expect(boxes.nth(i)).to_be_checked()
+        expect(page.get_by_test_id("tier-pill")).to_have_count(2)
+        expect(rows.filter(has_text="Tia Topline").get_by_test_id("tier-pill")).to_have_text(
+            "L0 manager"
+        )
+
+        # Unticking "Not a manager" leaves only managers, live, and puts the choice in the URL.
+        page.get_by_label("Not a manager").uncheck()
+        expect(rows).to_have_count(2)
+        expect(chip).to_have_text("Manager tier: 2 selected")
+        expect(page.get_by_test_id("clear-tier")).to_be_visible()
+        expect(page).to_have_url(re.compile(r"tier=0&tier=1(&|$)"))
+        assert "tier=none" not in page.url
+
+        # Only L1: one person.
+        page.get_by_label("L0").uncheck()
+        expect(rows).to_have_count(1)
+        expect(rows.first).to_contain_text("Milo Midlevel")
+        expect(chip).to_have_text("Manager tier: L1")
+
+        # The clear button ticks everything again and drops the filter from the address.
+        page.get_by_test_id("clear-tier").click()
+        expect(rows).to_have_count(3)
+        expect(chip).to_have_text("Manager tier")
+        for i in range(3):
+            expect(boxes.nth(i)).to_be_checked()
+        assert "tier=" not in page.url
+        browser.close()
+
+
+@pytest.mark.req("D-09", "D-10")
+def test_export_form_warns_confirms_and_logs(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        page.goto(base_url + "/settings")
+        expect(page.get_by_test_id("export-warning")).to_contain_text("personal data")
+
+        # Birthdays are sensitive: without the confirmation the download is refused.
+        page.locator('input[name="group"][value="birthday"]').check()
+        page.get_by_test_id("export-submit").click()
+        expect(page.get_by_test_id("settings-error")).to_contain_text("confirm")
+
+        # With the box ticked a file comes down and the log shows it.
+        page.locator('input[name="group"][value="birthday"]').check()
+        page.get_by_test_id("export-confirm").check()
+        with page.expect_download() as download:
+            page.get_by_test_id("export-submit").click()
+        assert download.value.suggested_filename.endswith(".csv")
+        page.goto(base_url + "/settings")
+        expect(page.get_by_test_id("export-log")).to_contain_text("CSV")
+        browser.close()

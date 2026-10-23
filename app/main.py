@@ -195,7 +195,9 @@ def build_templates(settings: Settings) -> Jinja2Templates:
     templates.env.globals["other_names"] = other_names
     templates.env.globals["country_name"] = country_name
     templates.env.globals["birthday_text"] = lambda value: describe(value, date.today())
-    templates.env.globals["local_time_of"] = lambda c: local_time_for(c.addresses)  # C-23
+    templates.env.globals["local_time_of"] = lambda c: local_time_for(
+        c.addresses, manual=getattr(c, "time_zone", None)
+    )  # C-23, C-26
     templates.env.globals["address_lines"] = lambda a: lines_of(a, settings.phone_region)
     templates.env.filters["search_summary"] = describe_query
     templates.env.filters["highlight"] = highlight

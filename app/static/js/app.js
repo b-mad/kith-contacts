@@ -59,7 +59,13 @@ function initSearch() {
 
   const refresh = async () => {
     const params = new URLSearchParams();
-    for (const [key, value] of new FormData(form)) if (String(value).trim()) params.append(key, value);
+    // S-18: every tier box ticked is "no filter", so keep it out of the address
+    const tiers = $$('input[name="tier"]', form);
+    const allTiers = tiers.length > 0 && tiers.every((box) => box.checked);
+    for (const [key, value] of new FormData(form)) {
+      if (key === "tier" && allTiers) continue;
+      if (String(value).trim()) params.append(key, value);
+    }
     const current = ++generation;
     const response = await fetch(`/contacts/results?${params}`, { headers: { Accept: "text/html" } });
     if (!response.ok || current !== generation) return; // a newer search is on its way
@@ -817,8 +823,12 @@ function initMultiChips() {
     const options = $("[data-multi-options]", chip);
     const label = chip.dataset.label;
     const boxes = () => $$('[data-multi-options] input[type="checkbox"]', chip);
+    // S-18: the Manager tier chip starts with every box ticked, which is "no filter"; only a
+    // narrower choice counts, and its × ticks everything again.
+    const allByDefault = chip.hasAttribute("data-multi-all");
     const sync = () => {
-      const names = boxes().filter((box) => box.checked).map((box) => box.dataset.name || box.value);
+      let names = boxes().filter((box) => box.checked).map((box) => box.dataset.name || box.value);
+      if (allByDefault && names.length === boxes().length) names = [];
       const text = names.length === 0 ? label
         : names.length === 1 ? `${label}: ${names[0]}` : `${label}: ${names.length} selected`;
       summary.textContent = text;
@@ -830,13 +840,13 @@ function initMultiChips() {
     chip.addEventListener("change", (e) => { if (e.target.matches('input[type="checkbox"]')) sync(); });
     clear.addEventListener("click", (e) => {
       e.preventDefault();
-      boxes().forEach((box) => { box.checked = false; });
+      boxes().forEach((box) => { box.checked = allByDefault; });
       sync();
       details.open = false;
       options.dispatchEvent(new Event("change", { bubbles: true }));
       summary.focus();
     });
-    { // a find box: type to narrow a long list (over 100 companies), then tick what you want
+    if (!chip.hasAttribute("data-no-find")) { // a find box: type to narrow a long list (over 100 companies), then tick what you want
       const find = document.createElement("input");
       find.type = "search";
       find.className = "multi-find";
@@ -927,6 +937,17 @@ function initShortcuts() {
     if (document.querySelector("dialog[open]")) return;
     e.preventDefault();
     dialog.showModal();
+  });
+
+  // N-09: "e" on a person's full card opens their edit form. The link is absent while
+  // presenting (P-05), so the key does nothing then.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "e" || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat) return;
+    if (typingIn(e.target) || document.querySelector("dialog[open]")) return;
+    const edit = $("[data-edit-hotkey]");
+    if (!edit) return;
+    e.preventDefault();
+    edit.click();
   });
 }
 

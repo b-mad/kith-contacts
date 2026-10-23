@@ -76,11 +76,13 @@ file in its distribution. Licences as declared by the packages on 2026-10-05.
 | psycopg | 3.3.6 | LGPL-3.0-only |
 | psycopg-binary | 3.3.6 | LGPL-3.0-only |
 | pycountry | 26.2.16 | LGPL-2.1-only |
+| pycryptodomex | 3.24.1 | BSD-2-Clause AND LicenseRef-Public-Domain |
 | pydantic | 2.13.5 | MIT |
 | pydantic-settings | 2.15.0 | MIT |
 | pydantic_core | 2.46.5 | MIT |
 | python-dotenv | 1.2.3 | BSD-3-Clause |
 | python-multipart | 0.0.32 | Apache-2.0 |
+| pyzipper | 0.4.0 | MIT AND PSF-2.0 |
 | starlette | 1.7.0 | BSD-3-Clause |
 | tokenizers | 0.23.2 | Apache-2.0 |
 | tqdm | 4.70.1 | MPL-2.0 AND MIT |
