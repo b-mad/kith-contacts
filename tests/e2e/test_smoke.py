@@ -1133,3 +1133,31 @@ def test_manager_tier_chip_starts_ticked_and_narrows_live(base_url: str) -> None
             expect(boxes.nth(i)).to_be_checked()
         assert "tier=" not in page.url
         browser.close()
+
+
+@pytest.mark.req("D-09", "D-10")
+def test_export_form_warns_confirms_and_logs(base_url: str) -> None:
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
+        )
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        page.goto(base_url + "/settings")
+        expect(page.get_by_test_id("export-warning")).to_contain_text("personal data")
+
+        # Birthdays are sensitive: without the confirmation the download is refused.
+        page.locator('input[name="group"][value="birthday"]').check()
+        page.get_by_test_id("export-submit").click()
+        expect(page.get_by_test_id("settings-error")).to_contain_text("confirm")
+
+        # With the box ticked a file comes down and the log shows it.
+        page.locator('input[name="group"][value="birthday"]').check()
+        page.get_by_test_id("export-confirm").check()
+        with page.expect_download() as download:
+            page.get_by_test_id("export-submit").click()
+        assert download.value.suggested_filename.endswith(".csv")
+        page.goto(base_url + "/settings")
+        expect(page.get_by_test_id("export-log")).to_contain_text("CSV")
+        browser.close()

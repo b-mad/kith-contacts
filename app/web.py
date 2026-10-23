@@ -43,7 +43,7 @@ from app.contacts import (
     update_contact,
 )
 from app.db import get_session
-from app.geo import find_place, local_time_for, miles_between
+from app.geo import COMMON_ZONES, find_place, local_time_for, miles_between, zone_names
 from app.keep_in_touch import (
     DUE_SOON_DAYS,
     INTERVAL_LABELS,
@@ -655,6 +655,7 @@ def parse_contact_form(
         "linkedin_url",
         "pronunciation",
         "birthday",
+        "time_zone",
     ]
     values: dict[str, Any] = {f: str(form.get(f, "")).strip() for f in scalar}
     values["manager_label"] = str(form.get("manager_label", "")).strip()
@@ -720,6 +721,7 @@ FIELD_LABELS = {
     "teams_url": "Teams link",
     "linkedin_url": "LinkedIn profile",
     "birthday": "Birthday",
+    "time_zone": "Time zone",
 }
 
 
@@ -772,6 +774,8 @@ def _form_context(
         "fields": values.get("fields") or [{"name": "", "value": ""}],
         "field_names": custom_field_names(session),
         "suggestions": field_suggestions(session),
+        "common_zones": COMMON_ZONES,  # C-26
+        "zone_names": [z for z in zone_names() if z not in dict(COMMON_ZONES)],
         "types": list_contact_types(session),
         "contact_id": contact_id,
         "errors": errors or {},
@@ -799,6 +803,7 @@ def _values_from_contact(contact: Contact) -> dict[str, Any]:
             "teams_url",
             "linkedin_url",
             "pronunciation",
+            "time_zone",
         ]
     }
     values["birthday"] = Birthday.of(contact.birthday).text() if contact.birthday else ""

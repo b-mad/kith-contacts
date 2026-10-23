@@ -415,6 +415,7 @@ _SCALAR_FIELDS = (
     "linkedin_url",
     "pronunciation",
     "birthday",  # C-20
+    "time_zone",  # C-26
     "is_favorite",
 )
 

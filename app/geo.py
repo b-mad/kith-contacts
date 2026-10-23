@@ -14,12 +14,12 @@ import re
 import unicodedata
 from collections import Counter, defaultdict
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from functools import cache
 from pathlib import Path
 from typing import Any, Literal, Protocol
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 import zipcodes
 
@@ -264,6 +264,7 @@ class LocalTime:
     abbreviation: str  # "CDT"
     reach: Reach
     approximate: bool
+    manual: bool = False  # C-26: the person set this zone; no address gave one
 
     @property
     def reach_label(self) -> str:
@@ -282,16 +283,30 @@ class _AddressPlace(Protocol):
 
 
 def local_time_for(
-    addresses: Iterable[_AddressPlace], *, now: datetime | None = None
+    addresses: Iterable[_AddressPlace],
+    *,
+    now: datetime | None = None,
+    manual: str | None = None,
 ) -> LocalTime | None:
-    """C-23: the local time at the first address that has a time zone."""
+    """C-23: the local time at the first address that has a time zone.
+
+    C-26: ``manual`` is a zone the person set by hand. An address wins, except one that is
+    only a guess for a state or country spanning several zones, which the hand-set zone
+    replaces. With no address zone at all the hand-set zone is used."""
+    guess: LocalTime | None = None
     for address in addresses:
         if address.time_zone:
             approximate = zone_is_approximate(
                 address.place_precision, address.region, address.country_code
             )
-            return local_time(address.time_zone, now=now, approximate=approximate)
-    return None
+            found = local_time(address.time_zone, now=now, approximate=approximate)
+            if found is None or not approximate:
+                return found
+            guess = guess or found
+    by_hand = local_time(manual, now=now) if manual else None
+    if by_hand is not None:
+        return replace(by_hand, manual=True)
+    return guess
 
 
 def local_time(
@@ -304,3 +319,72 @@ def local_time(
     local = (now or datetime.now(tz)).astimezone(tz)
     text = local.strftime("%I:%M %p").lstrip("0")
     return LocalTime(zone, text, local.tzname() or "", reach_at(local), approximate)
+
+
+# ---------------------------------------------------------------- a time zone set by hand (C-26)
+
+#: Names people use for the common US zones; each is read as the IANA zone beside it.
+_ZONE_NAMES: dict[str, str] = {
+    **dict.fromkeys(("eastern", "eastern time", "et"), "America/New_York"),
+    **dict.fromkeys(("central", "central time", "ct"), "America/Chicago"),
+    **dict.fromkeys(("mountain", "mountain time", "mt"), "America/Denver"),
+    **dict.fromkeys(("pacific", "pacific time", "pt"), "America/Los_Angeles"),
+    "arizona": "America/Phoenix",
+    "alaska": "America/Anchorage",
+    "hawaii": "Pacific/Honolulu",
+}  # fmt: skip
+#: The zones the form lists first, with what they are called in everyday speech.
+COMMON_ZONES: tuple[tuple[str, str], ...] = (
+    ("America/New_York", "Eastern (US)"),
+    ("America/Chicago", "Central (US)"),
+    ("America/Denver", "Mountain (US)"),
+    ("America/Phoenix", "Arizona (US)"),
+    ("America/Los_Angeles", "Pacific (US)"),
+    ("America/Anchorage", "Alaska (US)"),
+    ("Pacific/Honolulu", "Hawaii (US)"),
+    ("UTC", "Coordinated Universal Time"),
+)
+_NOT_PLACES = (
+    "Etc/",
+    "posix/",
+    "right/",
+    "SystemV/",
+    "US/",
+    "Brazil/",
+    "Canada/",
+    "Chile/",
+    "Mexico/",
+)
+
+
+@cache
+def zone_names() -> tuple[str, ...]:
+    """Every place-based IANA zone name this system knows, sorted (for the form's list)."""
+    return tuple(
+        sorted(
+            name
+            for name in available_timezones()
+            if "/" in name and not name.startswith(_NOT_PLACES)
+        )
+    )
+
+
+@cache
+def _zones_by_lower() -> dict[str, str]:
+    return {name.lower(): name for name in (*zone_names(), "UTC")}
+
+
+def normalize_zone(value: str | None) -> str | None:
+    """C-26: what was typed as an IANA zone name ("central" -> America/Chicago), or None for
+    blank. A name that is not a time zone raises ``ValueError``."""
+    text = " ".join((value or "").split())
+    if not text:
+        return None
+    key = text.lower()
+    found = _ZONE_NAMES.get(key) or _zones_by_lower().get(key)
+    if found is None:
+        raise ValueError(
+            "Choose a time zone from the list, such as America/Chicago, or type Eastern, "
+            "Central, Mountain or Pacific"
+        )
+    return found

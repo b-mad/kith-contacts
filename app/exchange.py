@@ -16,7 +16,7 @@ import re
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, Final
 
 from pydantic import ValidationError
 from sqlalchemy import func, select, update
@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.addresses import lines_of
 from app.birthdays import parse_birthday
 from app.contacts import ContactError, check_manager, create_contact, resolve_company
+from app.geo import local_time_for, normalize_zone
 from app.importdiff import (
     ALL_FIELDS,
     DuplicateInfo,
@@ -118,6 +119,7 @@ def contact_record(contact: Contact, *, include_photo: bool = False) -> dict[str
         "linkedin_url": c.linkedin_url,  # C-18
         "pronunciation": c.pronunciation,
         "birthday": c.birthday,  # C-20
+        "time_zone": c.time_zone,  # C-26: the one set by hand
         "is_favorite": c.is_favorite,
         "keep_in_touch": c.kit_interval,  # C-15
         "keep_in_touch_started_on": c.kit_started_on.isoformat() if c.kit_started_on else None,
@@ -153,6 +155,7 @@ def contact_record(contact: Contact, *, include_photo: bool = False) -> dict[str
                 "private": m.contact_list.is_private,
             }
             for m in c.memberships
+            if m.contact_list  # None when a private list is withheld (D-09)
         ],
         "custom_fields": [
             {"name": f.name, "value": f.value, "private": f.is_private} for f in c.custom_fields
@@ -219,8 +222,48 @@ CSV_COLUMNS = [
     "department", "location", "manager", "primary_email", "emails", "phones", "slack_handle",
     "slack_url", "teams_url", "works_on", "notes", "tags", "lists", "favorite", "archived",
     "linkedin", "address_label", "street", "city", "state", "postal_code", "country",
-    "more_addresses", "birthday",
+    "more_addresses", "birthday", "time_zone",
 ]  # fmt: skip
+
+# D-09: what a CSV can leave out. Columns belong to a group; the ones not listed are the
+# core, which is always exported. The location columns follow a tier instead of a group.
+CSV_GROUPS: Final = (
+    "core", "work_contact", "personal_contact", "reporting", "tags_lists", "notes", "birthday",
+)  # fmt: skip
+_GROUP_OF: Final = {
+    **dict.fromkeys(
+        ("primary_email", "emails", "phones", "slack_handle", "slack_url", "teams_url", "linkedin"),
+        "work_contact",
+    ),
+    **dict.fromkeys(("works_on", "notes"), "notes"),
+    **dict.fromkeys(("tags", "lists"), "tags_lists"),
+    "birthday": "birthday",
+}
+LOCATION_TIERS: Final = ("none", "timezone", "region", "full")
+_TIER_OF: Final = {
+    "time_zone": 1,
+    **dict.fromkeys(("location", "state", "country"), 2),
+    **dict.fromkeys(("address_label", "street", "city", "postal_code", "more_addresses"), 3),
+}
+PERSONAL_LABELS: Final = ("personal", "home", "mobile")  # P-03's default personal labels
+
+
+@dataclass(frozen=True)
+class CsvPlan:
+    """Which columns a CSV carries. The default is everything, as before."""
+
+    groups: frozenset[str] = frozenset(CSV_GROUPS)
+    location: str = "full"
+    personal_labels: tuple[str, ...] = PERSONAL_LABELS
+
+    def wants(self, column: str) -> bool:
+        if column in _TIER_OF:
+            return _TIER_OF[column] <= LOCATION_TIERS.index(self.location)
+        return _GROUP_OF.get(column, "core") in self.groups | {"core"}
+
+    def personal(self, label: str | None) -> bool:
+        return (label or "").strip().lower() in self.personal_labels
+
 
 _FORMULA = re.compile(r"^[=@\t\r]|^[+-](?!\d)")
 
@@ -240,52 +283,85 @@ def _first_address(c: Contact) -> list[str | None]:
     return [a.label, a.street, a.city, a.region, a.postal_code, a.country, rest]
 
 
-def export_csv(session: Session) -> str:
-    """One row per contact. The last columns are L0, L1, ... (D-08): each person's managers from
-    the top of their reporting line down, as many columns as the longest chain needs (none if
-    nobody has a manager). Level numbers are the manager tiers of S-18."""
+def _time_zone(c: Contact) -> str:
+    """The IANA zone C-23 shows for this contact: the first address that has one, else the one
+    set by hand (C-26)."""
+    found = local_time_for(c.addresses, manual=c.time_zone)
+    return found.zone if found else ""
+
+
+def export_csv(session: Session, plan: CsvPlan | None = None) -> str:
+    """One row per contact; ``plan`` chooses the columns (everything when omitted, D-09).
+
+    The last columns are L0, L1, ... (D-08): each person's managers from the top of their
+    reporting line down, as many columns as the longest chain needs (none if nobody has a
+    manager, or the plan leaves them out). Level numbers are the manager tiers of S-18."""
+    plan = plan or CsvPlan()
+    columns = [c for c in CSV_COLUMNS if plan.wants(c)]
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     contacts = _all_contacts(session)
     people = {c.id: c for c in contacts}
     chains = {c.id: reporting_chain(c, people) for c in contacts}
-    depth = max((len(chain) for chain in chains.values()), default=0)
-    writer.writerow([*CSV_COLUMNS, *(f"L{level}" for level in range(depth))])
+    depth = (
+        max((len(chain) for chain in chains.values()), default=0)
+        if "reporting" in plan.groups
+        else 0
+    )
+    writer.writerow([*columns, *(f"L{level}" for level in range(depth))])
+    everyone = "personal_contact" in plan.groups
     for c in contacts:
-        primary = next((e.email for e in c.emails if e.is_primary), "")
+        emails = [e for e in c.emails if everyone or not plan.personal(e.label)]
+        phones = [p for p in c.phones if everyone or not plan.personal(p.label)]
+        place = dict(
+            zip(
+                (
+                    "address_label",
+                    "street",
+                    "city",
+                    "state",
+                    "postal_code",
+                    "country",
+                    "more_addresses",
+                ),
+                _first_address(c),
+                strict=True,
+            )
+        )
+        values: dict[str, object] = {
+            "display_name": c.display_name,
+            "first_name": c.first_name,
+            "last_name": c.last_name,
+            "nickname": c.nickname,
+            "type": c.contact_type.name,
+            "company": c.company,
+            "title": c.title,
+            "team": c.team,
+            "department": c.department,
+            "location": c.location,
+            "manager": c.manager.display_name if c.manager else "",
+            "primary_email": next((e.email for e in emails if e.is_primary), ""),
+            "emails": "; ".join(e.email for e in emails),
+            "phones": "; ".join(f"{p.number} ({p.label})" if p.label else p.number for p in phones),
+            "slack_handle": c.slack_handle,
+            "slack_url": c.slack_url,
+            "teams_url": c.teams_url,
+            "works_on": c.works_on,
+            "notes": c.notes,
+            "tags": "; ".join(t.name for t in c.tags),
+            "lists": "; ".join(m.contact_list.name for m in c.memberships if m.contact_list),
+            "favorite": "yes" if c.is_favorite else "",
+            "archived": "yes" if c.archived_at else "",
+            "linkedin": c.linkedin_url,
+            **place,
+            "birthday": c.birthday,
+            "time_zone": _time_zone(c),
+        }
         writer.writerow(
             [
-                _cell(v)
-                for v in (
-                    c.display_name,
-                    c.first_name,
-                    c.last_name,
-                    c.nickname,
-                    c.contact_type.name,
-                    c.company,
-                    c.title,
-                    c.team,
-                    c.department,
-                    c.location,
-                    c.manager.display_name if c.manager else "",
-                    primary,
-                    "; ".join(e.email for e in c.emails),
-                    "; ".join(f"{p.number} ({p.label})" if p.label else p.number for p in c.phones),
-                    c.slack_handle,
-                    c.slack_url,
-                    c.teams_url,
-                    c.works_on,
-                    c.notes,
-                    "; ".join(t.name for t in c.tags),
-                    "; ".join(m.contact_list.name for m in c.memberships),
-                    "yes" if c.is_favorite else "",
-                    "yes" if c.archived_at else "",
-                    c.linkedin_url,
-                    *_first_address(c),
-                    c.birthday,
-                    *[boss.display_name for boss in chains[c.id]],
-                    *[""] * (depth - len(chains[c.id])),
-                )
+                *(_cell(values[column]) for column in columns),
+                *(_cell(boss.display_name) for boss in chains[c.id][:depth]),
+                *[""] * (depth - len(chains[c.id])),
             ]
         )
     return buffer.getvalue()
@@ -617,7 +693,7 @@ def rows_from_json(raw: str) -> list[dict[str, Any]]:
                 "display_name", "first_name", "last_name", "nickname", "type", "company",
                 "title", "team", "department", "location", "manager", "works_on", "notes",
                 "slack_handle", "slack_url", "teams_url", "pronunciation", "linkedin_url",
-                "birthday",
+                "birthday", "time_zone",
             )
             if (value := _text(c.get(key)))
         }  # fmt: skip
@@ -881,6 +957,9 @@ def plan_import(
                 data["emails"].append(
                     {"email": email.strip(), "label": label or None, "is_primary": primary}
                 )
+        if record.get("time_zone"):  # C-26: not a time zone -> left out, not an error
+            with contextlib.suppress(ValueError):
+                data["time_zone"] = normalize_zone(str(record["time_zone"]))
         if record.get("linkedin_url"):  # C-18: not a LinkedIn profile -> left out, not an error
             with contextlib.suppress(ValueError):
                 data["linkedin_url"] = normalize_linkedin(str(record["linkedin_url"]))

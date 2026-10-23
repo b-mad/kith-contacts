@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.28 |
+| Version | 1.30 |
 | Status | Baselined |
 | Owner | Bryan Madsen (product owner) |
 | Last updated | 2026-10-23 |
@@ -109,7 +109,8 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | C-20 | Optional birthday per contact, with or without the year, stored as `YYYY-MM-DD` or `--MM-DD`; typed or imported dates are read in common forms (ISO, month names, slashed dates in the instance's order); shown on the card with the age; carried by CSV, vCard and JSON (ADR-0022). | Should | 11 |
 | C-21 | Reconnect lists birthdays in the next 14 days, today first, with the age they turn; 29 February falls on 28 February in other years (ADR-0022). | Should | 11 |
 | C-22 | Each address is placed from offline data when saved: latitude, longitude, IANA time zone and how precisely it was placed (ZIP, city, state, country), US ZIP first; existing addresses are placed at start-up (ADR-0023). | Should | 12 |
-| C-23 | The card, search preview and search results show a contact's local time and time zone (from their first placed address), how far ahead or behind the viewer it is, and whether it is a good time to reach them (working hours, edges of the day, night or weekend) in words, not color alone (ADR-0023). | Should | 12 |
+| C-23 | The card, search preview and search results show a contact's local time and time zone (from their first placed address, or the time zone set by hand when no address gives one, C-26), how far ahead or behind the viewer it is, and whether it is a good time to reach them (working hours, edges of the day, night or weekend) in words, not color alone (ADR-0023). | Should | 12 |
+| C-26 | A contact can have a time zone set by hand, for people whose time zone is known but whose address is not. The contact form has a Time zone field that takes an IANA name (a list is offered) or Eastern, Central, Mountain or Pacific. An address always decides first; the hand-set zone is used when no address gives a zone, and replaces a zone that is only a guess for a state or country that spans several zones. Where it is used the local time says "set by hand" and is not marked approximate. It is hidden while presenting when Settings hides location (P-03), appears in the CSV `time_zone` column when no address gives a zone, and travels in the JSON export and import (ADR-0035). | Should | 12 |
 | C-24 | Clicking a contact's photo (in search results, the preview pane or the card) opens a larger view of it with their name, title and company; Esc, the Close button or a click outside closes it. Follows presenting mode, and people without a photo have nothing to enlarge (ADR-0028). | Should | 3 |
 | C-25 | The add and edit forms offer the values already in use as suggestions for Team, Department, Location and the type of each email, phone and address (typing narrows them; any text is still accepted). On save, a value matching an existing one ignoring case and extra spaces is stored with the existing spelling, as Company does (C-14). Presenting mode applies (ADR-0031). | Should | 3 |
 
@@ -180,6 +181,8 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | D-06 | In-app import help: an information icon on the import pages opens a help page explaining the column mapping (column in the file → field), what each field holds, and where the columns of a Google Contacts, Outlook or LinkedIn export go (ADR-0020). | Should | 3 |
 | D-07 | Review an import before it runs (ADR-0026): the preview is paged (25 rows) with a filter for ready rows, possible duplicates and errors; every valid row has a checkbox, with select this page, all, none and ready rows only, and ticks are kept across pages; only ticked rows are imported (ready rows start ticked, duplicates do not). A possible duplicate is compared field by field with the contact it matches, or the earlier row of the file: a full match says there is nothing new, otherwise a detail view lists each field that is different, only in the file or only in the stored contact. Import never changes a stored contact; a ticked duplicate is added as a new contact and can be merged afterwards (C-12). | Should | 3 |
 | D-08 | CSV export ends with the managers above each person: columns `L0`, `L1`, … after the existing ones, one per level up to the longest chain, each holding the manager at that level (L0 is the top of the person's reporting line, as in S-18; a person's own chain stops at an archived manager). Empty cells where a person has fewer levels; no level columns when nobody has a manager. The `manager` column and the other columns are unchanged, and importing the file ignores the level columns (ADR-0033). | Should | 3 |
+| D-09 | Choose what leaves in an export and protect it (ADR-0034). The spreadsheet (CSV) lets Settings pick column groups (work contact details, reporting line, tags and lists, notes and "works on", birthdays, personal email and phone) and a location level (none, time zone only, time zone with office, state and country, or full address); name, type, company, title, team, department and manager are always included. Defaults: work contact details, reporting line, and tags and lists on; free text, birthdays, personal contact details and street-level location off; location is time zone only, derived from the contact's address into a `time_zone` column. All formats leave out private contacts, contacts of a private type, tags, lists and extra fields (P-03) unless "include private" is ticked. An export can be wrapped in a password-protected AES-256 zip (password of at least 10 characters; it is never stored). The old export links keep working with the protective defaults. | Should | 3 |
+| D-10 | Before an export the Settings page warns that it is personal data about other people; notes, birthdays, personal contact details, full addresses, private records, vCard and JSON need a confirmation box ticked. Every export (including a single contact's vCard or JSON) is recorded in an export log (time, format, number of contacts, the choices made, whether it was password-protected); the log never holds contact data or the password. Settings shows the latest ten. The export route is unavailable while presenting (P-05). | Should | 3 |
 
 ### Instances and environments
 
@@ -263,6 +266,7 @@ Priority uses MoSCoW (Must / Should / Could). Phase maps to §8.
 | `contact` (Phase 11 column) | birthday | Phase 11 (C-20, ADR-0022). `YYYY-MM-DD`, or `--MM-DD` without a year. |
 | `contact_type` (Phase 11 column) | is_private | Phase 11 (P-08, ADR-0022). |
 | `contact_address` (Phase 12 columns) | latitude, longitude, time_zone, place_precision | Phase 12 (C-22, ADR-0023). From offline data; `place_precision` ∈ zip, city, state, country, none. |
+| `contact` (Phase 12 column) | time_zone | Phase 12 (C-26, ADR-0035). An IANA name set by hand; blank when none. Used only when no address gives a zone. |
 | `contact_address` | id, contact_id, label, street, city, region, postal_code, country, country_code | Phase 10 (C-19, ADR-0021). `country_code` is ISO 3166-1 alpha-2; `region` is the ISO 3166-2 subdivision code (without the country prefix) when recognised. |
 | `tag` | id, name (unique, case-insensitive), color | Phase 2. |
 | `contact_tag` | contact_id, tag_id | Phase 2. Composite key. |
@@ -300,7 +304,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 0 — Foundation ✅ | Repo, PostgreSQL, instance config; dev instance on localhost | N-01, N-02, N-10, I-01, I-02, I-04 | 3–4 days |
 | 1 — Contact core ✅ | Store and edit rich contacts | C-01–C-08, M-04, I-03, I-05 | 1 week |
 | 2 — Find and act (MVP) ✅ | Context search, tags, lists, copy emails | S-01–S-05, T-01–T-02, L-01–L-04, M-01–M-03, C-10, C-14 | 2 weeks |
-| 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, S-16, S-17, S-18, T-03–T-04, C-09, C-25, M-05, D-01–D-04, D-06, D-08, N-06, I-06–I-08 | 1–2 weeks |
+| 3 — Daily-driver ✅ | Production instances; org view, import/export, backups | S-06, S-16, S-17, S-18, T-03–T-04, C-09, C-25, M-05, D-01–D-04, D-06, D-08–D-10, N-06, I-06–I-08 | 1–2 weeks |
 | 4 — Depth ✅ | Power-user features | C-11–C-13, S-07, T-05, L-05 (list tags), I-09 | 1–2 weeks |
 | 5 — Smart | Semantic search, recent interactions and directory sync | S-08–S-10, D-05 | 2+ weeks |
 | 6 — Look and feel ✅ | Theme modes, three palettes, accessibility pass, layout refresh, command palette | A-01–A-06, N-09, S-12 | 8–10 days |
@@ -309,7 +313,7 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 | 9 — Containers | Container deployment, safer upgrades, double-click install for Windows and Mac | I-10–I-14 | 3–4 days |
 | 10 — Places | Postal addresses, groundwork for a contact map and time zones | C-19 | 2 days |
 | 11 — Birthdays and private types | Birthdays with reminders; private contact types | C-20, C-21, P-08 | 1–2 days |
-| 12 — Map and local time | Offline map, local time, near search, directions | C-22, C-23, S-13, S-14, M-06 | 4–5 days |
+| 12 — Map and local time | Offline map, local time, near search, directions | C-22, C-23, C-26, S-13, S-14, M-06 | 4–5 days |
 | 13 — Name ✅ | Rename to Kith Contacts everywhere for the public release; one-time move of the owner's install through backup and restore | N-12 | 1–2 days |
 | 14 — Open source release | LICENSE and notices, project files, README for strangers, clean sample data, rewritten author addresses, name and policy checks | N-13 | 2–3 days |
 
@@ -448,6 +452,8 @@ Decisions are recorded as ADRs — see [docs/adr/README.md](adr/README.md).
 
 | Version | Date | Change | ADR |
 | --- | --- | --- | --- |
+| 1.30 | 2026-10-23 | C-26 added: a time zone can be set by hand on a contact and is used when no address gives one. C-23 and the data model updated. | 0035 |
+| 1.29 | 2026-10-23 | D-09 and D-10 added: export column and location choices, private records left out unless included, optional password-protected AES-256 zip, a warning and confirmation, and an export log. The CSV gains a `time_zone` column. D-03 unchanged (its default CSV now carries fewer columns; ticking every option restores them). | 0034 |
 | 1.28 | 2026-10-23 | D-08 added: the CSV export ends with L0, L1, … columns holding each person's managers from the top of their reporting line down. D-03 unchanged. | 0033 |
 | 1.27 | 2026-10-23 | S-18 added: filter the contacts screen by manager tier (L0 at the top of a reporting line, +1 for each line below, plus Not a manager); S-04 updated. | 0032 |
 | 1.26.1 | 2026-10-23 | N-09 clarified: `e` on a person's full card opens their edit form (not offered while presenting, P-05). No requirement added or removed. | — |

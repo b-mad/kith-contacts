@@ -136,11 +136,65 @@
 
 <section class="panel" aria-labelledby="export-h">
   <h2 id="export-h">Export</h2>
-  <ul class="plain">
-    <li><a href="/export/contacts.csv" data-testid="export-csv">Spreadsheet (CSV)</a> <span class="muted small">— opens in Excel, Numbers or Google Sheets</span></li>
-    <li><a href="/export/contacts.vcf" data-testid="export-vcf">vCard (.vcf)</a> <span class="muted small">— import into Outlook, Google or Apple Contacts</span></li>
-    <li><a href="/export/contacts.json" data-testid="export-json">Complete data (JSON)</a> <span class="muted small">— everything, including lists, roles and tags</span></li>
-  </ul>
+  <p class="warning" role="note" data-testid="export-warning">
+    An export is a copy of <strong>personal data about other people</strong>. Once it leaves this app it is
+    no longer protected by it. Export only what you need, keep the file somewhere private, and delete it when you are done.
+    Private contacts, types, tags and lists are left out unless you include them below.
+  </p>
+  <form method="post" action="/export/download" data-testid="export-form" class="export-form">{{ m.csrf() }}
+    <input type="hidden" name="group" value="core">
+    <fieldset>
+      <legend>Format</legend>
+      <label><input type="radio" name="format" value="csv" checked> Spreadsheet (CSV)</label>
+      <label><input type="radio" name="format" value="vcf"> vCard (.vcf)</label>
+      <label><input type="radio" name="format" value="json"> Complete data (JSON)</label>
+      <p class="muted small">Only the spreadsheet lets you choose columns. vCard and JSON always hold everything about each contact they include.</p>
+    </fieldset>
+    <fieldset data-testid="export-columns">
+      <legend>Spreadsheet columns <span class="muted small">(name, type, company, title, team, department and manager are always included)</span></legend>
+      {% set group_labels = {
+        "work_contact": "Work contact details — work email, phone, Slack, Teams, LinkedIn",
+        "reporting": "Reporting line — manager levels L0, L1, …",
+        "tags_lists": "Tags and lists",
+        "notes": "Notes and “works on” (free text)",
+        "birthday": "Birthdays",
+        "personal_contact": "Personal email addresses and phone numbers"} %}
+      {% for g in export_groups %}
+        <label><input type="checkbox" name="group" value="{{ g }}"{% if g in default_groups %} checked{% endif %}> {{ group_labels[g] }}</label>
+      {% endfor %}
+    </fieldset>
+    <fieldset data-testid="export-location">
+      <legend>Location</legend>
+      <label><input type="radio" name="location" value="none"> None</label>
+      <label><input type="radio" name="location" value="timezone" checked> Time zone only <span class="muted small">(for scheduling; no place is named)</span></label>
+      <label><input type="radio" name="location" value="region"> Time zone, office, state and country</label>
+      <label><input type="radio" name="location" value="full"> Full address</label>
+    </fieldset>
+    <fieldset>
+      <legend>Protection</legend>
+      <label><input type="checkbox" name="include_private" value="1"> Include private contacts, types, tags and lists</label>
+      <label><input type="checkbox" name="encrypt" value="1"> Protect the file with a password (AES-256 zip)</label>
+      <label for="export-password">Password <span class="muted small">(at least 10 characters; the app does not keep it)</span></label>
+      <input id="export-password" type="password" name="password" autocomplete="new-password" minlength="10">
+      <p class="muted small">Open the zip with 7-Zip or Keka. The built-in unzip on macOS and Windows may not open AES-encrypted files.</p>
+    </fieldset>
+    <label class="confirm"><input type="checkbox" name="confirm" value="1" data-testid="export-confirm"> I understand this file holds personal data and I will handle it accordingly.
+      <span class="muted small">(Required for notes, birthdays, personal contact details, full addresses, private records, vCard and JSON.)</span></label>
+    <button type="submit" class="primary" data-testid="export-submit">Download export</button>
+  </form>
+  <h3 id="export-log-h">Recent exports</h3>
+  {% if export_log %}
+    <table class="contacts" data-testid="export-log">
+      <thead><tr><th>When (UTC)</th><th>Format</th><th>Contacts</th><th>What was included</th><th>Protection</th></tr></thead>
+      <tbody>
+        {% for e in export_log %}
+          <tr><td>{{ e.created_at.strftime("%Y-%m-%d %H:%M") }}</td><td>{{ {"csv": "CSV", "json": "JSON", "vcf": "vCard", "contact_vcf": "vCard (one)", "contact_json": "JSON (one)"}.get(e.kind, e.kind) }}</td><td>{{ e.contact_count }}</td><td>{{ e.detail }}</td><td>{% if e.encrypted %}Password{% else %}None{% endif %}{% if e.include_private %}, private included{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No exports yet.</p>
+  {% endif %}
 </section>
 
 <section class="panel" aria-labelledby="import-h">

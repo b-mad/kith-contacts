@@ -18,6 +18,7 @@ from pydantic import (
 
 from app.appearance import Density, Palette, Theme
 from app.birthdays import parse_birthday
+from app.geo import normalize_zone
 from app.links import normalize_linkedin
 
 
@@ -49,6 +50,11 @@ def _birthday(value: str | None) -> str | None:
         raise ValueError("use a date like March 14, 1980-03-14 or 3/14") from None
 
 
+def _time_zone(value: str | None) -> str | None:
+    """C-26: a time zone set by hand, as its IANA name."""
+    return normalize_zone(value)
+
+
 def _strip_at(value: str | None) -> str | None:
     return value.lstrip("@") or None if value else value
 
@@ -71,6 +77,9 @@ LinkedInUrl = Annotated[
 ]
 BirthdayText = Annotated[
     Annotated[str, StringConstraints(max_length=40)] | None, _Blank, AfterValidator(_birthday)
+]
+TimeZoneText = Annotated[
+    Annotated[str, StringConstraints(max_length=64)] | None, _Blank, AfterValidator(_time_zone)
 ]
 # Slack display names may contain spaces and punctuation, so only an "@" inside the name
 # and line breaks are refused (C-04).
@@ -176,6 +185,7 @@ class ContactFields(_Input):
     linkedin_url: LinkedInUrl = None  # C-18
     pronunciation: Text200 = None
     birthday: BirthdayText = None  # C-20
+    time_zone: TimeZoneText = None  # C-26
     is_favorite: bool = False
 
 
@@ -316,6 +326,7 @@ class ContactOut(_Output):
     linkedin_url: str | None = None  # C-18
     pronunciation: str | None
     birthday: str | None = None  # C-20
+    time_zone: str | None = None  # C-26
     is_favorite: bool
     emails: list[EmailOut]
     phones: list[PhoneOut]

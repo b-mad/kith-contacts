@@ -241,6 +241,21 @@ def unfiltered() -> Iterator[None]:
         PRESENTING.reset(token)
 
 
+@contextlib.contextmanager
+def private_withheld() -> Iterator[None]:
+    """D-09: read as presenting mode does, but only to leave private records out of an export.
+
+    Private contacts (and contacts of a private type), tags, lists and extra fields are never
+    loaded. No built-in field is hidden, and nothing is rendered differently.
+    """
+    quiet = Presenting(settings=PrivacySettings(hidden=frozenset({"fields"}), view="work"))
+    token = PRESENTING.set(quiet)
+    try:
+        yield
+    finally:
+        PRESENTING.reset(token)
+
+
 def is_presenting(cookies: Mapping[str, str], settings: PrivacySettings) -> bool:
     value = cookies.get(COOKIE)
     if value in ("1", "0"):
@@ -363,7 +378,11 @@ NAME_FIELDS: Final = frozenset(
 )
 # Private fields, each shown only when Settings doesn't hide its category. Every ContactOut
 # field is in WORK_FIELDS or here (a test checks), so a new field starts out hidden.
-PRIVATE_FIELDS: Final = {"notes": "notes", "birthday": "personal"}  # C-20
+PRIVATE_FIELDS: Final = {
+    "notes": "notes",
+    "birthday": "personal",  # C-20
+    "time_zone": "location",  # C-26: goes with the addresses it stands in for
+}
 
 
 def _blank(annotation: Any) -> Any:

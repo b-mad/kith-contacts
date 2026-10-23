@@ -175,6 +175,7 @@ class Contact(Base):
     linkedin_url: Mapped[str | None] = mapped_column(String(300))  # C-18, migration 0009
     # C-20: "YYYY-MM-DD", or "--MM-DD" without a year (ADR-0022, migration 0011).
     birthday: Mapped[str | None] = mapped_column(String(10))
+    time_zone: Mapped[str | None] = mapped_column(String(64))  # C-26: set by hand
     pronunciation: Mapped[str | None] = mapped_column(String(200))
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -354,6 +355,20 @@ class SavedSearch(Base):
     name: Mapped[str] = mapped_column(String(100))
     query: Mapped[str] = mapped_column(String(1000))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ExportLog(Base):
+    """D-10: one row per export: when, what kind, which choices. Never contact data (ADR-0034)."""
+
+    __tablename__ = "export_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    kind: Mapped[str] = mapped_column(String(20))  # csv, json, vcf, contact-json, contact-vcf
+    contact_count: Mapped[int] = mapped_column(Integer)
+    include_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    encrypted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    detail: Mapped[str] = mapped_column(String(300), default="", server_default="")
 
 
 class DuplicateDismissal(Base):
